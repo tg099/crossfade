@@ -12,6 +12,8 @@ Selbst gehostete Web-App, die deine Musiksammlungen zwischen Musik-Streamingdien
 ([welche das sind](#unterstützte-dienste)): in eine Richtung, in beide Richtungen oder in Gruppen, inklusive Löschungen.
 Mehrere Personen teilen sich eine Instanz, jede mit eigenen Diensten und Fades. Nur Admins legen Nutzer an und verwalten sie.
 
+<p align="center"><a href="https://buymeacoffee.com/tg099"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" height="48"></a></p>
+
 <p align="center">
   <img src="docs/screenshots/desktop-light.png" alt="Übersicht: deine Fades, neue Songs der Woche und was gerade dazugekommen ist" width="100%">
 </p>
@@ -49,32 +51,37 @@ immer nur den Fade selbst, nie die Mediathek der anderen.
 Wie du die einzelnen Dienste verbindest, steht unter [Dienste einrichten](#dienste-einrichten). Ein neuer Dienst
 ist ein Modul in `crossfade/providers/`; Wünsche gern als [Issue](https://github.com/tg099/crossfade/issues).
 
-## Betrieb mit Docker (empfohlen)
+## Installation
 
-Voraussetzungen: ein Server mit Docker und eine Domain, deren DNS auf ihn zeigt (Ports 80/443 offen).
+Crossfade ist ein einziges Docker-Image (`ghcr.io/tg099/crossfade`, amd64 und arm64), ohne Datenbankserver oder
+weitere Abhängigkeiten. **Schritt-für-Schritt-Anleitung: [docs/install.md](docs/install.md)** (Englisch), mit diesen Varianten:
+
+| Du hast … | Variante |
+|---|---|
+| Einen Server mit Domain | [Docker Compose mit automatischem HTTPS](docs/install.md#a-docker-compose-with-automatic-https) (inkl. Caddy) |
+| Schon einen Reverse Proxy (Nginx Proxy Manager, Traefik …) | [Hinter deinem Reverse Proxy](docs/install.md#b-behind-your-existing-reverse-proxy) |
+| Willst es nur ausprobieren | [Schnellstart mit `docker run`](docs/install.md#c-quick-start-with-docker-run) |
+| Einen Unraid-Server | [docs/unraid.md](docs/unraid.md) |
+
+Kurzfassung, auf einem Server, auf den deine Domain zeigt (Ports 80/443 offen):
 
 ```sh
+mkdir crossfade && cd crossfade
 curl -O https://raw.githubusercontent.com/tg099/crossfade/main/docker-compose.yml \
      -O https://raw.githubusercontent.com/tg099/crossfade/main/Caddyfile \
      -o .env https://raw.githubusercontent.com/tg099/crossfade/main/.env.example
-python3 -c "import secrets; print(secrets.token_urlsafe(48))"   # → CROSSFADE_SECRET_KEY in .env
-# CROSSFADE_DOMAIN in .env setzen
+openssl rand -base64 48        # → CROSSFADE_SECRET_KEY in .env, außerdem CROSSFADE_DOMAIN setzen
 docker compose up -d
 ```
 
-Dann `https://<deine-domain>` öffnen und das Admin-Konto anlegen. Caddy besorgt das HTTPS-Zertifikat selbst.
+Dann `https://<deine-domain>` öffnen und das Admin-Konto anlegen. **`CROSSFADE_SECRET_KEY` danach nie ändern**,
+sonst lassen sich gespeicherte Logins nicht mehr entschlüsseln. Aktualisieren: `docker compose pull && docker compose up -d`.
+[Updates, Tags, Backups und Fehlerbehebung](docs/install.md#updating) stehen in der Anleitung.
 
-- Images: `ghcr.io/tg099/crossfade` für `linux/amd64` und `linux/arm64`. Tags: `latest`, `X.Y` (nur Fehlerbehebungen),
-  `X.Y.Z` und `testing` (neuestes Release inklusive Vorabversionen). Ein neues Image entsteht bei jedem [GitHub-Release](https://github.com/tg099/crossfade/releases).
-- Daten (SQLite, verschlüsselte Logins) liegen im Volume `crossfade-data`, also regelmäßig sichern. Crossfade hebt
-  außerdem die letzten 10 Datenbank-Stände in `backups/` auf (einer pro Start).
-- **`CROSSFADE_SECRET_KEY` nie ändern**, sonst lassen sich gespeicherte Logins nicht mehr entschlüsseln.
-- Läuft schon ein Reverse Proxy (Traefik, Nginx Proxy Manager …)? Nur den Dienst `crossfade` starten, auf Port 8765
-  weiterleiten, `CROSSFADE_BASE_URL=https://…` setzen und die Pufferung für `/api/events` abschalten (Server-Sent Events).
-  Weitergeleiteten Headern (`X-Forwarded-For`/`-Proto`) wird nur aus privaten Netzen vertraut; erreichen andere
-  Geräte im LAN Port 8765 direkt, setz `FORWARDED_ALLOW_IPS` auf die Adresse deines Proxys.
-- Unraid: siehe [docs/unraid.md](docs/unraid.md) (Englisch).
-- Selbst bauen: in `docker-compose.yml` die Zeile `build: .` aktivieren und `docker compose up -d --build`.
+Zum Ausprobieren auf dem eigenen Rechner: `docker run -d -p 8765:8765 -v crossfade-data:/data ghcr.io/tg099/crossfade`,
+dann <http://localhost:8765> öffnen.
+
+Selbst bauen: in `docker-compose.yml` die Zeile `build: .` aktivieren und `docker compose up -d --build`.
 
 ## Dienste einrichten
 
@@ -184,7 +191,10 @@ Fehler und Ideen gern als [Issue](https://github.com/tg099/crossfade/issues), Fr
 
 ## Projekt unterstützen
 
-Wenn dir Crossfade hilft, kannst du mir gern [einen Kaffee spendieren](https://buymeacoffee.com/tg099). Danke!
+Crossfade ist kostenlos, der Quellcode ist offen einsehbar, und es entsteht in meiner Freizeit. Wenn es deine Musik synchron hält, hilft ein
+Kaffee, dass es weitergeht. Danke! ☕
+
+<a href="https://buymeacoffee.com/tg099"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" height="48"></a>
 
 ## Haftungsausschluss
 
