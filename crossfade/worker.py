@@ -10,7 +10,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from . import notify
+from . import health, notify
 from .config import config
 from .db import Database, get_db
 from .engine import LineSync, Stopped
@@ -355,6 +355,7 @@ class Worker:
                 log.error("scheduler: %s", traceback.format_exc())
 
     def _tick(self) -> None:
+        health.flush(self.db)
         self._check_accounts()
         now = time.time()
         due = self.db.all("""

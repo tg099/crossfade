@@ -6,6 +6,7 @@ import os
 import time
 
 from ..db import Database
+from ..health import measured
 from ..models import APPLE, SPOTIFY, YTM, AuthError
 from ..security import decrypt, encrypt
 from .apple import AppleProvider, DevTokenStore
@@ -80,6 +81,10 @@ def build_provider(db: Database, account: dict) -> Provider:
 
 
 def make_provider(db: Database, service: str, creds: dict, save=None) -> Provider:
+    return measured(_make_provider(db, service, creds, save))
+
+
+def _make_provider(db: Database, service: str, creds: dict, save=None) -> Provider:
     if service == SPOTIFY:
         return SpotifyProvider(creds, save, client_secret=app_credential(db, "spotify_client_secret"))
     if service == APPLE:
@@ -101,7 +106,7 @@ def search_provider(db: Database, service: str, user_id: int | None = None) -> P
             except AuthError:
                 pass
     if service == YTM:
-        return YTMProvider({})
+        return measured(YTMProvider({}))
     if service == APPLE:
-        return AppleProvider({"media_user_token": "", "storefront": "us"}, dev_tokens=dev_token_store(db))
+        return measured(AppleProvider({"media_user_token": "", "storefront": "us"}, dev_tokens=dev_token_store(db)))
     return None

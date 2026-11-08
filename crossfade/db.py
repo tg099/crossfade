@@ -312,6 +312,20 @@ MIGRATIONS: list[str] = [
     ALTER TABLE accounts ADD COLUMN connected_at REAL;    -- when this login was entered
     UPDATE accounts SET connected_at=updated_at;
     """,
+    # ---- 16: how the services are doing, per hour (admin health page)
+    """
+    CREATE TABLE service_stats (
+        hour INTEGER NOT NULL,           -- unix time // 3600
+        service TEXT NOT NULL,
+        calls INTEGER NOT NULL DEFAULT 0,
+        errors INTEGER NOT NULL DEFAULT 0,
+        auth_errors INTEGER NOT NULL DEFAULT 0,
+        rate_limited INTEGER NOT NULL DEFAULT 0,
+        failed_items INTEGER NOT NULL DEFAULT 0,
+        ms INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (hour, service)
+    );
+    """,
 ]
 
 

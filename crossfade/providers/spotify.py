@@ -11,6 +11,7 @@ from urllib.parse import urlencode, urlparse
 
 import httpx
 
+from .. import health
 from ..models import LIKED, PLAYLIST, SPOTIFY, ApiError, AuthError, Collection, NotSupported, Track
 from .base import Provider, chunks, unique
 
@@ -118,8 +119,10 @@ class SpotifyProvider(Provider):
             except ValueError:
                 pass
             if (body_json.get("error") or {}).get("reason") == "QUOTA_EXCEEDED":
+                health.rate_limited(SPOTIFY)
                 raise ApiError("The app's Spotify quota is used up. Try again later.", 429)
             if _attempt < 5:
+                health.rate_limited(SPOTIFY)
                 time.sleep(min(int(r.headers.get("Retry-After", "5")), 60) + 1)
                 return self._req(method, path, params, body, _attempt + 1)
         if r.status_code >= 500 and _attempt < 3:

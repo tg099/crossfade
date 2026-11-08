@@ -22,6 +22,7 @@ import httpx
 from ytmusicapi import LikeStatus, OAuthCredentials, YTMusic
 from ytmusicapi.helpers import initialize_headers
 
+from .. import health
 from ..matcher import tidy_video
 from ..models import LIBRARY, LIKED, PLAYLIST, YTM, ApiError, AuthError, Collection, NotSupported, Track
 from .base import Provider, chunks, unique
@@ -161,6 +162,8 @@ class DataApi:
             if r.status_code == 401 and attempt == 0:
                 self._refresh()
                 continue
+            if r.status_code == 429:
+                health.rate_limited(YTM)
             if r.status_code in (429, 500, 502, 503) and attempt < 3:
                 time.sleep(2 * (attempt + 1))
                 continue

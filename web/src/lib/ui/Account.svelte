@@ -6,6 +6,7 @@
 	import { app } from '#lib/state.svelte.ts';
 	import type { User } from '#lib/types.ts';
 	import Glyph from './Glyph.svelte';
+	import HealthSheet from './HealthSheet.svelte';
 	import NotifySheet from './NotifySheet.svelte';
 	import Segmented from './Segmented.svelte';
 	import ServiceSheet from './ServiceSheet.svelte';
@@ -154,6 +155,11 @@
 							<span class="grow">{t('users.title')}</span>
 							<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
 						</button>
+						<button class="cell" style:--inset="58px" onclick={() => (ui.healthOpen = true)}>
+							<span class="tile-icon" style:background="#34c759"><Glyph name="pulse" size={19} weight={2.2} /></span>
+							<span class="grow">{t('account.health')}</span>
+							<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
+						</button>
 						<button class="cell" style:--inset="58px" onclick={() => (ui.appsOpen = true)}>
 							<span class="tile-icon" style:background="#636366"><Glyph name="shield" size={18} weight={2.2} /></span>
 							<span class="grow">{t('account.apps')}</span>
@@ -189,6 +195,7 @@
 
 <ServiceSheet />
 <NotifySheet />
+<HealthSheet />
 
 <style>
 	.acc {

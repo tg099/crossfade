@@ -17,6 +17,7 @@ from urllib.parse import parse_qs, urlparse
 
 import httpx
 
+from .. import health
 from ..models import APPLE, LIBRARY, LIKED, PLAYLIST, ApiError, AuthError, Collection, NotSupported, Track
 from .base import Provider, chunks, unique
 
@@ -123,6 +124,8 @@ class AppleProvider(Provider):
                 return self._req(method, path, params, body, user, 1, patient)
             raise AuthError("Apple Music sign-in is invalid or expired. Please enter the media-user-token "
                             "again.")
+        if r.status_code == 429:
+            health.rate_limited(APPLE)
         if (r.status_code >= 500 or (r.status_code == 429 and patient)) and _attempt < 5:
             time.sleep(3 * (_attempt + 1))
             return self._req(method, path, params, body, user, _attempt + 2, patient)

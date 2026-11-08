@@ -1,8 +1,10 @@
 """Admin: users (only admins create and manage them), app credentials for Spotify/Google."""
 from __future__ import annotations
 
+import platform
 import re
 import secrets
+import shutil
 import time
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,6 +13,7 @@ from pydantic import BaseModel, Field
 from .. import notify as alert
 from ..config import config
 from ..db import Database
+from ..models import APPLE, SERVICE_NAMES, SERVICES
 from ..providers import APP_KEYS, app_credential, app_credential_source, set_app_credential
 from ..security import hash_password
 from ..sharing import notify, participants
@@ -214,3 +217,79 @@ def test_smtp(body: SmtpTest, _: dict = Depends(admin_user), db: Database = Depe
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": f"{type(e).__name__}: {e}"[:300]}
     return {"ok": True, "error": None}
+
+
+# ---------------------------------------------------------------------- health
+@router.get("/health")
+def instance_health(_: dict = Depends(admin_user), db: Database = Depends(db_dep)):
+    """How the instance and the services are doing. Counts only: no songs, no fade names, no
+    account details of other users."""
+    from .. import health
+    from ..providers.apple import AppleProvider, jwt_expiry
+    health.flush(db)
+    now = time.time()
+    hour = health._hour(now)
+    w = get_worker()
+
+    services = []
+    for svc in SERVICES:
+        rows = {r["hour"]: r for r in db.all("SELECT * FROM service_stats WHERE service=? AND hour>?",
+                                             (svc, hour - 7 * 24))}
+
+        def total(hours: int, rows=rows) -> dict:
+            sel = [r for h, r in rows.items() if h > hour - hours]
+            out = {f: sum(r[f] for r in sel) for f in health.FIELDS}
+            out["avg_ms"] = round(out.pop("ms") / out["calls"]) if out["calls"] else None
+            return out
+        acc = db.one("""SELECT COUNT(*) AS connected, SUM(status='error') AS failing,
+                        SUM(expires_at IS NOT NULL AND expires_at < ?) AS expiring,
+                        MIN(checked_at) AS oldest_check FROM accounts WHERE service=? AND credentials IS NOT NULL""",
+                     (now + 7 * 86400, svc))
+        services.append({
+            "service": svc, "name": SERVICE_NAMES[svc], "day": total(24), "week": total(24 * 7),
+            "hours": [{"hour": h * 3600, "calls": rows[h]["calls"] if h in rows else 0,
+                       "errors": (rows[h]["errors"] + rows[h]["auth_errors"]) if h in rows else 0}
+                      for h in range(hour - 23, hour + 1)],
+            "accounts": {"connected": acc["connected"] or 0, "failing": acc["failing"] or 0,
+                         "expiring": acc["expiring"] or 0, "oldest_check": acc["oldest_check"]},
+        })
+    apple = next(s for s in services if s["service"] == APPLE)
+    dev = db.setting("apple_dev_token")
+    blocked = AppleProvider._amp_blocked_until
+    apple["notes"] = {"search_blocked_until": blocked if blocked > now else None,
+                      "web_token_expires": jwt_expiry(dev) if dev else None}
+
+    runs = db.all("""SELECT status, COUNT(*) AS n, AVG(finished_at-started_at) AS secs FROM runs
+                     WHERE trigger<>'preview' AND started_at>? AND finished_at IS NOT NULL GROUP BY status""",
+                  (now - 86400,))
+    fades = db.one("""SELECT COUNT(*) AS total, SUM(paused) AS paused,
+                      SUM(paused=0 AND last_status IN ('error','auth_error')) AS failing,
+                      SUM(paused=0 AND last_status IN ('needs_confirm','blocked')) AS waiting FROM lines""")
+    overdue = db.val("""SELECT COUNT(*) FROM lines WHERE paused=0 AND interval_minutes>0 AND last_run_at IS NOT NULL
+                        AND last_run_at + interval_minutes*60*3 < ?""", (now,))
+
+    files = {p.name: p.stat().st_size for p in config.data_dir.glob("crossfade.sqlite3*") if p.is_file()}
+    backups = sorted((config.data_dir / "backups").glob("crossfade-*.sqlite3"), key=lambda p: p.stat().st_mtime)
+    disk = shutil.disk_usage(config.data_dir)
+    counts = {k: db.val(f"SELECT COUNT(*) FROM {t}") for k, t in
+              (("users", "users"), ("songs", "songs"), ("refs", "song_refs"), ("cached_searches", "search_cache"),
+               ("snapshots", "snapshots"))
+              if db.val("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (t,))}
+    return {
+        "now": now,
+        "instance": {"version": config.version, "started_at": health.STARTED_AT, "scheduler": config.scheduler,
+                     "workers": config.worker_threads, "python": platform.python_version(),
+                     "schema": db.val("PRAGMA user_version"),
+                     "database_bytes": sum(files.values()), "disk_free_bytes": disk.free, "disk_total_bytes": disk.total,
+                     "backups": len(backups),
+                     "last_backup": {"at": backups[-1].stat().st_mtime, "bytes": backups[-1].stat().st_size}
+                     if backups else None, "counts": counts},
+        "services": services,
+        "syncs": {"day": {r["status"]: {"n": r["n"], "avg_secs": round(r["secs"] or 0, 1)} for r in runs},
+                  "running": sum(1 for j in list(w.jobs.values()) if j.get("state") == "running"),
+                  "queued": sum(1 for j in list(w.jobs.values()) if j.get("state") == "queued"),
+                  "library_jobs": len(w.catalog_jobs),
+                  "fades": {k: fades[k] or 0 for k in ("total", "paused", "failing", "waiting")},
+                  "overdue": overdue or 0},
+        "errors": health.recent_errors(),
+    }
