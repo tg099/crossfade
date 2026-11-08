@@ -150,6 +150,7 @@ def app_settings(_: dict = Depends(admin_user), db: Database = Depends(db_dep)):
         public = key.endswith("_id")
         out[key] = {"set": bool(val), "source": src, "value": val if public else None}
     out["spotify_redirect_uri"] = f"{config.base_url}/api/services/spotify/callback"
+    out["tidal_redirect_uri"] = f"{config.base_url}/api/services/tidal/callback"
     out["base_url"] = config.base_url
     return out
 
@@ -159,6 +160,8 @@ class AppBody(BaseModel):
     spotify_client_secret: str | None = None
     google_client_id: str | None = None
     google_client_secret: str | None = None
+    tidal_client_id: str | None = None
+    tidal_client_secret: str | None = None
 
 
 @router.put("/apps")

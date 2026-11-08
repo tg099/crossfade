@@ -17,7 +17,7 @@ from collections.abc import Callable
 
 import httpx
 
-from .models import APPLE, SPOTIFY, YTM
+from .models import APPLE, DEEZER, SPOTIFY, TIDAL, YTM
 
 log = logging.getLogger(__name__)
 
@@ -28,9 +28,11 @@ ID_PATTERNS = {
     APPLE: re.compile(r"^\d{1,15}$"),
     SPOTIFY: re.compile(r"^[A-Za-z0-9]{22}$"),
     YTM: re.compile(r"^[A-Za-z0-9_-]{11}$"),
+    DEEZER: re.compile(r"^\d{1,14}$"),
+    TIDAL: re.compile(r"^\d{1,14}$"),
 }
 # only ever hand out audio from these hosts (the page's CSP allows exactly them)
-AUDIO_HOSTS = re.compile(r"^https://([\w-]+\.)*(itunes\.apple\.com|mzstatic\.com|scdn\.co)/")
+AUDIO_HOSTS = re.compile(r"^https://([\w-]+\.)*(itunes\.apple\.com|mzstatic\.com|scdn\.co|dzcdn\.net)/")
 _SPOTIFY_PREVIEW = re.compile(r'"audioPreview"\s*:\s*\{\s*"url"\s*:\s*"(https://[^"]+)"')
 
 TTL = 6 * 3600
@@ -79,11 +81,20 @@ def spotify_preview(track_id: str) -> dict | None:
     return _audio(m.group(1)) if m else None
 
 
+def deezer_preview(track_id: str) -> dict | None:
+    r = httpx.get(f"https://api.deezer.com/track/{track_id}", headers={"User-Agent": UA}, timeout=15)
+    if r.status_code != 200:
+        return None
+    return _audio((r.json() or {}).get("preview"))
+
+
 def preview(service: str, track_id: str, storefront: str = "us",
             amp: Callable[[str], dict] | None = None) -> dict | None:
     """{"kind": "audio", "url": …} | {"kind": "youtube", "id": …} | None (no sample available)."""
     if service == YTM:
         return {"kind": "youtube", "id": track_id}
+    if service == TIDAL:
+        return None          # TIDAL offers no samples to third-party apps
     key = (service, track_id, storefront if service == APPLE else "")
     now = time.time()
     with _lock:
@@ -91,7 +102,8 @@ def preview(service: str, track_id: str, storefront: str = "us",
         if hit and hit[0] > now:
             return hit[1]
     try:
-        found = apple_preview(track_id, storefront, amp) if service == APPLE else spotify_preview(track_id)
+        found = (apple_preview(track_id, storefront, amp) if service == APPLE
+                 else deezer_preview(track_id) if service == DEEZER else spotify_preview(track_id))
     except (httpx.HTTPError, ValueError) as e:
         log.info("preview %s/%s failed: %s", service, track_id, e)
         return None  # network trouble: don't cache, try again next time

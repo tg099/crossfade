@@ -20,6 +20,7 @@
 	let device = $state<{ flow: string; user_code: string; verification_url: string; interval: number } | null>(null);
 	let pasteText = $state('');
 	let appleToken = $state('');
+	let arl = $state('');
 	let timer: ReturnType<typeof setTimeout> | null = null;
 	let loadedFor = '';
 	let hadDevice = false;
@@ -37,7 +38,7 @@
 		hadDevice = hasDevice;
 		error = '';
 		device = null;
-		pasteText = appleToken = '';
+		pasteText = appleToken = arl = '';
 		ytmWay = hasDevice ? 'device' : 'paste';
 	});
 	function closed() {
@@ -64,10 +65,18 @@
 		ui.serviceOpen = false;
 	}
 
-	const spotify = () =>
+	// Spotify and TIDAL: sign in on the service's own page, which comes back to /services
+	const oauth = (svc: 'spotify' | 'tidal') =>
 		run(async () => {
-			const r = await post<{ url: string }>('/api/services/spotify/start');
+			const r = await post<{ url: string }>(`/api/services/${svc}/start`);
 			window.location.href = r.url;
+		});
+	const spotify = () => oauth('spotify');
+	const deezer = () =>
+		run(async () => {
+			await post('/api/services/deezer/arl', { arl });
+			arl = '';
+			await connected();
 		});
 	const startDevice = () =>
 		run(async () => {
@@ -241,6 +250,39 @@
 						</div>
 						<p class="section-foot">{t('services.ytm.pasteHint')}</p>
 					{/if}
+				{:else if s.service === 'tidal'}
+					{#if s.methods.includes('oauth')}
+						<div class="group">
+							<button class="cell" onclick={() => oauth('tidal')} disabled={busy}>
+								<span class="grow tintc">{t('services.tidal.go')}</span>
+								<span class="chev"><Glyph name="external" size={17} weight={2.2} /></span>
+							</button>
+						</div>
+						<p class="section-foot">{t('services.tidal.hint')}</p>
+					{:else if app.user?.is_admin}
+						<div class="group">
+							<button class="cell" onclick={() => (ui.appsOpen = true)}>
+								<span class="grow tintc">{t('services.tidal.setup')}</span>
+								<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
+							</button>
+						</div>
+						<p class="section-foot">{t('services.tidal.setupHint')}</p>
+					{:else}
+						<p class="section-foot">{t('services.tidal.askAdmin')}</p>
+					{/if}
+				{:else if s.service === 'deezer'}
+					<ol class="steps t-sub">
+						<li>{t('services.deezer.s1')} <a href="https://www.deezer.com" target="_blank" rel="noopener">deezer.com</a></li>
+						<li>{t('services.deezer.s2')}</li>
+						<li>{t('services.deezer.s3')}</li>
+					</ol>
+					<div class="group">
+						<label class="cell">
+							<input class="in mono" type="password" bind:value={arl} placeholder="arl" autocomplete="off" />
+						</label>
+						<button class="cell" onclick={deezer} disabled={busy || arl.length < 20}><span class="grow tintc">{t('services.connect')}</span></button>
+					</div>
+					<p class="section-foot">{t('services.deezer.hint')}</p>
 				{:else}
 					<ol class="steps t-sub">
 						<li>{t('services.apple.s1')} <a href="https://music.apple.com" target="_blank" rel="noopener">music.apple.com</a></li>

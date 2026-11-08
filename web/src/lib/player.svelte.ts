@@ -15,16 +15,18 @@ export interface PlayableTrack {
 type Source = { kind: 'audio'; url: string } | { kind: 'youtube'; id: string };
 type Status = 'loading' | 'playing' | 'paused' | 'ended' | 'error';
 
-const ID_PATTERN: Record<Service, RegExp> = {
+// TIDAL gives third-party apps no samples, so its songs aren't playable here
+const ID_PATTERN: Partial<Record<Service, RegExp>> = {
 	apple: /^\d{1,15}$/,
 	spotify: /^[A-Za-z0-9]{22}$/,
-	ytm: /^[A-Za-z0-9_-]{11}$/
+	ytm: /^[A-Za-z0-9_-]{11}$/,
+	deezer: /^\d{1,14}$/
 };
 const YT_ORIGIN = 'https://www.youtube-nocookie.com';
 
 /** Only catalog songs have a sample (library-only Apple ids, local files … don't). */
 export function canPlay(t: Pick<PlayableTrack, 'service' | 'id'> | null | undefined): t is PlayableTrack {
-	return !!t && !!t.service && ID_PATTERN[t.service]?.test(t.id);
+	return !!t && !!t.service && !!ID_PATTERN[t.service]?.test(t.id);
 }
 
 const keyOf = (t: Pick<PlayableTrack, 'service' | 'id'>) => `${t.service}:${t.id}`;

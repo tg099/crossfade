@@ -5,7 +5,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import Logo from '#lib/components/Logo.svelte';
-	import { SERVICES } from '#lib/format.ts';
+	import { SERVICE_NAME, SERVICES } from '#lib/format.ts';
 	import { app } from '#lib/state.svelte.ts';
 	import type { Line, Service } from '#lib/types.ts';
 	import Account from '#lib/ui/Account.svelte';
@@ -42,9 +42,13 @@
 	let ready = $state(false);
 	let W = $state(390);
 
-	const SPOTIFY_ERRORS: Record<string, string> = {
+	// back from a sign-in on the service's own page (Spotify, TIDAL)
+	const SIGNIN_ERRORS: Record<string, string> = {
 		'spotify-cancelled': 'services.spotify.cancelled',
-		'spotify-premium': 'services.spotify.premium'
+		'spotify-premium': 'services.spotify.premium',
+		'spotify-failed': 'services.spotify.failed',
+		'tidal-cancelled': 'services.tidal.cancelled',
+		'tidal-failed': 'services.tidal.failed'
 	};
 
 	onMount(() => {
@@ -57,11 +61,11 @@
 		if (url.pathname.startsWith('/services')) {
 			const ok = url.searchParams.get('connected');
 			const err = url.searchParams.get('error');
-			if (ok === 'spotify') {
-				ui.say(t('services.connectedNamed', { service: 'Spotify' }));
+			if (ok === 'spotify' || ok === 'tidal') {
+				ui.say(t('services.connectedNamed', { service: SERVICE_NAME[ok] }));
 				app.loadServices();
 				app.loadLines();
-			} else if (err) ui.say(t((SPOTIFY_ERRORS[err] ?? 'services.spotify.failed') as never), 'alert', 'fault');
+			} else if (err) ui.say(t((SIGNIN_ERRORS[err] ?? 'services.spotify.failed') as never), 'alert', 'fault');
 			// a notification links to the service whose login needs renewing (/services?service=apple)
 			const focus = url.searchParams.get('service') as Service | null;
 			const back = (ok || err?.split('-')[0]) as Service | null;

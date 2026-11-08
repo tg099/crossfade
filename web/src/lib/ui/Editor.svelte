@@ -58,7 +58,7 @@
 	const editId = $derived(ui.editing ?? 0);
 	const fade = $derived(editId ? app.line(editId) : undefined);
 	const connected = $derived(app.connected.filter((s) => s.status !== 'error').map((s) => s.service));
-	const LIKED: Record<Service, Key> = { ytm: 'liked.ytm', apple: 'liked.apple', spotify: 'liked.spotify' };
+	const LIKED: Record<Service, Key> = { ytm: 'liked.ytm', apple: 'liked.apple', spotify: 'liked.spotify', tidal: 'liked.tidal', deezer: 'liked.deezer' };
 
 	function blank(): Draft {
 		const used = new Set(app.lines.map((f) => f.color.toUpperCase()));

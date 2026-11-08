@@ -7,11 +7,13 @@ import time
 
 from ..db import Database
 from ..health import measured
-from ..models import APPLE, SPOTIFY, YTM, AuthError
+from ..models import APPLE, DEEZER, SPOTIFY, TIDAL, YTM, AuthError
 from ..security import decrypt, encrypt
 from .apple import AppleProvider, DevTokenStore
 from .base import Provider
+from .deezer import DeezerProvider
 from .spotify import SpotifyProvider
+from .tidal import TidalProvider
 from .ytm import YTMProvider
 
 # Instance credentials: env vars win over values entered by the admin in the UI.
@@ -20,6 +22,8 @@ APP_KEYS = {
     "spotify_client_secret": "SPOTIFY_CLIENT_SECRET",
     "google_client_id": "GOOGLE_CLIENT_ID",
     "google_client_secret": "GOOGLE_CLIENT_SECRET",
+    "tidal_client_id": "TIDAL_CLIENT_ID",
+    "tidal_client_secret": "TIDAL_CLIENT_SECRET",
 }
 
 
@@ -93,6 +97,10 @@ def _make_provider(db: Database, service: str, creds: dict, save=None) -> Provid
         cid, secret = app_credential(db, "google_client_id"), app_credential(db, "google_client_secret")
         return YTMProvider(creds, save, oauth_client=(cid, secret) if cid and secret else None,
                            meta_store=DbMetaStore(db))
+    if service == TIDAL:
+        return TidalProvider(creds, save, client_secret=app_credential(db, "tidal_client_secret"))
+    if service == DEEZER:
+        return DeezerProvider(creds, save)
     raise ValueError(service)
 
 
@@ -109,4 +117,11 @@ def search_provider(db: Database, service: str, user_id: int | None = None) -> P
         return measured(YTMProvider({}))
     if service == APPLE:
         return measured(AppleProvider({"media_user_token": "", "storefront": "us"}, dev_tokens=dev_token_store(db)))
+    if service == DEEZER:
+        return measured(DeezerProvider({}))      # the catalog needs no login
+    if service == TIDAL:
+        cid, secret = app_credential(db, "tidal_client_id"), app_credential(db, "tidal_client_secret")
+        if cid and secret:                       # app-only token: catalog search without a user
+            return measured(TidalProvider({"client_id": cid, "app_only": True, "expires_at": 0}, None,
+                                          client_secret=secret))
     return None

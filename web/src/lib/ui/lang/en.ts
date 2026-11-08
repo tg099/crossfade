@@ -1046,4 +1046,23 @@ export const en: Record<keyof typeof de, string | ((v: V) => string)> = {
 	'tt.busy': 'Something is running in your library. This continues afterwards.',
 	'tt.done': (v: V) => `Brought back ${toN(v.n) === 1 ? '1 song' : `${v.n} songs`}${toN(v.removed) ? `, removed ${v.removed}` : ''}${toN(v.failed) ? `, ${v.failed} failed` : ''}`,
 	'lib.job.restore': 'Restoring',
+
+	// TIDAL and Deezer
+	'liked.tidal': 'My Tracks',
+	'liked.deezer': 'Favourite tracks',
+	'services.tidal.go': 'Sign in with TIDAL',
+	'services.tidal.hint': 'You come back here afterwards. Crossfade only gets access to your tracks and playlists.',
+	'services.tidal.setup': 'Set up the TIDAL app',
+	'services.tidal.setupHint': 'TIDAL needs this installation to have its own TIDAL app. Setting it up takes about five minutes.',
+	'services.tidal.askAdmin': 'TIDAL isn’t set up here yet. Ask an administrator to add a TIDAL app.',
+	'services.tidal.cancelled': 'TIDAL sign-in cancelled',
+	'services.tidal.failed': 'TIDAL sign-in failed. Please try again.',
+	'services.deezer.s1': 'On a computer, sign in at',
+	'services.deezer.s2': 'Open the developer tools: “Application” (Chrome, Edge) or “Storage” (Safari, Firefox), then Cookies → deezer.com.',
+	'services.deezer.s3': 'Copy the value of “arl” and paste it here.',
+	'services.deezer.hint': 'Deezer doesn’t accept new developer apps, so this uses your session’s cookie. It usually lasts a few months. Signing out of Deezer makes it invalid.',
+	'apps.td.s1': 'In the',
+	'apps.td.s2': 'create an app and add the redirect URI below.',
+	'apps.td.s3': 'Enable the scopes for collection, playlists, search and user (user.read).',
+	'apps.td.hint': 'Enter the client ID. With the secret, Crossfade can also search TIDAL for users without a TIDAL account.',
 };

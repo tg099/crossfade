@@ -339,7 +339,8 @@ class Worker:
 
     def _flag_auth(self, line_id: int, message: str) -> None:
         """Mark the account whose service is named in the auth error message."""
-        names = {"youtube": "ytm", "apple": "apple", "spotify": "spotify", "google": "ytm"}
+        names = {"youtube": "ytm", "apple": "apple", "spotify": "spotify", "google": "ytm", "tidal": "tidal",
+                 "deezer": "deezer"}
         low = message.lower()
         services = {svc for key, svc in names.items() if key in low}
         for acc in self.db.all("""SELECT DISTINCT a.id, a.service FROM accounts a

@@ -13,10 +13,12 @@ from pydantic import BaseModel, Field
 from .. import notify
 from ..config import config
 from ..db import Database
-from ..models import APPLE, SERVICE_NAMES, SERVICES, SPOTIFY, YTM, ApiError, AuthError
+from ..models import APPLE, DEEZER, SERVICE_NAMES, SERVICES, SPOTIFY, TIDAL, YTM, ApiError, AuthError
 from ..providers import app_credential, build_provider, make_provider
 from ..providers import spotify as sp
+from ..providers import tidal as td
 from ..providers.apple import clean_user_token
+from ..providers.deezer import clean_arl
 from ..providers.ytm import DeviceFlow, parse_pasted
 from ..security import encrypt
 from ..worker import mark_account
@@ -106,8 +108,10 @@ def services(user: dict = Depends(current_user), db: Database = Depends(db_dep))
             if app_credential(db, "google_client_id") and app_credential(db, "google_client_secret"):
                 methods.append("device")
             methods.append("paste")
-        if svc == APPLE:
+        if svc == APPLE or svc == DEEZER:
             methods.append("token")
+        if svc == TIDAL and app_credential(db, "tidal_client_id"):
+            methods.append("oauth")
         lines = db.val("""SELECT COUNT(DISTINCT m.line_id) FROM line_members m WHERE m.account_id=?""",
                        (a["id"],)) if a else 0
         out.append({
@@ -118,7 +122,7 @@ def services(user: dict = Depends(current_user), db: Database = Depends(db_dep))
             "updated_at": a["updated_at"] if a else None, "methods": methods, "lines": lines,
             "checked_at": a["checked_at"] if a else None, "expires_at": a["expires_at"] if connected else None,
             "connected_at": a["connected_at"] if a else None,
-            "admin_setup_needed": svc == SPOTIFY and not methods,
+            "admin_setup_needed": svc in (SPOTIFY, TIDAL) and not methods,
             "yt_format": (a["yt_format"] if a else "song") if svc == YTM else None,
         })
     return out
@@ -251,6 +255,59 @@ def apple_token(body: AppleBody, user: dict = Depends(current_user), db: Databas
         raise HTTPException(400, "Apple Music doesn't accept this token. Copy the value of "
                                  "“media-user-token” again while you're signed in on music.apple.com.") from e
     return _save_account(db, user["id"], APPLE, prov.credentials, name)
+
+
+# ---------------------------------------------------------------------- TIDAL
+@router.post("/tidal/start")
+def tidal_start(user: dict = Depends(current_user), db: Database = Depends(db_dep)):
+    cid = app_credential(db, "tidal_client_id")
+    if not cid:
+        raise HTTPException(400, "TIDAL isn't set up on this instance yet. An admin needs to enter the TIDAL client ID "
+                                 "under Settings → App credentials.")
+    verifier, challenge = td.pkce_pair()
+    state = _put_flow({"user_id": user["id"], "verifier": verifier, "kind": "tidal"})
+    return {"url": td.authorize_url(cid, f"{config.base_url}/api/services/tidal/callback", state, challenge)}
+
+
+@router.get("/tidal/callback")
+def tidal_callback(request: Request, state: str = "", code: str = "", error: str = "",
+                   db: Database = Depends(db_dep)):
+    with _flows_lock:
+        f = _flows.pop(state, None)
+    # the browser coming back must be the one that started (see the Spotify callback)
+    try:
+        same_user = bool(f) and current_user(request, db)["id"] == f["user_id"]
+    except HTTPException:
+        same_user = False
+    if error or not f or f["kind"] != "tidal" or f["expires"] < time.time() or not code or not same_user:
+        reason = "cancelled" if error == "access_denied" else "failed"
+        return RedirectResponse(f"/services?error=tidal-{reason}", status_code=303)
+    try:
+        creds = td.exchange_code(code, f["verifier"], f"{config.base_url}/api/services/tidal/callback",
+                                 app_credential(db, "tidal_client_id"), app_credential(db, "tidal_client_secret"))
+        name = make_provider(db, TIDAL, creds).whoami()
+    except (AuthError, ApiError):
+        return RedirectResponse("/services?error=tidal-failed", status_code=303)
+    _save_account(db, f["user_id"], TIDAL, creds, name)
+    return RedirectResponse("/services?connected=tidal", status_code=303)
+
+
+# ---------------------------------------------------------------------- Deezer
+class ArlBody(BaseModel):
+    arl: str = Field(min_length=20, max_length=4000)
+
+
+@router.post("/deezer/arl")
+def deezer_arl(body: ArlBody, user: dict = Depends(current_user), db: Database = Depends(db_dep)):
+    creds = {"arl": clean_arl(body.arl)}
+    try:
+        name = make_provider(db, DEEZER, creds).whoami()
+    except AuthError as e:
+        raise HTTPException(400, "Deezer doesn't accept this value. Copy the “arl” cookie again while you're "
+                                 "signed in on deezer.com.") from e
+    except ApiError as e:
+        raise HTTPException(502, str(e)) from e
+    return _save_account(db, user["id"], DEEZER, creds, name)
 
 
 # ---------------------------------------------------------------------- collections

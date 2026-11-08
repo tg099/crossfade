@@ -23,7 +23,7 @@ DURATION_TOLERANCE = 4          # seconds; more apart is "check", not "likely"
 SIMILAR = 0.8                   # playlists sharing this much are "almost the same"
 MIN_PLAYLIST = 4                # smaller playlists are not compared
 UNDO_KEY = "catalog_undo_{}"
-SERVICE_ORDER = {"ytm": 0, "apple": 1, "spotify": 2}
+SERVICE_ORDER = {"ytm": 0, "apple": 1, "spotify": 2, "tidal": 3, "deezer": 4}
 RELEASES = ("album", "single")  # which release a duplicate keeps by default (users.release_pref)
 
 

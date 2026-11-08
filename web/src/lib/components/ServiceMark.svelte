@@ -27,6 +27,13 @@
 	{:else if service === 'spotify'}
 		<rect width="20" height="20" rx="6" fill="#1ED760" />
 		<path d="M5.4 8.2c3.2-1.1 6.6-.8 9.4.8M6 10.9c2.6-.8 5.2-.5 7.4.7M6.6 13.4c2-.5 3.9-.3 5.6.6" fill="none" stroke="#0B2A16" stroke-width="1.5" stroke-linecap="round" />
+	{:else if service === 'tidal'}
+		<rect width="20" height="20" rx="6" fill="#111" />
+		<path d="M4.6 8.4c1.8-1.6 3.6-1.6 5.4 0s3.6 1.6 5.4 0M4.6 11.8c1.8-1.6 3.6-1.6 5.4 0s3.6 1.6 5.4 0" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" />
+	{:else if service === 'deezer'}
+		<rect width="20" height="20" rx="6" fill="#A238FF" />
+		<circle cx="10" cy="10" r="5.4" fill="none" stroke="#fff" stroke-width="1.5" />
+		<circle cx="10" cy="10" r="1.5" fill="#fff" />
 	{:else}
 		<rect width="20" height="20" rx="6" fill="var(--grout)" />
 	{/if}

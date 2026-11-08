@@ -6,8 +6,10 @@ from typing import Any
 YTM = "ytm"
 APPLE = "apple"
 SPOTIFY = "spotify"
-SERVICES = (YTM, APPLE, SPOTIFY)
-SERVICE_NAMES = {YTM: "YouTube Music", APPLE: "Apple Music", SPOTIFY: "Spotify"}
+TIDAL = "tidal"
+DEEZER = "deezer"
+SERVICES = (YTM, APPLE, SPOTIFY, TIDAL, DEEZER)
+SERVICE_NAMES = {YTM: "YouTube Music", APPLE: "Apple Music", SPOTIFY: "Spotify", TIDAL: "TIDAL", DEEZER: "Deezer"}
 
 LIKED = "liked"
 LIBRARY = "library"

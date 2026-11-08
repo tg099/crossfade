@@ -37,7 +37,7 @@ CSP = ("default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsaf
        "script-src 'self'; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; "
        "form-action 'self'; "
        # player: 30 s samples from Apple/Spotify, YouTube Music through the privacy-enhanced embed
-       "media-src 'self' https://*.itunes.apple.com https://*.mzstatic.com https://*.scdn.co; "
+       "media-src 'self' https://*.itunes.apple.com https://*.mzstatic.com https://*.scdn.co https://*.dzcdn.net; "
        "frame-src https://www.youtube-nocookie.com")
 
 

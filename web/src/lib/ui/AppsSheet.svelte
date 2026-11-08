@@ -10,11 +10,15 @@
 
 	// Admin only: the developer apps Spotify and the Google code sign-in need. Set once, valid for all.
 	type Cred = { set: boolean; source: 'env' | 'ui' | null; value: string | null };
-	type Apps = Record<'spotify_client_id' | 'spotify_client_secret' | 'google_client_id' | 'google_client_secret', Cred> & {
+	type Apps = Record<
+		'spotify_client_id' | 'spotify_client_secret' | 'google_client_id' | 'google_client_secret' | 'tidal_client_id' | 'tidal_client_secret',
+		Cred
+	> & {
 		spotify_redirect_uri: string;
+		tidal_redirect_uri: string;
 	};
 	let apps = $state<Apps | null>(null);
-	let creds = $state({ spotify_client_id: '', spotify_client_secret: '', google_client_id: '', google_client_secret: '' });
+	let creds = $state({ spotify_client_id: '', spotify_client_secret: '', google_client_id: '', google_client_secret: '', tidal_client_id: '', tidal_client_secret: '' });
 	let busy = $state(false);
 
 	// mail server for e-mail notifications
@@ -67,7 +71,9 @@
 			spotify_client_id: apps.spotify_client_id.value ?? '',
 			spotify_client_secret: '',
 			google_client_id: apps.google_client_id.value ?? '',
-			google_client_secret: ''
+			google_client_secret: '',
+			tidal_client_id: apps.tidal_client_id.value ?? '',
+			tidal_client_secret: ''
 		};
 	}
 	$effect(() => {
@@ -122,6 +128,34 @@
 						<button class="cell" disabled={busy || !creds.spotify_client_id?.trim()}><span class="grow tintc">{t('common.save')}</span></button>
 					</form>
 					<p class="section-foot">{apps.spotify_client_id.set ? t('apps.ready') : t('apps.sp.hint')}</p>
+				{/if}
+			</div>
+
+			<div class="section">
+				<div class="section-head"><span class="caps">TIDAL</span></div>
+				<ol class="steps t-sub">
+					<li>{t('apps.td.s1')} <a href="https://developer.tidal.com/dashboard" target="_blank" rel="noopener">TIDAL Developer Dashboard</a></li>
+					<li>{t('apps.td.s2')}</li>
+					<li>{t('apps.td.s3')}</li>
+				</ol>
+				<div class="group">
+					<button class="cell" onclick={() => copyText(apps!.tidal_redirect_uri)}>
+						<span class="grow"><span class="b t-foot t-2">Redirect URI</span><span class="b clip mono uri">{apps.tidal_redirect_uri}</span></span>
+						<Glyph name="copy" size={18} weight={2.2} />
+					</button>
+				</div>
+				{#if apps.tidal_client_id.source === 'env'}
+					<p class="section-foot">{t('apps.env', { vars: 'TIDAL_CLIENT_ID, TIDAL_CLIENT_SECRET' })}</p>
+				{:else}
+					<form class="group form" onsubmit={(e) => (e.preventDefault(), save(['tidal_client_id', 'tidal_client_secret']))}>
+						<label class="cell"><span class="lbl">Client ID</span><input class="in mono" bind:value={creds.tidal_client_id} autocomplete="off" /></label>
+						<label class="cell">
+							<span class="lbl">Secret</span>
+							<input class="in mono" type="password" bind:value={creds.tidal_client_secret} placeholder={apps.tidal_client_secret.set ? t('apps.keep') : t('apps.optional')} autocomplete="off" />
+						</label>
+						<button class="cell" disabled={busy || !creds.tidal_client_id?.trim()}><span class="grow tintc">{t('common.save')}</span></button>
+					</form>
+					<p class="section-foot">{apps.tidal_client_id.set ? t('apps.ready') : t('apps.td.hint')}</p>
 				{/if}
 			</div>
 

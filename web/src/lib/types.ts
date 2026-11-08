@@ -1,4 +1,4 @@
-export type Service = 'ytm' | 'apple' | 'spotify';
+export type Service = 'ytm' | 'apple' | 'spotify' | 'tidal' | 'deezer';
 export type Kind = 'liked' | 'library' | 'playlist';
 export type Role = 'both' | 'send' | 'receive';
 

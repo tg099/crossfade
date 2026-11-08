@@ -21,7 +21,28 @@ def test_valid_ids():
     assert not pv.valid_id("spotify", "../../embed/x")
     assert pv.valid_id("ytm", "dQw4w9WgXcQ")
     assert not pv.valid_id("ytm", "dQw4w9WgXcQ/../x")
-    assert not pv.valid_id("tidal", "123")
+    assert not pv.valid_id("napster", "123")
+    assert pv.valid_id("deezer", "3135556") and not pv.valid_id("deezer", "x/../1")
+
+
+def test_tidal_has_no_samples(monkeypatch):
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: pytest.fail("no request expected"))
+    assert pv.preview("tidal", "77640617") is None
+
+
+def test_deezer_sample_only_from_its_cdn(monkeypatch):
+    class R:
+        status_code = 200
+
+        def __init__(self, url):
+            self.url = url
+
+        def json(self):
+            return {"preview": self.url}
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: R("https://cdnt-preview.dzcdn.net/api/1/1/a.mp3"))
+    assert pv.preview("deezer", "3135556") == {"kind": "audio", "url": "https://cdnt-preview.dzcdn.net/api/1/1/a.mp3"}
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: R("https://evil.example/a.mp3"))
+    assert pv.preview("deezer", "3135557") is None
 
 
 def test_youtube_needs_no_lookup(monkeypatch):

@@ -32,7 +32,7 @@ class CatalogState {
 
 	// filters of the library view
 	query = $state('');
-	avail = $state<Record<Service, Avail>>({ ytm: 'any', apple: 'any', spotify: 'any' });
+	avail = $state<Record<Service, Avail>>(Object.fromEntries(SERVICES.map((s) => [s, 'any'])) as Record<Service, Avail>);
 	picked = $state<Record<Facet, string[]>>({ artist: [], album: [], source: [], line: [] });
 	special = $state<Special[]>([]);
 	sort = $state<Sort>('artist');
@@ -199,7 +199,7 @@ class CatalogState {
 		this.special = this.special.includes(sp) ? this.special.filter((x) => x !== sp) : [...this.special, sp];
 	}
 	resetFilters() {
-		this.avail = { ytm: 'any', apple: 'any', spotify: 'any' };
+		this.avail = Object.fromEntries(SERVICES.map((s) => [s, 'any'])) as Record<Service, Avail>;
 		this.picked = { artist: [], album: [], source: [], line: [] };
 		this.special = [];
 	}

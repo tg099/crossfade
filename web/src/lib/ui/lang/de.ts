@@ -1044,4 +1044,23 @@ export const de = {
 	'tt.busy': 'In deiner Mediathek läuft gerade etwas. Danach geht es hier weiter.',
 	'tt.done': (v: V) => `${toN(v.n) === 1 ? '1 Song' : `${v.n} Songs`} zurückgeholt${toN(v.removed) ? `, ${v.removed} entfernt` : ''}${toN(v.failed) ? `, bei ${v.failed} hat es nicht geklappt` : ''}`,
 	'lib.job.restore': 'Wird wiederhergestellt',
+
+	// TIDAL and Deezer
+	'liked.tidal': 'Meine Titel',
+	'liked.deezer': 'Lieblingstitel',
+	'services.tidal.go': 'Bei TIDAL anmelden',
+	'services.tidal.hint': 'Danach kommst du hierher zurück. Crossfade bekommt nur Zugriff auf deine Titel und Playlists.',
+	'services.tidal.setup': 'TIDAL-App einrichten',
+	'services.tidal.setupHint': 'Für TIDAL braucht diese Installation eine eigene App bei TIDAL. Die Einrichtung dauert etwa fünf Minuten.',
+	'services.tidal.askAdmin': 'TIDAL ist hier noch nicht eingerichtet. Frag einen Administrator, ob er eine TIDAL-App einträgt.',
+	'services.tidal.cancelled': 'TIDAL-Anmeldung abgebrochen',
+	'services.tidal.failed': 'TIDAL-Anmeldung fehlgeschlagen. Versuch es noch einmal.',
+	'services.deezer.s1': 'Am Computer anmelden bei',
+	'services.deezer.s2': 'Entwicklertools öffnen: „Application“ (Chrome, Edge) bzw. „Speicher“ (Safari, Firefox), dann Cookies → deezer.com.',
+	'services.deezer.s3': 'Den Wert von „arl“ kopieren und hier einfügen.',
+	'services.deezer.hint': 'Deezer nimmt keine neuen Entwickler-Apps an, deshalb geht es über das Cookie deiner Sitzung. Es hält meist einige Monate. Wenn du dich bei Deezer abmeldest, ist es ungültig.',
+	'apps.td.s1': 'Im',
+	'apps.td.s2': 'eine App anlegen und die Redirect URI unten eintragen.',
+	'apps.td.s3': 'Die Scopes für Sammlung, Playlists, Suche und Nutzer (user.read) freischalten.',
+	'apps.td.hint': 'Client ID eintragen. Mit dem Secret kann Crossfade auch für Nutzer ohne TIDAL-Konto bei TIDAL suchen.',
 };
