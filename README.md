@@ -4,6 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/tg099/crossfade?sort=semver)](https://github.com/tg099/crossfade/releases)
 [![Image](https://img.shields.io/badge/ghcr.io-tg099%2Fcrossfade-2496ED?logo=docker&logoColor=white)](https://github.com/tg099/crossfade/pkgs/container/crossfade)
 [![License: PolyForm Strict 1.0.0](https://img.shields.io/badge/license-PolyForm%20Strict%201.0.0-blue)](LICENSE)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/tg099)
 
 **English** · [Deutsch](README.de.md)
 
@@ -180,6 +181,10 @@ Verify an image: `gh attestation verify oci://ghcr.io/tg099/crossfade:X.Y.Z -R t
 
 Bugs and feature ideas are welcome as [issues](https://github.com/tg099/crossfade/issues), questions in
 [Discussions](https://github.com/tg099/crossfade/discussions). Pull requests are squash-merged.
+
+## Support the project
+
+If Crossfade is useful to you, you can [buy me a coffee](https://buymeacoffee.com/tg099). Thank you!
 
 ## Disclaimer
 

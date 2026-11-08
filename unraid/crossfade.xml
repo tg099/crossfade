@@ -11,6 +11,8 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/tg099/crossfade</Support>
   <Project>https://github.com/tg099/crossfade</Project>
+  <DonateText>Like Crossfade? Buy me a coffee.</DonateText>
+  <DonateLink>https://buymeacoffee.com/tg099</DonateLink>
   <Overview>Keeps liked songs, libraries and playlists in sync across music streaming services: one way, both ways or in groups. Supported services: see the README.</Overview>
   <Category>MediaApp:Music Tools:</Category>
   <WebUI>http://[IP]:[PORT:8765]/</WebUI>
