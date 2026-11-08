@@ -6,6 +6,7 @@
 	import { page } from '$app/state';
 	import Logo from '#lib/components/Logo.svelte';
 	import { app } from '#lib/state.svelte.ts';
+	import type { Line } from '#lib/types.ts';
 	import Account from '#lib/ui/Account.svelte';
 	import ActionSheet from '#lib/ui/ActionSheet.svelte';
 	import AppsSheet from '#lib/ui/AppsSheet.svelte';
@@ -218,9 +219,12 @@
 		}
 	}
 
-	// ---------------------------------------------------------------- sidebar: drag fades into your order
+	// ---------------------------------------------------------------- sidebar: drag your fades into your order;
+	// friends' fades get a section of their own below and keep their place
+	const ownFades = $derived(app.lines.filter((f) => f.mine));
+	const friendFades = $derived(app.lines.filter((f) => !f.mine));
 	const sideOrder = new Reorder(
-		() => app.lines.map((f) => f.id),
+		() => ownFades.map((f) => f.id),
 		(from, to) => app.moveLine(from, to),
 		6
 	);
@@ -281,6 +285,11 @@
 			</main>
 
 			<!-- desktop: a glass sidebar floating over the content -->
+			{#snippet sideFade(f: Line)}
+				<FadeBadge icon={fadeIcon(f)} color={f.color} size={22} />
+				<span class="clip grow">{f.name}</span>
+				{#if f.members.some((m) => !m.account_connected || m.account_status === 'error')}<span class="sdot red"></span>{:else if f.issues || f.last_status === 'needs_confirm' || f.invites.some((x) => x.request)}<span class="sdot orange"></span>{:else if f.job}<span class="sdot run" style:background={f.color}></span>{/if}
+			{/snippet}
 			<aside class="sidebar glass" aria-label={t('nav.sidebar')}>
 				<div class="brand"><Logo size={30} /> Crossfade</div>
 				<label class="side-search" class:on={nav.tab === 'search'}>
@@ -307,7 +316,7 @@
 						{t('fades.all')}
 					</button>
 					<ul class="side-fades">
-						{#each app.lines as f, i (f.id)}
+						{#each ownFades as f, i (f.id)}
 							<li class:lifted={sideOrder.dragId === f.id} style:transform={sideOrder.style(f.id)}>
 								<button
 									class="side-item"
@@ -323,13 +332,23 @@
 									title={t('fades.sideHint', { keys: moveKeys })}
 									use:hold={() => fadeMenu(f.id)}
 								>
-									<FadeBadge icon={fadeIcon(f)} color={f.color} size={22} />
-									<span class="clip grow">{f.name}</span>
-									{#if f.members.some((m) => !m.account_connected || m.account_status === 'error')}<span class="sdot red"></span>{:else if f.issues || f.last_status === 'needs_confirm'}<span class="sdot orange"></span>{:else if f.job}<span class="sdot run" style:background={f.color}></span>{/if}
+									{@render sideFade(f)}
 								</button>
 							</li>
 						{/each}
 					</ul>
+					{#if friendFades.length}
+						<p class="side-head">{t('fades.friends')}</p>
+						<ul class="side-fades">
+							{#each friendFades as f (f.id)}
+								<li>
+									<button class="side-item" aria-current={activeFade === f.id ? 'page' : undefined} onclick={() => nav.openFade(f.id)} title={t('share.from', { name: f.owner.display_name })} use:hold={() => fadeMenu(f.id)}>
+										{@render sideFade(f)}
+									</button>
+								</li>
+							{/each}
+						</ul>
+					{/if}
 				</nav>
 				<button class="side-me" onclick={() => ui.openAccount()}>
 					<span class="avatar uav" style:--uh={userHue(String(app.user?.id))}>{app.user?.display_name.charAt(0).toUpperCase()}</span>
