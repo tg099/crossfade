@@ -13,7 +13,7 @@
 	import { fadeCovers, fadeIcon, fadeStatus } from '../fade.ts';
 	import { t } from '../i18n.svelte.ts';
 	import { Reorder } from '../reorder.svelte.ts';
-	import { flowIcon, nav, ui } from '../ui.svelte.ts';
+	import { BRAND, flowIcon, nav, ui } from '../ui.svelte.ts';
 
 	// Your fades in your own order ("Reorder" shows handles; the first fade comes first everywhere),
 	// and the fades friends share with you on a tab of their own.
@@ -57,7 +57,7 @@
 	</span>
 {/snippet}
 
-<Page title={t('tab.fades')} avatar glow={app.lines.map((f) => f.color)}>
+<Page title={t('tab.fades')} avatar glow={BRAND}>
 	{#snippet actions()}
 		{#if own.length > 1 && tab === 'mine'}
 			<button class="gbtn glass lq" class:tint={ordering} onclick={() => (ordering = !ordering)} aria-pressed={ordering}>
@@ -120,7 +120,7 @@
 	</ul>
 	{#if app.linesLoaded && !app.lines.length}
 		<div class="empty">
-			<span class="ic"><Glyph name="lines" size={34} weight={1.8} /></span>
+			<span class="ic"><Glyph name="fades" size={34} weight={1.8} /></span>
 			<p class="t-title3">{t('fades.emptyTitle')}</p>
 			<p class="t-sub t-2">{t('fades.emptyText')}</p>
 			<button class="pb glass tint lq" onclick={() => ui.edit(0)} disabled={app.connected.length < 2}><Glyph name="plus" size={18} weight={2.6} /> {t('fades.new')}</button>

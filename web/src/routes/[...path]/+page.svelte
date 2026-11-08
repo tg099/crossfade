@@ -312,7 +312,7 @@
 						<button class="side-add" onclick={() => ui.edit(0)} aria-label={t('fades.new')}><Glyph name="plus" size={16} weight={2.4} /></button>
 					</div>
 					<button class="side-item" aria-current={sidebarActive('fades') ? 'page' : undefined} onclick={() => nav.select('fades')}>
-						<Glyph name="lines" size={20} />
+						<Glyph name="fades" size={20} />
 						{t('fades.all')}
 					</button>
 					<ul class="side-fades">

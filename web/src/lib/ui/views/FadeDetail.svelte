@@ -778,7 +778,7 @@
 {:else if app.linesLoaded}
 	<Page title={t('fade.one')} {back}>
 		<div class="empty">
-			<span class="e-ic"><Glyph name="lines" size={28} weight={1.8} /></span>
+			<span class="e-ic"><Glyph name="fades" size={28} weight={1.8} /></span>
 			<p class="t-title3">{t('fade.goneTitle')}</p>
 			<p class="t-sub t-2">{t('fade.goneText')}</p>
 		</div>

@@ -13,7 +13,7 @@ export type View = { kind: 'root' } | { kind: 'fade'; id: number };
 export const TABS: { id: Tab; label: Key; icon: GlyphName; path: string }[] = [
 	{ id: 'home', label: 'tab.home', icon: 'home', path: '/' },
 	{ id: 'library', label: 'tab.library', icon: 'library', path: '/library' },
-	{ id: 'fades', label: 'tab.fades', icon: 'lines', path: '/fades' },
+	{ id: 'fades', label: 'tab.fades', icon: 'fades', path: '/fades' },
 	{ id: 'search', label: 'tab.search', icon: 'search', path: '/search' }
 ];
 
