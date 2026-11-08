@@ -21,7 +21,7 @@
 	import { i18n, num, t } from '../i18n.svelte.ts';
 	import { ignoreIssue, loadIssues, resolveIssue, restoreIssue, unignore } from '../issues.ts';
 	import { tintVars } from '../tint.ts';
-	import { flowIcon, intervalLabel, ui } from '../ui.svelte.ts';
+	import { BRAND, flowIcon, intervalLabel, ui } from '../ui.svelte.ts';
 
 	let { id, back }: { id: number; back?: { label: string; run: () => void } } = $props();
 
@@ -328,19 +328,13 @@
 
 {#if fade && status}
 	<div class="tinted wrap" style={tintVars(fade.color)}>
-		<Page title={fade.name} large={false} {back}>
+		<Page title={fade.name} large={false} {back} glow={BRAND}>
 			{#snippet actions()}
 				{#if fade.mine}
 					<button class="gbtn glass lq" onclick={() => ui.edit(fade.id)}>{t('common.edit')}</button>
 				{:else}
 					<button class="gbtn glass lq" onclick={() => askLeaveFade(fade.id)}>{t('share.leave')}</button>
 				{/if}
-			{/snippet}
-
-			{#snippet backdrop()}
-				<span class="wash">
-						<span class="blur"><Mosaic covers={fadeCovers(fade)} seed={fade.name} color={fade.color} size="100%" /></span>
-					</span>
 			{/snippet}
 
 			{#snippet hero()}
@@ -805,42 +799,6 @@
 		margin-top: calc(-1 * (var(--safe-top) + var(--bar)));
 		padding: calc(var(--safe-top) + var(--bar) + 8px) 20px 24px;
 		text-align: center;
-	}
-	/* the line's own artwork, melted into the page: the colour the glass floats on */
-	/* behind the whole page and fixed. Quiet on purpose: a soft glow of the covers at the top,
-	   a faint tint of the fade's colour below, so the glass has something to bend without the
-	   page turning into a colour field. */
-	.wash {
-		position: absolute;
-		inset: 0;
-		overflow: hidden;
-		background:
-			radial-gradient(90% 60% at 30% 0%, color-mix(in srgb, var(--raw) 24%, transparent), transparent 70%),
-			radial-gradient(80% 60% at 90% 100%, color-mix(in srgb, var(--raw) 16%, transparent), transparent 70%),
-			var(--bg);
-	}
-	.blur {
-		position: absolute;
-		inset: -25% -15% 35%;
-		display: grid;
-		place-items: center;
-		filter: blur(90px) saturate(1.3);
-		opacity: 0.55;
-		-webkit-mask-image: linear-gradient(to bottom, #000 30%, transparent 90%);
-		mask-image: linear-gradient(to bottom, #000 30%, transparent 90%);
-	}
-	.blur :global(.mosaic) {
-		width: 120% !important;
-	}
-	:global(:root[data-theme='dark']) .blur {
-		opacity: 0.42;
-		filter: blur(90px) saturate(1.8) brightness(1.1);
-	}
-	@media (prefers-color-scheme: dark) {
-		:global(:root:not([data-theme='light'])) .blur {
-			opacity: 0.42;
-			filter: blur(90px) saturate(1.8) brightness(1.1);
-		}
 	}
 	.meta {
 		display: grid;
