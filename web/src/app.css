@@ -1,0 +1,872 @@
+/* Crossfade – Liquid Glass.
+   Content runs edge to edge; controls float above it as glass that catches the light.
+   Colour comes from the music and the lines; one tint: the colour of the line you're looking at. */
+
+:root {
+	/* brand mark (logo + avatars): flat, no gradients; light = white tile, dark = ink tile */
+	--mark-bg: #ffffff;
+	--mark-rim: rgb(0 0 0 / 0.09);
+	--mark-red: #f02d45;
+	--mark-blue: #2462f2;
+	--avatar-ink: 72% 44%; /* saturation + lightness of the initial, hue comes per user */
+	--content-max: 1440px; /* pages grow with the window up to here, then stay centred-left */
+	/* surfaces: a warm, soft white instead of clinical grey */
+	--bg: #fbfaf8;
+	--bg-grouped: #f3f1ee;
+	--cell: transparent;
+	/* grouped lists are glass too: the colour behind them shows through, no white boxes */
+	--cell-grouped: rgb(255 255 255 / 0.2);
+	--sheet: rgb(252 251 250 / 0.58);
+	--sheet-solid: #f7f6f3;
+	--sheet-cell: rgb(255 255 255 / 0.42);
+	--elevated: #ffffff;
+	/* light: a soft warm dim, so the colour behind still shows through the sheet's glass */
+	--scrim: rgb(40 30 25 / 0.5);
+
+	/* glass. On a light page white-on-white disappears, so light glass is clearer (more of the
+	   colour behind comes through) and its edge is drawn by a soft dark rim at the bottom and
+	   inner shading, not only by a bright top edge */
+	--glass-bg: rgb(255 255 255 / 0.16);
+	--glass-strong: rgb(255 255 255 / 0.22);
+	--glass-blur: 14px;
+	/* the rim runs all the way round (light catches it everywhere on a bright page), brightest
+	   where the light hits: top left and bottom right */
+	--rim-hi: rgb(255 255 255 / 1);
+	--rim-mid: rgb(255 255 255 / 0.55);
+	--rim-lo: rgb(255 255 255 / 0.95);
+	--rim-w: 1.5px;
+	--rim-edge: rgb(60 40 30 / 0.05);
+	--sheen: rgb(255 255 255 / 0.32);
+	/* a fine dark line outside the bright rim: that pair is what reads as a glass edge on white */
+	--glass-shadow: 0 0 0 0.5px rgb(60 40 30 / 0.1), 0 1px 2px rgb(40 30 20 / 0.06), 0 12px 30px -10px rgb(40 30 20 / 0.28);
+	--group-rim: inset 0 0 0 1px rgb(255 255 255 / 0.75), 0 0 0 0.5px rgb(60 40 30 / 0.08);
+	/* thickness: light caught along the top, a faint shade pooling at the bottom */
+	--glass-depth: inset 0 1.5px 1px -0.5px rgb(255 255 255 / 0.9), inset 0 -8px 16px -10px rgb(60 40 30 / 0.16);
+	--group-shadow: 0 1px 2px rgb(40 30 20 / 0.05), 0 8px 24px -14px rgb(40 30 20 / 0.22);
+	--lens: rgb(255 255 255 / 0.7);
+	--thumb: rgb(255 255 255 / 0.92);
+	--sidebar: rgb(255 255 255 / 0.2);
+	/* controls on light glass: buttons and pills are small pieces of glass themselves (raised,
+	   bright rim); fields, search and segmented tracks are wells pressed into the glass */
+	--ctl: rgb(255 255 255 / 0.5);
+	--ctl-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.85), inset 0 -3px 6px -4px rgb(60 40 30 / 0.12), 0 0 0 0.5px rgb(60 40 30 / 0.1), 0 2px 6px -2px rgb(40 30 20 / 0.14);
+	--well: rgb(255 255 255 / 0.28);
+	--well-shadow: inset 0 1px 3px rgb(60 40 30 / 0.1), inset 0 0 0 0.5px rgb(60 40 30 / 0.1), 0 1px 0 rgb(255 255 255 / 0.8);
+	/* a filled (tinted) button catches light too */
+	--fill-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), inset 0 -2px 6px -2px rgb(0 0 0 / 0.18);
+	--fill-glow: 55%;
+	/* colour behind the pages: stronger in light, a pale wash gives the glass nothing to bend */
+	--ambient: 34%;
+
+	/* labels */
+	--label: #1c1a19;
+	--label-2: rgb(60 56 52 / 0.62);
+	--label-3: rgb(60 56 52 / 0.32);
+	--sep: rgb(60 56 52 / 0.14);
+	--fill: rgb(120 116 112 / 0.2);
+	--fill-2: rgb(120 116 112 / 0.15);
+	--fill-3: rgb(120 116 112 / 0.11);
+
+	/* system colours */
+	--red: #ff3b30;
+	--red-text: #d70015;
+	--orange: #ff9500;
+	--orange-text: #c93400;
+	--green: #34c759;
+	--green-text: #248a3d;
+
+	/* tint: neutral until a line provides one */
+	--tint: var(--label);
+	--tint-fill: var(--label);
+	--on-tint: #ffffff;
+	--raw: #8e8e93;
+	/* single-series chart mark (validated: lightness band + contrast on both surfaces) */
+	--chart: #e8506e;
+
+	--shadow-sheet: 0 0 0 0.5px rgb(60 40 30 / 0.1), 0 20px 60px -12px rgb(40 30 20 / 0.35);
+
+	/* type scale (17px body, Apple text styles) */
+	--f-large: 2.06rem; /* 35 */
+	--f-t1: 1.647rem; /* 28 */
+	--f-t2: 1.294rem; /* 22 */
+	--f-t3: 1.176rem; /* 20 */
+	--f-body: 1rem; /* 17 */
+	--f-callout: 0.941rem; /* 16 */
+	--f-sub: 0.882rem; /* 15 */
+	--f-foot: 0.765rem; /* 13 */
+	--f-cap: 0.706rem; /* 12 */
+	/* size-specific tracking; only on Apple platforms, where it matches SF's own tables */
+	--tr-large: 0;
+	--tr-t1: 0;
+	--tr-t2: 0;
+	--tr-t3: 0;
+	--tr-body: 0;
+	--tr-sub: 0;
+	--tr-foot: 0;
+
+	--r-group: 26px;
+	--safe-top: env(safe-area-inset-top, 0px);
+	--safe-bottom: env(safe-area-inset-bottom, 0px);
+	--bar: 56px;
+	--side: 0px;
+
+	color-scheme: light dark;
+	font-size: 106.25%;
+	background: var(--bg);
+}
+
+@supports (font: -apple-system-body) {
+	:root {
+		--tr-large: 0.008em;
+		--tr-t1: 0.013em;
+		--tr-t2: -0.012em;
+		--tr-t3: -0.022em;
+		--tr-body: -0.025em;
+		--tr-sub: -0.015em;
+		--tr-foot: -0.006em;
+	}
+}
+/* iOS: follow the user's text size (Dynamic Type); rem-based layout scales with it */
+@supports (font: -apple-system-body) and (-webkit-touch-callout: none) {
+	:root {
+		font: -apple-system-body;
+	}
+}
+@media (min-width: 721px) {
+	:root {
+		font-size: 100%;
+		--side: 272px;
+		/* the top row lines up with the sidebar's header (14px inset + 60px row) */
+		--bar: 74px;
+	}
+}
+
+/* dark: follows the system unless the user picked a theme (html[data-theme]) */
+:root[data-theme='dark'] {
+	--mark-bg: #17171d;
+	--mark-rim: rgb(255 255 255 / 0.1);
+	--mark-red: #ff3b4e;
+	--mark-blue: #2e6bff;
+	--avatar-ink: 85% 66%;
+	--bg: #050506;
+	--bg-grouped: #050506;
+	--cell: transparent;
+	--cell-grouped: rgb(255 255 255 / 0.075);
+	--sheet: rgb(26 26 30 / 0.84);
+	--sheet-solid: #1b1b1e;
+	--sheet-cell: rgb(255 255 255 / 0.075);
+	--elevated: #2a2a2e;
+	--glass-bg: rgb(42 42 48 / 0.46);
+	--glass-strong: rgb(36 36 41 / 0.74);
+	--rim-hi: rgb(255 255 255 / 0.32);
+	--rim-lo: rgb(255 255 255 / 0.08);
+	--rim-edge: rgb(255 255 255 / 0.09);
+	--sheen: rgb(255 255 255 / 0.09);
+	--glass-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 16px 36px -12px rgb(0 0 0 / 0.75);
+	--glass-depth: inset 0 0 0 0 transparent;
+	--rim-mid: transparent;
+	--rim-w: 1px;
+	--scrim: rgb(0 0 0 / 1);
+	--ctl: var(--fill-3);
+	--ctl-shadow: 0 0 0 0 transparent;
+	--well: var(--fill-3);
+	--well-shadow: inset 0 0 0 0.5px var(--rim-edge);
+	--fill-shadow: 0 0 0 0 transparent;
+	--fill-glow: 0%;
+	--group-rim: inset 0 1px 0 rgb(255 255 255 / 0.35);
+	--group-shadow: 0 1px 2px rgb(40 30 20 / 0.04);
+	--lens: rgb(255 255 255 / 0.14);
+	--thumb: rgb(255 255 255 / 0.24);
+	--sidebar: rgb(24 24 28 / 0.55);
+	--label: #f5f5f7;
+	--label-2: rgb(235 235 245 / 0.62);
+	--label-3: rgb(235 235 245 / 0.32);
+	--sep: rgb(235 235 245 / 0.11);
+	--fill: rgb(120 120 128 / 0.36);
+	--fill-2: rgb(120 120 128 / 0.3);
+	--fill-3: rgb(120 120 128 / 0.22);
+	--red: #ff453a;
+	--red-text: #ff6961;
+	--orange: #ff9f0a;
+	--orange-text: #ffb340;
+	--green: #30d158;
+	--green-text: #30db5b;
+	--on-tint: #000000;
+	--chart: #ee5a78;
+	--shadow-sheet: 0 20px 60px -10px rgb(0 0 0 / 0.8);
+	color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme='light']) {
+		--mark-bg: #17171d;
+		--mark-rim: rgb(255 255 255 / 0.1);
+		--mark-red: #ff3b4e;
+		--mark-blue: #2e6bff;
+		--avatar-ink: 85% 66%;
+		--bg: #050506;
+		--bg-grouped: #050506;
+		--cell: transparent;
+		--cell-grouped: rgb(255 255 255 / 0.075);
+		--sheet: rgb(26 26 30 / 0.84);
+		--sheet-solid: #1b1b1e;
+		--sheet-cell: rgb(255 255 255 / 0.075);
+		--elevated: #2a2a2e;
+		--glass-bg: rgb(42 42 48 / 0.46);
+		--glass-strong: rgb(36 36 41 / 0.74);
+		--rim-hi: rgb(255 255 255 / 0.32);
+		--rim-lo: rgb(255 255 255 / 0.08);
+		--rim-edge: rgb(255 255 255 / 0.09);
+		--sheen: rgb(255 255 255 / 0.09);
+		--glass-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 16px 36px -12px rgb(0 0 0 / 0.75);
+		--glass-depth: inset 0 0 0 0 transparent;
+		--rim-mid: transparent;
+		--rim-w: 1px;
+		--scrim: rgb(0 0 0 / 1);
+		--ctl: var(--fill-3);
+		--ctl-shadow: 0 0 0 0 transparent;
+		--well: var(--fill-3);
+		--well-shadow: inset 0 0 0 0.5px var(--rim-edge);
+		--fill-shadow: 0 0 0 0 transparent;
+		--fill-glow: 0%;
+		--group-rim: inset 0 1px 0 rgb(255 255 255 / 0.35);
+		--group-shadow: 0 1px 2px rgb(40 30 20 / 0.04);
+		--lens: rgb(255 255 255 / 0.14);
+		--thumb: rgb(255 255 255 / 0.24);
+		--sidebar: rgb(24 24 28 / 0.55);
+		--label: #f5f5f7;
+		--label-2: rgb(235 235 245 / 0.62);
+		--label-3: rgb(235 235 245 / 0.32);
+		--sep: rgb(235 235 245 / 0.11);
+		--fill: rgb(120 120 128 / 0.36);
+		--fill-2: rgb(120 120 128 / 0.3);
+		--fill-3: rgb(120 120 128 / 0.22);
+		--red: #ff453a;
+		--red-text: #ff6961;
+		--orange: #ff9f0a;
+		--orange-text: #ffb340;
+		--green: #30d158;
+		--green-text: #30db5b;
+		--on-tint: #000000;
+		--chart: #ee5a78;
+		--shadow-sheet: 0 20px 60px -10px rgb(0 0 0 / 0.8);
+		color-scheme: dark;
+	}
+}
+:root[data-theme='light'] {
+	color-scheme: light;
+}
+/* a person's avatar: the logo's tile as a disc, the initial in their colour (style:--uh = hue) */
+.uav {
+	background: var(--mark-bg);
+	color: hsl(var(--uh, 220) var(--avatar-ink));
+	outline: 0.5px solid var(--mark-rim);
+	outline-offset: -0.5px;
+}
+@media (prefers-reduced-transparency: reduce) {
+	:root:root {
+		--glass-bg: var(--elevated);
+		--glass-strong: var(--elevated);
+		--sheet: var(--sheet-solid);
+		--sheet-cell: var(--elevated);
+		--cell-grouped: var(--elevated);
+		--sidebar: var(--bg-grouped);
+		--glass-blur: 0px;
+	}
+}
+@media (prefers-contrast: more) {
+	:root:root {
+		--sep: var(--label-2);
+		--rim-edge: var(--label-2);
+		--label-2: color-mix(in srgb, var(--label) 80%, transparent);
+	}
+}
+
+/* the open line's colour, made text-safe (vars from tintVars()) */
+.tinted {
+	--tint: var(--tint-l);
+	--tint-fill: var(--fill-l);
+	--on-tint: var(--on-fill-l);
+}
+:root[data-theme='dark'] .tinted {
+	--tint: var(--tint-d);
+	--tint-fill: var(--fill-d);
+	--on-tint: var(--on-fill-d);
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme='light']) .tinted {
+		--tint: var(--tint-d);
+		--tint-fill: var(--fill-d);
+		--on-tint: var(--on-fill-d);
+	}
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+html {
+	-webkit-text-size-adjust: 100%;
+	text-size-adjust: 100%;
+}
+input,
+textarea,
+select {
+	font: inherit;
+	letter-spacing: inherit;
+	color: inherit;
+}
+ul,
+ol {
+	margin: 0;
+}
+img,
+svg {
+	vertical-align: middle;
+}
+a {
+	color: inherit;
+}
+[hidden] {
+	display: none !important;
+}
+
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--label);
+	font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+	font-size: var(--f-body);
+	letter-spacing: var(--tr-body);
+	line-height: 1.3;
+	overflow: hidden;
+	overscroll-behavior: none;
+	-webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+	font-family: inherit;
+	font-variation-settings: normal;
+	margin: 0;
+}
+p {
+	margin: 0;
+	max-width: none;
+}
+button {
+	font: inherit;
+	letter-spacing: inherit;
+	color: inherit;
+	background: none;
+	border: 0;
+	padding: 0;
+	margin: 0;
+	cursor: pointer;
+	-webkit-tap-highlight-color: transparent;
+}
+:focus-visible {
+	outline: 3px solid color-mix(in srgb, var(--tint-fill) 70%, #0a84ff);
+	outline-offset: 2px;
+	border-radius: 999px;
+}
+
+/* ------------------------------------------------------------ Liquid Glass
+   A layer that bends what's behind it (blur + saturation), a bright rim where light hits the
+   top edge, a softer one at the bottom, and a sheen from above. */
+:where(.glass) {
+	position: relative;
+}
+.glass {
+	isolation: isolate;
+	background: var(--glass-bg);
+	-webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.9) brightness(1.04);
+	backdrop-filter: blur(var(--glass-blur)) saturate(1.9) brightness(1.04);
+	box-shadow:
+		var(--glass-shadow),
+		var(--glass-depth),
+		inset 0 0 0 0.5px var(--rim-edge);
+}
+.glass::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	z-index: -1;
+	border-radius: inherit;
+	background: radial-gradient(130% 90% at 50% -30%, var(--sheen), transparent 62%);
+	pointer-events: none;
+}
+.glass::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	padding: var(--rim-w, 1px);
+	background: linear-gradient(150deg, var(--rim-hi), var(--rim-mid, transparent) 34%, var(--rim-mid, transparent) 68%, var(--rim-lo));
+	-webkit-mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	-webkit-mask-composite: xor;
+	mask-composite: exclude;
+	pointer-events: none;
+}
+.glass.strong {
+	background: var(--glass-strong);
+	--glass-blur: 24px;
+}
+/* prominent: the tint shows through the glass */
+.glass.tint {
+	background: color-mix(in srgb, var(--tint-fill) 88%, transparent);
+	color: var(--on-tint);
+	--rim-hi: rgb(255 255 255 / 0.7);
+	--sheen: rgb(255 255 255 / 0.35);
+}
+/* liquid touch: glass swells and brightens under the finger, then settles with a little give */
+.lq {
+	transition:
+		transform 520ms cubic-bezier(0.25, 1.6, 0.45, 1),
+		filter 240ms ease;
+}
+.lq:active {
+	transform: scale(1.08);
+	filter: brightness(1.12) saturate(1.15);
+	transition-duration: 180ms, 120ms;
+}
+@media (prefers-reduced-transparency: reduce) {
+	.glass::before {
+		display: none;
+	}
+}
+
+/* ------------------------------------------------------------ type */
+.t-large {
+	font-size: var(--f-large);
+	font-weight: 800;
+	letter-spacing: var(--tr-large);
+	line-height: 1.1;
+}
+.t-title1 {
+	font-size: var(--f-t1);
+	font-weight: 800;
+	letter-spacing: var(--tr-t1);
+	line-height: 1.15;
+}
+.t-title2 {
+	font-size: var(--f-t2);
+	font-weight: 700;
+	letter-spacing: var(--tr-t2);
+	line-height: 1.2;
+}
+.t-title3 {
+	font-size: var(--f-t3);
+	font-weight: 700;
+	letter-spacing: var(--tr-t3);
+	line-height: 1.25;
+}
+.t-sub {
+	font-size: var(--f-sub);
+	letter-spacing: var(--tr-sub);
+}
+.t-foot {
+	font-size: var(--f-foot);
+	letter-spacing: var(--tr-foot);
+	line-height: 1.35;
+}
+.t-2 {
+	color: var(--label-2);
+}
+
+/* ------------------------------------------------------------ press feedback for content (cards shrink a touch) */
+.press {
+	transition:
+		transform 380ms cubic-bezier(0.25, 1.4, 0.45, 1),
+		opacity 160ms;
+}
+.press:active {
+	transform: scale(0.96);
+	transition-duration: 90ms;
+}
+.dim:active {
+	opacity: 0.45;
+	transition: opacity 0ms;
+}
+
+/* ------------------------------------------------------------ buttons */
+.pb {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	min-height: 50px;
+	padding: 0 22px;
+	border-radius: 999px;
+	font-size: var(--f-body);
+	font-weight: 600;
+	white-space: nowrap;
+}
+.pb-gray {
+	background: var(--ctl);
+	box-shadow: var(--ctl-shadow);
+	color: var(--tint);
+}
+.pb-fill {
+	background: var(--tint-fill);
+	color: var(--on-tint);
+	/* the glow takes the colour of this button's line, so it is resolved here, not in :root */
+	box-shadow:
+		var(--fill-shadow),
+		0 6px 14px -6px color-mix(in srgb, var(--tint-fill) var(--fill-glow), transparent);
+}
+.pb-small {
+	min-height: 34px;
+	padding: 0 14px;
+	font-size: var(--f-sub);
+}
+.pb:disabled,
+.gbtn:disabled {
+	opacity: 0.4;
+	pointer-events: none;
+}
+.text-btn {
+	color: var(--tint);
+	font-size: var(--f-body);
+	min-height: 44px;
+	padding: 0 4px;
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+}
+.text-btn:disabled {
+	color: var(--label-3);
+}
+/* round glass control: back, close, confirm, more */
+.gbtn {
+	display: inline-grid;
+	place-items: center;
+	grid-auto-flow: column;
+	gap: 6px;
+	min-width: 44px;
+	height: 44px;
+	padding: 0 12px;
+	border-radius: 999px;
+	color: var(--label);
+	font-size: var(--f-body);
+	font-weight: 600;
+}
+.gbtn.round {
+	width: 44px;
+	padding: 0;
+}
+.icon-btn {
+	display: inline-grid;
+	place-items: center;
+	width: 44px;
+	height: 44px;
+	border-radius: 50%;
+	color: var(--label);
+}
+
+/* ------------------------------------------------------------ grouped lists */
+.section {
+	margin: 0 16px 34px;
+}
+@media (min-width: 721px) {
+	/* one content column on every page: starts under the large title, same width everywhere
+	   (pages only – sheets keep their own inset) */
+	.view .section {
+		margin-left: 36px;
+		margin-right: 36px;
+		max-width: var(--content-max);
+	}
+}
+.section-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 0 6px 10px;
+}
+/* the one button a section head may carry ("All", "Go through"): compact, never squeezes the title */
+.section-head .gbtn {
+	flex: none;
+	height: 34px;
+	padding: 0 12px;
+	font-size: var(--f-sub);
+}
+.section-head h2 {
+	font-size: var(--f-t2);
+	font-weight: 800;
+	letter-spacing: var(--tr-t2);
+}
+.section-head .caps {
+	padding: 0 14px;
+	font-size: var(--f-sub);
+	font-weight: 600;
+	color: var(--label-2);
+}
+.section-foot {
+	padding: 8px 18px 0;
+	font-size: var(--f-foot);
+	color: var(--label-2);
+	line-height: 1.35;
+}
+.group {
+	background: var(--cell-grouped);
+	-webkit-backdrop-filter: blur(20px) saturate(1.6);
+	backdrop-filter: blur(20px) saturate(1.6);
+	border-radius: var(--r-group);
+	overflow: hidden;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	box-shadow:
+		var(--group-shadow),
+		inset 0 0 0 0.5px var(--rim-edge),
+		var(--group-rim);
+}
+.group.plain {
+	background: transparent;
+	border-radius: 0;
+	overflow: visible;
+	box-shadow: none;
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+}
+.cell {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	min-height: 52px;
+	padding: 11px 18px;
+	text-align: left;
+	background: transparent;
+}
+/* rows that lead with artwork are already tall enough: tighter padding, same rhythm everywhere */
+.cell:has(> .cover, > .mosaic) {
+	padding-top: 7px;
+	padding-bottom: 7px;
+}
+.group.plain .cell {
+	background: transparent;
+	padding-left: 0;
+	padding-right: 0;
+}
+/* hairline that starts where the text starts */
+.group > li + li > .cell::before,
+.group > li + li > .swipe > .swipe-front > .cell::before,
+.group > .cell + .cell::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	right: 18px;
+	left: var(--inset, 18px);
+	border-top: 0.5px solid var(--sep);
+}
+.group.plain > li + li > .cell::before,
+.group.plain > li + li > .swipe > .swipe-front > .cell::before {
+	right: 0;
+}
+button.cell:active,
+a.cell:active {
+	background: color-mix(in srgb, transparent, var(--label) 7%);
+	transition: background 0ms;
+}
+.cell .grow {
+	flex: 1;
+	min-width: 0;
+}
+.cell .value {
+	color: var(--label-2);
+	font-size: var(--f-body);
+	/* a long value wraps right-aligned instead of running into the label */
+	min-width: 0;
+	flex: 0 1 auto;
+	margin-left: auto;
+	text-align: right;
+}
+.cell:has(> .value) > .grow {
+	flex: 1 0 auto;
+	max-width: 60%;
+}
+.cell .chev {
+	color: var(--label-3);
+	margin-right: -6px;
+}
+.clip {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.tile-icon {
+	display: grid;
+	place-items: center;
+	flex: none;
+	width: 32px;
+	height: 32px;
+	border-radius: 10px;
+	color: #fff;
+	box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.3);
+}
+
+/* ------------------------------------------------------------ small capsule label (status, role, match notes) */
+.tag {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 1px 8px;
+	border-radius: 999px;
+	background: var(--fill-3);
+	color: var(--label-2);
+	font-size: var(--f-cap);
+	font-weight: 600;
+	vertical-align: middle;
+}
+.tag.good {
+	background: color-mix(in srgb, var(--green) 16%, transparent);
+	color: var(--green-text);
+}
+.tag.warn {
+	background: color-mix(in srgb, var(--orange) 16%, transparent);
+	color: var(--orange-text);
+}
+.tag.accent {
+	background: color-mix(in srgb, #5e5ce6 16%, transparent);
+	color: color-mix(in srgb, #5e5ce6 70%, var(--label));
+}
+
+/* ------------------------------------------------------------ inline input capsule (filter, search in a sheet) */
+.field {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	height: 40px;
+	padding: 0 14px;
+	border-radius: 999px;
+	background: var(--well);
+	box-shadow: var(--well-shadow);
+	color: var(--label-2);
+}
+.field input {
+	flex: 1;
+	min-width: 0;
+	border: 0;
+	outline: none;
+	background: none;
+	color: var(--label);
+	font: inherit;
+}
+
+/* ------------------------------------------------------------ action text in a cell (Save, Connect, Add …) */
+.tintc {
+	color: var(--tint);
+	font-weight: 600;
+}
+.cell:disabled .tintc {
+	color: var(--label-3);
+}
+
+/* ------------------------------------------------------------ action capsule at the end of a cell */
+.cell-pill {
+	flex: none;
+	padding: 6px 14px;
+	border-radius: 999px;
+	background: var(--ctl);
+	box-shadow: var(--ctl-shadow);
+	color: var(--tint);
+	font-size: var(--f-sub);
+	font-weight: 600;
+}
+
+/* ------------------------------------------------------------ ambient colour behind a page */
+.ambient {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+/* dark: colour lives at the top and fades into clean black – a full-page wash looks murky */
+:root[data-theme='dark'] .ambient {
+	--ambient: 26%;
+	filter: saturate(1.15);
+	-webkit-mask-image: linear-gradient(to bottom, #000 0%, rgb(0 0 0 / 0.55) 30%, transparent 62%);
+	mask-image: linear-gradient(to bottom, #000 0%, rgb(0 0 0 / 0.55) 30%, transparent 62%);
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme='light']) .ambient {
+		--ambient: 26%;
+		filter: saturate(1.15);
+		-webkit-mask-image: linear-gradient(to bottom, #000 0%, rgb(0 0 0 / 0.55) 30%, transparent 62%);
+		mask-image: linear-gradient(to bottom, #000 0%, rgb(0 0 0 / 0.55) 30%, transparent 62%);
+	}
+}
+
+.sr {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.press:active,
+	.lq:active {
+		transform: none;
+		opacity: 0.7;
+	}
+}
+
+/* long press: the element sinks a little while you hold it, then lifts into the context menu */
+.holding {
+	transform: scale(0.96) !important;
+	transition: transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+}
+@media (prefers-reduced-motion: reduce) {
+	.holding {
+		transform: none !important;
+		opacity: 0.7;
+	}
+}
+
+/* ---------------------------------------------------------------- small shared helpers */
+.b {
+	display: block;
+}
+.danger {
+	color: var(--red-text);
+}
+.section-foot.warn,
+.warn-text {
+	color: var(--orange-text);
+}
+.cell.center .grow {
+	text-align: center;
+}
+.cell .lbl {
+	flex: none;
+	width: 6.5em;
+}
+.cell .in {
+	flex: 1;
+	min-width: 0;
+	padding: 2px 0;
+	border: 0;
+	outline: none;
+	background: none;
+	color: var(--label);
+	font: inherit;
+}
+.cell .in::placeholder {
+	color: var(--label-3);
+}
+.cell:disabled {
+	opacity: 0.45;
+	cursor: default;
+}
+.mono {
+	font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+	letter-spacing: 0.02em;
+}

@@ -1,0 +1,35 @@
+# Crossfade behind Caddy (automatic HTTPS).
+# 1. cp .env.example .env and fill in CROSSFADE_DOMAIN and CROSSFADE_SECRET_KEY
+# 2. docker compose up -d
+services:
+  crossfade:
+    image: ghcr.io/tg099/crossfade:latest   # or pin a version, e.g. :0.2
+    # build: .                              # to build from source: uncomment, then docker compose up -d --build
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      CROSSFADE_BASE_URL: https://${CROSSFADE_DOMAIN}
+    volumes:
+      - crossfade-data:/data
+    expose:
+      - "8765"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      CROSSFADE_DOMAIN: ${CROSSFADE_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - crossfade
+
+volumes:
+  crossfade-data:
+  caddy-data:
+  caddy-config:

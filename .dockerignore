@@ -1,0 +1,15 @@
+.git
+.github
+.venv
+data
+docs
+tests
+unraid
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+web/node_modules
+web/build
+web/.svelte-kit
+.env

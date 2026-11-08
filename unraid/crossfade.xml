@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<!-- Unraid Docker template. Copy to /boot/config/plugins/dockerMan/templates-user/my-Crossfade.xml,
+     then Docker > Add Container > Template "Crossfade". -->
+<Container version="2">
+  <Name>Crossfade</Name>
+  <Repository>ghcr.io/tg099/crossfade:latest</Repository>
+  <Registry>https://github.com/tg099/crossfade/pkgs/container/crossfade</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/tg099/crossfade</Support>
+  <Project>https://github.com/tg099/crossfade</Project>
+  <Overview>Keeps liked songs, libraries and playlists in sync across music streaming services: one way, both ways or in groups. Supported services: see the README.</Overview>
+  <Category>MediaApp:Music Tools:</Category>
+  <WebUI>http://[IP]:[PORT:8765]/</WebUI>
+  <Icon>https://raw.githubusercontent.com/tg099/crossfade/main/web/static/icon.png</Icon>
+  <ExtraParams>--restart=unless-stopped</ExtraParams>
+  <PostArgs/>
+  <DateInstalled/>
+  <Config Name="WebUI port" Target="8765" Default="8765" Mode="tcp" Description="Port of the web UI (put your reverse proxy, e.g. Nginx Proxy Manager, in front of it)." Type="Port" Display="always" Required="true" Mask="false">8765</Config>
+  <Config Name="Data" Target="/data" Default="/mnt/user/appdata/crossfade" Mode="rw" Description="Database, encrypted logins and automatic backups (backups/)." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/crossfade</Config>
+  <Config Name="Public URL" Target="CROSSFADE_BASE_URL" Default="https://crossfade.example.com" Mode="" Description="HTTPS address where Crossfade is reachable through your reverse proxy (no trailing /). Needed for service sign-ins that redirect back to Crossfade." Type="Variable" Display="always" Required="true" Mask="false"/>
+  <Config Name="Secret Key" Target="CROSSFADE_SECRET_KEY" Default="" Mode="" Description="Encrypts stored logins. Generate once (at least 32 characters), keep it safe, NEVER change it." Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="Spotify Client ID" Target="SPOTIFY_CLIENT_ID" Default="" Mode="" Description="Optional, can also be entered in the app under Account → App credentials." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Spotify Client Secret" Target="SPOTIFY_CLIENT_SECRET" Default="" Mode="" Description="Optional." Type="Variable" Display="advanced" Required="false" Mask="true"/>
+  <Config Name="Google Client ID" Target="GOOGLE_CLIENT_ID" Default="" Mode="" Description="Optional, for YouTube Music sign-in with a Google code." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Google Client Secret" Target="GOOGLE_CLIENT_SECRET" Default="" Mode="" Description="Optional." Type="Variable" Display="advanced" Required="false" Mask="true"/>
+  <Config Name="Parallel syncs" Target="CROSSFADE_WORKER_THREADS" Default="3" Mode="" Description="How many fades may sync at the same time (always one per person)." Type="Variable" Display="advanced" Required="false" Mask="false">3</Config>
+</Container>
