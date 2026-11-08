@@ -17,6 +17,10 @@ updates:
       web:
         patterns: ["*"]
         update-types: [minor, patch]
+    ignore:
+      # SvelteKit pins its TypeScript peer range; bump the major together with Kit
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /
