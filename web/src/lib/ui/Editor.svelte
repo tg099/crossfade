@@ -294,7 +294,13 @@
 		const q = colFilter.trim().toLowerCase();
 		return (pickSvc ? (collections[pickSvc] ?? []) : []).filter((c) => !q || c.name.toLowerCase().includes(q));
 	});
-	const newName = $derived(colFilter.trim() || d.name.trim() || t('editor.newPlaylist'));
+	const newName = $derived.by(() => {
+		// An unnamed fade can already have a source collection, e.g. “BEATZ”.
+		// Prefer a sender and ignore new playlists so their placeholder never becomes the source.
+		const existing = d.stops.filter((s) => s.kind && !s.create && s.collection_name.trim());
+		const source = existing.find((s) => s.role !== 'receive') ?? existing[0];
+		return colFilter.trim() || d.name.trim() || source?.collection_name.trim() || t('editor.newPlaylist');
+	});
 	const ROLE_OPTS = $derived<{ value: Role; label: string }[]>([
 		{ value: 'send', label: t('role.send') },
 		{ value: 'both', label: t('role.both') },
