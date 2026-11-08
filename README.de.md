@@ -47,6 +47,8 @@ immer nur den Fade selbst, nie die Mediathek der anderen.
 | Apple Music | Lieblingssongs, Mediathek, Playlists | Cookie aus dem Web-Player | Inoffiziell (die des Web-Players) |
 | Spotify | Lieblingssongs, Playlists | Spotify-Login; der Admin registriert einmalig eine App | Offizielle Web API |
 | YouTube Music | Lieblingsmusik, Mediathek-Songs, Playlists | Request aus dem Browser kopieren oder Google-Code (dann nur Lieblingsvideos und Playlists) | Inoffiziell (die der Web-App); mit Google-Code die offizielle YouTube Data API |
+| TIDAL | Meine Titel, Playlists | TIDAL-Login; der Admin registriert einmalig eine App | Offizielle TIDAL API |
+| Deezer | Lieblingstitel, Playlists | Cookie aus dem Web-Player | Inoffiziell (die des Web-Players); Katalog über die öffentliche API |
 
 Wie du die einzelnen Dienste verbindest, steht unter [Dienste einrichten](#dienste-einrichten). Ein neuer Dienst
 ist ein Modul in `crossfade/providers/`; Wünsche gern als [Issue](https://github.com/tg099/crossfade/issues).
@@ -110,6 +112,22 @@ Einschränkungen von Spotify für Apps im Entwicklungsmodus (seit 2026): Konten 
 Cookie `media-user-token` von music.apple.com kopieren und einfügen. Kein Apple-Developer-Account nötig;
 die App nutzt dieselbe Schnittstelle wie der Web-Player von Apple.
 
+### TIDAL (einmalig, Admin)
+
+1. [TIDAL Developer Dashboard](https://developer.tidal.com/dashboard) → App anlegen.
+2. Redirect URI: `https://<deine-domain>/api/services/tidal/callback`
+3. Scopes `user.read`, `collection.read`, `collection.write`, `playlists.read`, `playlists.write` und `search.read` freischalten.
+4. Client ID (und Secret) in Crossfade unter **Konto → App-Zugänge** eintragen (oder `TIDAL_CLIENT_ID`/`TIDAL_CLIENT_SECRET` setzen).
+   Mit dem Secret kann Crossfade auch für Nutzer ohne TIDAL-Konto im TIDAL-Katalog suchen.
+
+TIDAL gibt Drittanbieter-Apps keine Hörproben, deshalb lassen sich TIDAL-Versionen in Crossfade nicht anhören.
+
+### Deezer
+
+Cookie `arl` von deezer.com kopieren und einfügen. Deezer nimmt keine neuen Entwickler-Apps mehr an, deshalb geht
+es über die Schnittstelle des Web-Players; Suche und Hörproben kommen aus der öffentlichen Deezer-API. Das Cookie
+hält meist einige Monate und wird ungültig, wenn du dich bei Deezer abmeldest.
+
 ## Wie synchronisiert wird
 
 Jeder Fade merkt sich, welche Songs er kennt und wo er sie zuletzt gesehen hat.
@@ -131,6 +149,22 @@ Jeder Fade merkt sich, welche Songs er kennt und wo er sie zuletzt gesehen hat.
 - **Sicherheitsgrenze** pro Fade: mehr Löschungen als erlaubt → wartet auf Bestätigung. Automatische Syncs bestätigen nie.
 - Fehlgeschlagene Löschungen werden beim nächsten Sync erneut versucht, statt rückgängig gemacht zu werden.
 - Die **Vorschau** zeigt jeden Sync, ohne etwas zu ändern.
+
+## Mehr als Sync
+
+- **Zeitreise:** Jedes Mal, wenn Crossfade eine Sammlung komplett liest, merkt es sich ihren Inhalt, aber nur wenn
+  sich etwas geändert hat. In der Mediathek (Uhr-Symbol) oder bei einer Sammlung im Fade wählst du einen Zeitpunkt,
+  siehst, was seitdem verschwunden und dazugekommen ist, und holst einzelne Songs zurück oder setzt die Sammlung
+  genau auf diesen Stand. Die letzten 7 Tage bleiben komplett, danach ein Stand pro Tag für 90 Tage.
+- **Benachrichtigungen** (**Konto → Benachrichtigungen**): per [ntfy](https://ntfy.sh), Webhook (Discord und Slack
+  werden erkannt, sonst JSON, z. B. für Home Assistant) oder E-Mail über einen SMTP-Server, den der Admin unter
+  **App-Zugänge** einträgt. Pro Kanal wählbar: Anmeldung geht nicht mehr oder läuft bald ab, ein Sync wartet auf
+  dich, neue offene Songs, wiederholt gescheiterte Syncs, Freunde. Jedes Problem wird nur einmal gemeldet.
+- **Anmeldungen prüfen:** Crossfade probiert jede Anmeldung zweimal am Tag aus, auch wenn sie in keinem Fade steckt,
+  und merkt sich, wann sie abläuft, wenn der Dienst es verrät (z. B. bei Google-Apps im Testmodus nach 7 Tagen).
+- **Systemzustand** (nur Admins, **Konto → Systemzustand**): Anfragen, Fehler, Ausbremsungen und Dauer pro Dienst
+  und Stunde, Syncs der letzten 24 Stunden, Datenbank, Backups, freier Speicher und die letzten Fehler. Nur Zahlen,
+  nichts Privates.
 
 ## Sicherheit
 

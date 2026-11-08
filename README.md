@@ -47,6 +47,8 @@ the fade itself, never the other person's library.
 | Apple Music | Favourite songs, library, playlists | Cookie from the web player | Unofficial (the web player's) |
 | Spotify | Liked songs, playlists | Spotify login; the admin registers an app once | Official Web API |
 | YouTube Music | Liked music, library songs, playlists | Request copied from the browser, or a Google code (then liked videos and playlists only) | Unofficial (the web app's); official YouTube Data API with a Google code |
+| TIDAL | My Tracks, playlists | TIDAL login; the admin registers an app once | Official TIDAL API |
+| Deezer | Favourite tracks, playlists | Cookie from the web player | Unofficial (the web player's); catalogue through the public API |
 
 How to connect each one is in [Setting up the services](#setting-up-the-services). A new service is one module in
 `crossfade/providers/`; requests are welcome as [issues](https://github.com/tg099/crossfade/issues).
@@ -110,6 +112,22 @@ Spotify's limits for apps in development mode (since 2026): accounts need **Prem
 Copy the `media-user-token` cookie from music.apple.com and paste it. No Apple developer account needed;
 the app uses the same interface as Apple's web player.
 
+### TIDAL (once, admin)
+
+1. [TIDAL Developer Dashboard](https://developer.tidal.com/dashboard) → create an app.
+2. Redirect URI: `https://<your-domain>/api/services/tidal/callback`
+3. Enable the scopes `user.read`, `collection.read`, `collection.write`, `playlists.read`, `playlists.write` and `search.read`.
+4. Enter the client ID (and secret) in Crossfade under **Account → App credentials** (or set `TIDAL_CLIENT_ID`/`TIDAL_CLIENT_SECRET`).
+   With the secret, Crossfade can also search TIDAL's catalogue for users without a TIDAL account.
+
+TIDAL gives third-party apps no samples, so TIDAL versions can't be listened to in Crossfade.
+
+### Deezer
+
+Copy the `arl` cookie from deezer.com and paste it. Deezer no longer accepts new developer apps, so this goes
+through the web player's interface; search and samples come from Deezer's public API. The cookie usually lasts a
+few months and stops working when you sign out of Deezer.
+
 ## How syncing works
 
 Each fade remembers which songs it knows and where it last saw them.
@@ -131,6 +149,21 @@ Each fade remembers which songs it knows and where it last saw them.
 - **Safety limit** per fade: more deletions than allowed → waits for confirmation. Automatic syncs never confirm.
 - Failed deletions are retried on the next sync instead of being reverted.
 - **Preview** shows every sync without changing anything.
+
+## Beyond syncing
+
+- **Time travel:** every time Crossfade reads a whole collection it remembers its content, only when something
+  changed. In the library (clock icon) or on a collection in a fade you pick a point in time, see what is gone and
+  what came in since, and bring back single songs or reset the collection to exactly that state. The last 7 days
+  are kept in full, then one state per day for 90 days.
+- **Notifications** (**Account → Notifications**): through [ntfy](https://ntfy.sh), a webhook (Discord and Slack are
+  recognised, otherwise JSON, e.g. for Home Assistant) or e-mail through an SMTP server the admin adds under
+  **App credentials**. Per channel: a login stops working or ends soon, a sync is waiting for you, new open songs,
+  syncs that keep failing, friends. Each problem is reported only once.
+- **Login checks:** Crossfade tries every login twice a day, also those no fade uses, and remembers when it ends if
+  the service says so (e.g. after 7 days for Google apps in testing mode).
+- **Health** (admins only, **Account → Health**): requests, errors, throttling and duration per service and hour,
+  syncs of the last 24 hours, database, backups, free storage and the latest errors. Counts only, nothing private.
 
 ## Security
 
