@@ -5,8 +5,9 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import Logo from '#lib/components/Logo.svelte';
+	import { SERVICES } from '#lib/format.ts';
 	import { app } from '#lib/state.svelte.ts';
-	import type { Line } from '#lib/types.ts';
+	import type { Line, Service } from '#lib/types.ts';
 	import Account from '#lib/ui/Account.svelte';
 	import ActionSheet from '#lib/ui/ActionSheet.svelte';
 	import AppsSheet from '#lib/ui/AppsSheet.svelte';
@@ -60,7 +61,10 @@
 				app.loadServices();
 				app.loadLines();
 			} else if (err) ui.say(t((SPOTIFY_ERRORS[err] ?? 'services.spotify.failed') as never), 'alert', 'fault');
-			ui.openAccount('spotify');
+			// a notification links to the service whose login needs renewing (/services?service=apple)
+			const focus = url.searchParams.get('service') as Service | null;
+			const back = (ok || err?.split('-')[0]) as Service | null;
+			ui.openAccount(focus && SERVICES.includes(focus) ? focus : back && SERVICES.includes(back) ? back : null);
 			goto('/', { replaceState: true }).then(() => nav.init('/'));
 		} else nav.init(url.pathname);
 		ready = true;

@@ -10,6 +10,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
+from . import notify
 from .config import config
 from .db import Database, get_db
 from .engine import LineSync, Stopped
@@ -72,6 +73,7 @@ class Worker:
         self._lock = threading.Lock()
         self._scheduler: threading.Thread | None = None
         self._shutdown = threading.Event()
+        self._checking: set[int] = set()                   # accounts whose login is being tried
 
     # ------------------------------------------------------------------ public
     def start_scheduler(self) -> None:
@@ -318,6 +320,8 @@ class Worker:
                 self.jobs.pop(line_id, None)
                 self.live.pop(line_id, None)
                 self._stop_flags.pop(line_id, None)
+            if apply:
+                notify.safely(notify.run_finished, db, line_id, status, message, trigger)
             finished = {"type": "job", "line_id": line_id, "job": None,
                         "finished": {"status": status, "message": message, "summary": summary,
                                      "preview": not apply}}
@@ -325,7 +329,7 @@ class Worker:
                 self.bus.publish(uid, finished)
 
     def _mark_account(self, account_id: int, status: str, message: str | None) -> None:
-        self.db.run("UPDATE accounts SET status=?, status_message=? WHERE id=?", (status, message, account_id))
+        mark_account(self.db, account_id, status, message)
 
     def _flag_auth(self, line_id: int, message: str) -> None:
         """Mark the account whose service is named in the auth error message."""
@@ -351,6 +355,7 @@ class Worker:
                 log.error("scheduler: %s", traceback.format_exc())
 
     def _tick(self) -> None:
+        self._check_accounts()
         now = time.time()
         due = self.db.all("""
             SELECT l.id FROM lines l
@@ -362,6 +367,68 @@ class Worker:
             ORDER BY l.last_run_at IS NOT NULL, l.last_run_at""", (now,))
         for row in due:
             self.start(row["id"], trigger="schedule")
+
+
+    # ------------------------------------------------------------------ login checks
+    def _check_accounts(self) -> None:
+        """Try every working login about twice a day, also those no fade uses: an expired login is
+        noticed (and reported) before a sync runs into it. One account per tick, never one that a
+        sync of its owner is using right now."""
+        due = self.db.one("""SELECT id, user_id FROM accounts WHERE credentials IS NOT NULL AND status='ok'
+                              AND (checked_at IS NULL OR checked_at < ?) ORDER BY checked_at IS NOT NULL, checked_at
+                              LIMIT 1""", (time.time() - CHECK_EVERY,))
+        if not due or due["id"] in self._checking:
+            return
+        self._checking.add(due["id"])
+        self.pool.submit(self._check_one, due["id"], due["user_id"])
+
+    def _check_one(self, account_id: int, user_id: int) -> None:
+        try:
+            with self._user_lock(user_id):
+                check_account(self.db, account_id)
+        except Exception:  # noqa: BLE001
+            log.error("login check: %s", traceback.format_exc())
+        finally:
+            self._checking.discard(account_id)
+
+
+CHECK_EVERY = 12 * 3600
+EXPIRY_WARNING = 7 * 86400
+
+
+def mark_account(db: Database, account_id: int, status: str, message: str | None) -> None:
+    """Record whether a login works; tell its owner once when it stops working."""
+    was = db.val("SELECT status FROM accounts WHERE id=?", (account_id,))
+    db.run("UPDATE accounts SET status=?, status_message=? WHERE id=?", (status, message, account_id))
+    if status == "error" and was != "error":
+        notify.safely(notify.account_failed, db, account_id, message)
+    elif status == "ok":
+        notify.safely(notify.account_ok, db, account_id)
+
+
+def check_account(db: Database, account_id: int) -> str:
+    """Sign in once (whoami) and read when the login ends. Returns ok | error | unreachable."""
+    acc = db.one("SELECT * FROM accounts WHERE id=?", (account_id,))
+    if not acc or not acc["credentials"]:
+        return "error"
+    result = "ok"
+    try:
+        prov = build_provider(db, acc)
+        prov.whoami()
+        expires = prov.login_expires_at()
+        db.run("UPDATE accounts SET checked_at=?, expires_at=? WHERE id=?", (time.time(), expires, account_id))
+        mark_account(db, account_id, "ok", None)
+        if expires and expires - time.time() < EXPIRY_WARNING:
+            notify.safely(notify.account_expiring, db, account_id, expires)
+    except AuthError as e:
+        db.run("UPDATE accounts SET checked_at=? WHERE id=?", (time.time(), account_id))
+        mark_account(db, account_id, "error", str(e))
+        result = "error"
+    except Exception as e:  # noqa: BLE001 – the service is down or slow: try again next time
+        log.info("login check of account %s: %s", account_id, e)
+        db.run("UPDATE accounts SET checked_at=? WHERE id=?", (time.time() - CHECK_EVERY + 3600, account_id))
+        result = "unreachable"
+    return result
 
 
 _worker: Worker | None = None

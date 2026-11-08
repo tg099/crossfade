@@ -101,6 +101,10 @@ class AppleProvider(Provider):
         self.http = httpx.Client(timeout=30, headers={"User-Agent": UA, "Origin": WEB, "Referer": WEB + "/",
                                                       "Accept": "application/json"})
 
+    def login_expires_at(self) -> float | None:
+        tok = self.credentials.get("media_user_token") or ""
+        return jwt_expiry(tok) if tok.count(".") == 2 else None
+
     # ------------------------------------------------------------------ transport
     def _req(self, method: str, path: str, params: dict | None = None, body: Any = None,
              user: bool = True, _attempt: int = 0, patient: bool = True) -> dict:

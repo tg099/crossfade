@@ -64,6 +64,8 @@ class UI {
 	userEditing = $state<number | null>(null);
 	userOpen = $state(false);
 	appsOpen = $state(false);
+	notifyOpen = $state(false);
+	healthOpen = $state(false);
 	passwordOpen = $state(false);
 	friendsOpen = $state(false);
 	/** an invitation into a friend's fade, being answered */

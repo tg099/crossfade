@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from .. import matcher
+from .. import notify as alert
 from ..db import Database
 from ..identity import Identity
 from ..models import PLAYLIST, SERVICE_NAMES, SERVICES, ApiError, AuthError, Track
@@ -810,6 +811,9 @@ def invite(line_id: int, body: InviteBody, user: dict = Depends(current_user), d
         raise HTTPException(409, "The invite has already been sent.")
     db.run("INSERT INTO fade_invites(line_id,from_user,to_user,created_at) VALUES(?,?,?,?)",
            (line_id, user["id"], body.user_id, time.time()))
+    fade = db.val("SELECT name FROM lines WHERE id=?", (line_id,))
+    alert.safely(alert.social, db, body.user_id, f"Invite to {fade}",
+                 f"{user['display_name']} invites you to the fade {fade}.", "/fades")
     notify([body.user_id], "fades")
     return get_line(line_id, user, db)
 
@@ -870,6 +874,9 @@ def approve_request(line_id: int, invite_id: int, body: ApproveBody, user: dict 
                   (line_id, member["account_id"], member["kind"], member["collection_id"],
                    member["collection_name"], member["role"], member["follow_deletions"], pos))
         c.execute("DELETE FROM fade_invites WHERE id=?", (invite_id,))
+    fade = db.val("SELECT name FROM lines WHERE id=?", (line_id,))
+    alert.safely(alert.social, db, guest, f"You're in {fade}",
+                 f"{user['display_name']} let your collection into {fade}.", f"/fades/{line_id}")
     notify([guest], "fades")
     return get_line(line_id, user, db)
 

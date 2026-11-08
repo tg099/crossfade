@@ -285,6 +285,33 @@ MIGRATIONS: list[str] = [
     ALTER TABLE fade_invites ADD COLUMN request TEXT;
     ALTER TABLE fade_invites ADD COLUMN requested_at REAL;
     """,
+    # ---- 15: notifications (ntfy, webhook, e-mail) and a daily check of every login
+    """
+    CREATE TABLE notify_channels (
+        id INTEGER PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL,              -- ntfy | webhook | email
+        config TEXT NOT NULL,            -- encrypted JSON (topic, URL, token, address)
+        events TEXT NOT NULL,            -- JSON list of event names
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at REAL NOT NULL,
+        last_sent_at REAL,
+        last_error TEXT
+    );
+    CREATE INDEX notify_channels_user ON notify_channels(user_id);
+    -- what was already sent, so a lasting problem is reported once (value: e.g. the count it was about)
+    CREATE TABLE notify_state (
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        key TEXT NOT NULL,
+        value TEXT,
+        sent_at REAL NOT NULL,
+        PRIMARY KEY (user_id, key)
+    );
+    ALTER TABLE accounts ADD COLUMN checked_at REAL;      -- last time the login was tried
+    ALTER TABLE accounts ADD COLUMN expires_at REAL;      -- when the login ends, if the service says
+    ALTER TABLE accounts ADD COLUMN connected_at REAL;    -- when this login was entered
+    UPDATE accounts SET connected_at=updated_at;
+    """,
 ]
 
 

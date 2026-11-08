@@ -1,6 +1,9 @@
 // Constants shared by the UI that don't depend on the language.
 import type { Service } from './types.ts';
 
+/** every service, in the order the UI lists them */
+export const SERVICES: Service[] = ['ytm', 'apple', 'spotify'];
+
 export const SERVICE_NAME: Record<Service, string> = {
 	ytm: 'YouTube Music',
 	apple: 'Apple Music',

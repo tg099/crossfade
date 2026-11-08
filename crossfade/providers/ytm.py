@@ -105,6 +105,9 @@ class DeviceFlow:
         if tok.get("error"):
             raise AuthError(f"Google sign-in failed: {tok.get('error_description') or tok['error']}")
         tok["expires_at"] = int(time.time()) + int(tok.get("expires_in", 3600))
+        if tok.get("refresh_token_expires_in"):
+            # Google limits the login of apps still "in testing" (7 days) and of time-limited grants
+            tok["refresh_expires_at"] = int(time.time()) + int(tok["refresh_token_expires_in"])
         return {"type": "oauth", "token": tok}
 
 
@@ -341,6 +344,11 @@ class YTMProvider(Provider):
         raise ApiError(f"YouTube Music: {last}")
 
     # ------------------------------------------------------------------ account
+    def login_expires_at(self) -> float | None:
+        if self.credentials.get("type") == "oauth":
+            return (self.credentials.get("token") or {}).get("refresh_expires_at")
+        return None
+
     def whoami(self) -> str:
         if self.api:
             items = self.api.req("GET", "/channels", {"part": "snippet", "mine": "true"}).get("items") or []

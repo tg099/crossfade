@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
+from .. import notify
 from ..config import config
 from ..db import Database
 from ..models import APPLE, SERVICE_NAMES, SERVICES, SPOTIFY, YTM, ApiError, AuthError
@@ -18,6 +19,7 @@ from ..providers import spotify as sp
 from ..providers.apple import clean_user_token
 from ..providers.ytm import DeviceFlow, parse_pasted
 from ..security import encrypt
+from ..worker import mark_account
 from .deps import current_user, db_dep
 
 router = APIRouter(prefix="/api/services", tags=["services"])
@@ -50,12 +52,22 @@ def _save_account(db: Database, user_id: int, service: str, creds: dict, name: s
     old = db.one("SELECT id, display_name FROM accounts WHERE user_id=? AND service=?", (user_id, service))
     if old and old["display_name"] and old["display_name"] != name:
         _forget_account_state(db, old["id"])
-    db.run("""INSERT INTO accounts(user_id,service,display_name,credentials,status,status_message,created_at,updated_at)
-              VALUES(?,?,?,?, 'ok', NULL, ?, ?)
+    try:
+        expires = make_provider(db, service, creds).login_expires_at()
+    except Exception:  # noqa: BLE001 – only a hint
+        expires = None
+    db.run("""INSERT INTO accounts(user_id,service,display_name,credentials,status,status_message,created_at,updated_at,
+              connected_at,checked_at,expires_at)
+              VALUES(?,?,?,?, 'ok', NULL, ?, ?, ?, ?, ?)
               ON CONFLICT(user_id,service) DO UPDATE SET display_name=excluded.display_name,
-              credentials=excluded.credentials, status='ok', status_message=NULL, updated_at=excluded.updated_at""",
-           (user_id, service, name, encrypt(creds), now, now))
-    _collections_cache.pop(db.val("SELECT id FROM accounts WHERE user_id=? AND service=?", (user_id, service)), None)
+              credentials=excluded.credentials, status='ok', status_message=NULL, updated_at=excluded.updated_at,
+              connected_at=excluded.connected_at, checked_at=excluded.checked_at, expires_at=excluded.expires_at""",
+           (user_id, service, name, encrypt(creds), now, now, now, now, expires))
+    acc_id = db.val("SELECT id FROM accounts WHERE user_id=? AND service=?", (user_id, service))
+    _collections_cache.pop(acc_id, None)
+    # a fresh login: what was reported about the old one is over
+    for key in (f"auth:{acc_id}", f"expiring:{acc_id}"):
+        notify.resolve(db, user_id, key)
     return {"service": service, "display_name": name}
 
 
@@ -104,6 +116,8 @@ def services(user: dict = Depends(current_user), db: Database = Depends(db_dep))
             "status": (a["status"] if connected else "disconnected") if a else "disconnected",
             "status_message": a["status_message"] if a else None,
             "updated_at": a["updated_at"] if a else None, "methods": methods, "lines": lines,
+            "checked_at": a["checked_at"] if a else None, "expires_at": a["expires_at"] if connected else None,
+            "connected_at": a["connected_at"] if a else None,
             "admin_setup_needed": svc == SPOTIFY and not methods,
             "yt_format": (a["yt_format"] if a else "song") if svc == YTM else None,
         })
@@ -257,7 +271,7 @@ def collections(service: str, refresh: bool = False, user: dict = Depends(curren
     try:
         cols = [c.to_dict() for c in build_provider(db, a).collections()]
     except AuthError as e:
-        db.run("UPDATE accounts SET status='error', status_message=? WHERE id=?", (str(e), a["id"]))
+        mark_account(db, a["id"], "error", str(e))
         raise HTTPException(401, str(e)) from e
     except ApiError as e:
         raise HTTPException(502, str(e)) from e
@@ -283,3 +297,11 @@ def create_playlist(service: str, body: PlaylistBody, user: dict = Depends(curre
     return col.to_dict()
 
 
+
+
+@router.post("/{service}/check")
+def check_now(service: str, user: dict = Depends(current_user), db: Database = Depends(db_dep)):
+    """Try the login right now (the app does this by itself about twice a day)."""
+    from ..worker import check_account
+    a = _account(db, user["id"], service)
+    return {"result": check_account(db, a["id"])}

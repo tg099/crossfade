@@ -25,6 +25,11 @@ class Provider(ABC):
     def whoami(self) -> str:
         """Display name of the connected account; raises AuthError when not logged in."""
 
+    def login_expires_at(self) -> float | None:
+        """When this login stops working for good (needs signing in again), if the service says.
+        Tokens Crossfade renews by itself don't count."""
+        return None
+
     # ------------------------------------------------------------------ collections
     @abstractmethod
     def collections(self) -> list[Collection]: ...

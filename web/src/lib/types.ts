@@ -63,6 +63,10 @@ export interface ServiceInfo {
 	admin_setup_needed: boolean;
 	/** YouTube only: songs land there as music video or as audio track */
 	yt_format: YtFormat | null;
+	/** last time Crossfade tried the login, when it ends (if the service says) and when it was entered */
+	checked_at: number | null;
+	expires_at: number | null;
+	connected_at: number | null;
 }
 
 export type YtFormat = 'song' | 'video';

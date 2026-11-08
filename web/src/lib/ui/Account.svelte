@@ -6,6 +6,7 @@
 	import { app } from '#lib/state.svelte.ts';
 	import type { User } from '#lib/types.ts';
 	import Glyph from './Glyph.svelte';
+	import NotifySheet from './NotifySheet.svelte';
 	import Segmented from './Segmented.svelte';
 	import ServiceSheet from './ServiceSheet.svelte';
 	import Sheet from './Sheet.svelte';
@@ -75,6 +76,7 @@
 				<ul class="group">
 					{#each app.services as s (s.service)}
 						{@const bad = s.connected && s.status === 'error'}
+						{@const days = s.connected && s.expires_at ? Math.floor((s.expires_at - Date.now() / 1000) / 86400) : null}
 						<li>
 							<button class="cell" style:--inset="58px" onclick={() => ui.openService(s.service)}>
 								<ServiceMark service={s.service} size={30} />
@@ -82,6 +84,8 @@
 									<span class="b">{s.name}</span>
 									{#if bad}
 										<span class="b t-foot danger">{t('services.expired', { n: s.lines })}</span>
+									{:else if days !== null && days < 7}
+										<span class="b t-foot warn">{t('services.expiresIn', { n: days })}</span>
 									{:else if s.connected}
 										<span class="b t-foot t-2 clip">{s.display_name} · {t('n.inFades', { n: s.lines })}</span>
 									{:else}
@@ -102,6 +106,11 @@
 
 			<div class="section">
 				<div class="group">
+					<button class="cell" style:--inset="58px" onclick={() => (ui.notifyOpen = true)}>
+						<span class="tile-icon" style:background="#ff3b30"><Glyph name="bell" size={19} weight={2.1} /></span>
+						<span class="grow">{t('account.notify')}</span>
+						<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
+					</button>
 					<button class="cell" style:--inset="58px" onclick={() => (ui.friendsOpen = true)}>
 						<span class="tile-icon" style:background="#30b0c7"><Glyph name="users" size={19} weight={2.1} /></span>
 						<span class="grow">
@@ -179,6 +188,7 @@
 </Sheet>
 
 <ServiceSheet />
+<NotifySheet />
 
 <style>
 	.acc {
@@ -233,6 +243,9 @@
 	}
 	.ok {
 		color: var(--green);
+	}
+	.warn {
+		color: var(--orange-text);
 	}
 	.version {
 		text-align: center;

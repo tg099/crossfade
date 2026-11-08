@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from ..config import DEFAULT_SOURCE, config
 from ..db import get_db
 from ..worker import get_worker
-from . import admin, auth, catalog, lines, preview, services, social
+from . import admin, auth, catalog, lines, notifications, preview, services, social
 from .deps import current_user
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -59,7 +59,7 @@ async def guard(request: Request, call_next):
 
 
 for r in (auth.router, admin.router, services.router, lines.router, catalog.router, preview.router, social.router,
-          social.invites):
+          social.invites, notifications.router):
     app.include_router(r)
 
 

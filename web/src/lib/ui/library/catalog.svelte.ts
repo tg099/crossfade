@@ -13,7 +13,8 @@ export type Avail = 'any' | 'has' | 'missing';
 export type Facet = 'artist' | 'album' | 'source' | 'line';
 export type Special = 'videos' | 'explicit' | 'noline' | 'single' | 'versions';
 export type Sort = 'relevance' | 'artist' | 'title' | 'album' | 'added' | 'duration';
-export const SERVICES: Service[] = ['ytm', 'apple', 'spotify'];
+export { SERVICES } from '#lib/format.ts';
+import { SERVICES } from '#lib/format.ts';
 
 const SPLIT = /\s*(?:,|\s&\s|\bfeat\.?|\bft\.)\s*/i;
 export const artistsOf = (a: string) =>

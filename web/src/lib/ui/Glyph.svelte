@@ -53,6 +53,11 @@
 		filter: 'M4 6.5h16M7 12h10M10 17.5h4',
 		settings: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4',
 		services: 'M8.5 3.5v4M15.5 3.5v4M5.5 7.5h13v4a6.5 6.5 0 0 1-13 0v-4ZM12 18v2.5',
+		mail: 'M4.5 6.5h15a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1ZM4 7.2l8 6 8-6',
+		bell: 'M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 2H5l1.5-2ZM10 20.5a2.2 2.2 0 0 0 4 0',
+		// time travel: a clock whose hand runs back
+		history: 'M4.6 12a7.4 7.4 0 1 0 2.2-5.2M4.5 4.5v3.6h3.6M12 8v4.3l2.8 1.7',
+		pulse: 'M3.5 12.5h3.8l2.2-5.5 4 11 2.4-5.5h4.6',
 		key: 'M14.5 13.5a4.5 4.5 0 1 0-4-2.4L4 17.6V20h2.5v-2h2v-2h2l1.5-1.5a4.5 4.5 0 0 0 2.5-1Z'
 	} as const;
 	export type GlyphName = keyof typeof P;

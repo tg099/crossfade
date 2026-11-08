@@ -8,6 +8,7 @@ import time
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from .. import notify as alert
 from ..config import config
 from ..db import Database
 from ..providers import APP_KEYS, app_credential, app_credential_source, set_app_credential
@@ -166,3 +167,50 @@ def save_app_settings(body: AppBody, _: dict = Depends(admin_user), db: Database
             continue           # environment wins
         set_app_credential(db, key, value.strip() or None)
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------- e-mail for notifications
+@router.get("/smtp")
+def smtp(_: dict = Depends(admin_user), db: Database = Depends(db_dep)):
+    s = alert.smtp_settings(db)
+    if not s:
+        return {"set": False}
+    return {"set": True, **{k: s.get(k) for k in alert.SMTP_KEYS}, "password_set": bool(s.get("password"))}
+
+
+class SmtpBody(BaseModel):
+    host: str = Field(default="", max_length=255)
+    port: int | None = Field(default=None, ge=1, le=65535)
+    security: str = "starttls"
+    username: str | None = Field(default=None, max_length=255)
+    password: str | None = Field(default=None, max_length=1000)   # None = keep, "" = remove
+    sender: str = Field(default="", max_length=320)
+
+
+@router.put("/smtp")
+def save_smtp(body: SmtpBody, _: dict = Depends(admin_user), db: Database = Depends(db_dep)):
+    try:
+        alert.save_smtp(db, body.model_dump())
+    except alert.ChannelError as e:
+        raise HTTPException(400, str(e)) from e
+    return smtp(_, db)
+
+
+class SmtpTest(BaseModel):
+    to: str = Field(min_length=3, max_length=254)
+
+
+@router.post("/smtp/test")
+def test_smtp(body: SmtpTest, _: dict = Depends(admin_user), db: Database = Depends(db_dep)):
+    s = alert.smtp_settings(db)
+    if not s:
+        raise HTTPException(400, "Save the mail server first.")
+    try:
+        cfg = alert.clean_config("email", {"to": body.to})
+        alert._send("email", cfg, {"event": "test", "title": "Test from Crossfade",
+                                    "message": "The mail server works.", "url": config.base_url}, s)
+    except alert.ChannelError as e:
+        raise HTTPException(400, str(e)) from e
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"[:300]}
+    return {"ok": True, "error": None}

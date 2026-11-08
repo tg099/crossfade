@@ -7,7 +7,7 @@
 	import Segmented from './Segmented.svelte';
 	import Sheet from './Sheet.svelte';
 	import SheetBar from './SheetBar.svelte';
-	import { t } from './i18n.svelte.ts';
+	import { i18n, t } from './i18n.svelte.ts';
 	import { devtoolsKeys } from './keys.ts';
 	import { ago, ui } from './ui.svelte.ts';
 
@@ -122,6 +122,19 @@
 		};
 	}
 	const bad = $derived(!!s?.connected && s.status === 'error');
+	const days = $derived(s?.connected && s.expires_at ? Math.floor((s.expires_at - Date.now() / 1000) / 86400) : null);
+
+	// try the login right now (Crossfade also does this by itself twice a day)
+	const check = () =>
+		run(async () => {
+			const svc = s!;
+			const r = await post<{ result: 'ok' | 'error' | 'unreachable' }>(`/api/services/${svc.service}/check`);
+			await app.loadServices();
+			if (r.result === 'ok') ui.say(t('services.checkOk'), 'check');
+			else if (r.result === 'error') ui.say(t('services.checkFail'), 'alert', 'fault');
+			else ui.say(t('services.checkDown', { service: svc.name }), 'alert', 'fault');
+		});
+	const dateFmt = (ts: number) => new Date(ts * 1000).toLocaleDateString(i18n.locale, { day: 'numeric', month: 'long', year: 'numeric' });
 
 	// YouTube: music video or audio track for everything Crossfade adds
 	async function setFormat(f: YtFormat) {
@@ -245,6 +258,23 @@
 				{#if error}<p class="section-foot danger" role="alert">{error}</p>{/if}
 			</div>
 
+			{#if s.connected && !bad}
+				<div class="section">
+					<div class="group">
+						<div class="cell">
+							<span class="grow">
+								<span class="b" class:warn={days !== null && days < 7}>
+									{days !== null && days < 7 ? t('services.expiresIn', { n: days }) : s.expires_at ? t('services.expiresOn', { date: dateFmt(s.expires_at) }) : t('services.checkOk')}
+								</span>
+								<span class="b t-foot t-2">{t('services.checked', { ago: ago(s.checked_at) })}</span>
+							</span>
+						</div>
+						<button class="cell" onclick={check} disabled={busy}><span class="grow tintc">{t('services.check')}</span></button>
+					</div>
+					<p class="section-foot">{t('services.checkHint')}</p>
+				</div>
+			{/if}
+
 			{#if s.connected && s.service === 'ytm'}
 				<div class="section">
 					<div class="section-head"><span class="caps">{t('services.yt.format')}</span></div>
@@ -289,6 +319,9 @@
 	}
 	.way {
 		margin: 0 16px 12px;
+	}
+	.warn {
+		color: var(--orange-text);
 	}
 	.section-head.alt {
 		margin-top: 22px;
