@@ -39,6 +39,9 @@
 		return [...ids].map((id) => c.lineById.get(id)?.name).filter(Boolean);
 	});
 	const toggle = (id: number) => (from = from.includes(id) ? from.filter((x) => x !== id) : [...from, id]);
+	const editable = $derived(options.filter((o) => o.src.editable).map((o) => o.src.id));
+	const allOn = $derived(editable.length > 0 && editable.every((id) => from.includes(id)));
+	const toggleAll = () => (from = allOn ? [] : editable);
 	const valid = $derived(from.length > 0 && !busy && !app.catalogJob);
 	async function go() {
 		if (!valid) return;
@@ -60,7 +63,10 @@
 	<div class="wrap">
 		<p class="intro t-sub t-2">{songs.length === 1 ? `${songs[0].a} – ${songs[0].t}` : t('n.songs', { n: num(songs.length) })}</p>
 		<div class="section">
-			<div class="section-head"><span class="caps">{t('lib.from')}</span></div>
+			<div class="section-head">
+				<span class="caps">{t('lib.from')}</span>
+				{#if editable.length > 1}<button class="gbtn glass lq" onclick={toggleAll}>{allOn ? t('lib.selectNone') : t('common.all')}</button>{/if}
+			</div>
 			<div class="group">
 				{#each options as o (o.src.id)}
 					{@const on = from.includes(o.src.id)}

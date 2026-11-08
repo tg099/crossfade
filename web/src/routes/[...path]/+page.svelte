@@ -16,6 +16,7 @@
 	import Glyph from '#lib/ui/Glyph.svelte';
 	import Hearing from '#lib/ui/Hearing.svelte';
 	import JoinSheet from '#lib/ui/JoinSheet.svelte';
+	import { moveKeys } from '#lib/ui/keys.ts';
 	import PasswordSheet from '#lib/ui/PasswordSheet.svelte';
 	import PlanSheet from '#lib/ui/PlanSheet.svelte';
 	import ReviewSheet from '#lib/ui/ReviewSheet.svelte';
@@ -319,7 +320,7 @@
 									onpointercancel={sideOrder.up}
 									onkeydown={(e) => e.altKey && sideOrder.key(e, i, (id) => `[data-side="${id}"]`)}
 									data-side={f.id}
-									title={t('fades.sideHint')}
+									title={t('fades.sideHint', { keys: moveKeys })}
 									use:hold={() => fadeMenu(f.id)}
 								>
 									<FadeBadge icon={fadeIcon(f)} color={f.color} size={22} />

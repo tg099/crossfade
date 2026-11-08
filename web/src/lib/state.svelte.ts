@@ -35,7 +35,8 @@ class AppState {
 	/** friends, requests and invitations into their fades */
 	friends = $state<Friends>({ friends: [], incoming: [], outgoing: [], invites: [] });
 	/** what waits for an answer from you */
-	socialBadge = $derived(this.friends.incoming.length + this.friends.invites.length);
+	// what waits for you: friend requests, and invites you haven't answered (a sent join request waits for the owner)
+	socialBadge = $derived(this.friends.incoming.length + this.friends.invites.filter((i) => !i.request).length);
 
 	#events: EventSource | null = null;
 

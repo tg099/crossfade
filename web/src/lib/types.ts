@@ -135,8 +135,8 @@ export interface Line {
 	/** your own fade; false = a friend's fade you joined with a collection */
 	mine: boolean;
 	owner: Person;
-	/** owner only: friends invited who have not joined yet */
-	invites: { id: number; created_at: number; user: Person }[];
+	/** owner only: friends invited who have not joined yet, with what they asked to join with */
+	invites: { id: number; created_at: number; user: Person; request: JoinRequest | null }[];
 	name: string;
 	color: string;
 	icon: string;
@@ -179,12 +179,26 @@ export interface FriendRequest {
 	created_at: number;
 }
 
+/** the collection and direction a friend asked to join a fade with, until the owner decides */
+export interface JoinRequest {
+	service: Service;
+	kind: Kind;
+	collection_name: string;
+	role: Role;
+	follow_deletions: boolean;
+	/** a new playlist, created once the owner approves */
+	create: boolean;
+	requested_at: number;
+}
+
 /** an invitation into a friend's fade: only its name and look, until you join */
 export interface FadeInvite {
 	id: number;
 	created_at: number;
 	fade: { name: string; icon: string; color: string };
 	from: Person;
+	/** what you asked to join with, while the owner hasn't decided */
+	request: JoinRequest | null;
 }
 
 export interface Friends {

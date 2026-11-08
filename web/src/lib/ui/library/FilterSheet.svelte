@@ -48,6 +48,12 @@
 		else out.sort((a, b) => b.n - a.n || col.compare(a.label, b.label));
 		return out;
 	});
+	// pick every entry shown (the search narrows what "all" means), or none of them
+	const allOn = $derived(entries.length > 0 && entries.every((e) => c.picked[facet].includes(e.key)));
+	function toggleAll() {
+		const keys = new Set(entries.map((e) => e.key));
+		c.picked[facet] = allOn ? c.picked[facet].filter((k) => !keys.has(k)) : [...new Set([...c.picked[facet], ...keys])];
+	}
 </script>
 
 <Sheet bind:open={c.filterOpen} label={t('lib.filter')}>
@@ -73,6 +79,12 @@
 				<Glyph name="search" size={15} weight={2.2} />
 				<input bind:value={q} placeholder={t('lib.findIn')} autocomplete="off" />
 			</label>
+			{#if entries.length > 1}
+				<div class="section-head">
+					<span class="caps">{t('lib.nPicked', { n: num(c.picked[facet].length) })}</span>
+					<button class="gbtn glass lq" onclick={toggleAll}>{allOn ? t('lib.selectNone') : t('lib.selectAllN', { n: num(entries.length) })}</button>
+				</div>
+			{/if}
 			<ul class="group">
 				{#each entries.slice(0, limit) as e (e.key)}
 					{@const on = c.picked[facet].includes(e.key)}

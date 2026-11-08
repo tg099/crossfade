@@ -35,6 +35,14 @@ export function fadeStatus(l: Line): FadeStatus {
 			detail: job.phase || null
 		};
 	}
+	// a friend waits for the owner's yes (only the owner gets invites with requests)
+	const asking = l.invites.filter((i) => i.request);
+	if (asking.length)
+		return {
+			tone: 'attention',
+			text: asking.length === 1 ? t('status.wantsIn', { name: asking[0].user.display_name }) : t('status.wantInN', { n: asking.length }),
+			detail: t('status.wantsInDetail')
+		};
 	if (l.paused) return { tone: 'quiet', text: t('status.paused'), detail: null };
 	const fault = l.members.map(memberFault).find(Boolean);
 	if (fault) return { tone: 'fault', text: fault, detail: t('status.reconnect') };

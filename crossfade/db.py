@@ -279,6 +279,12 @@ MIGRATIONS: list[str] = [
     """
     ALTER TABLE users ADD COLUMN share_stats INTEGER NOT NULL DEFAULT 1;
     """,
+    # ---- 14: joining a friend's fade is a request: the friend picks a collection and direction
+    # (request = JSON of that choice), the owner approves it, possibly with another direction
+    """
+    ALTER TABLE fade_invites ADD COLUMN request TEXT;
+    ALTER TABLE fade_invites ADD COLUMN requested_at REAL;
+    """,
 ]
 
 

@@ -106,9 +106,9 @@
 								<span class="fb"><FadeBadge icon={fadeIcon(inv.fade)} color={inv.fade.color} size={42} /></span>
 								<span class="grow">
 									<span class="b clip nm">{inv.fade.name}</span>
-									<span class="b t-foot t-2 clip">{t('friends.invitedBy', { name: inv.from.display_name })} · {ago(inv.created_at)}</span>
+									<span class="b t-foot t-2 clip">{inv.request ? t('join.waiting', { name: inv.from.display_name }) : `${t('friends.invitedBy', { name: inv.from.display_name })} · ${ago(inv.created_at)}`}</span>
 								</span>
-								<span class="cell-pill">{t('join.join')}</span>
+								{#if inv.request}<span class="tag">{t('join.asked.short')}</span>{:else}<span class="cell-pill">{t('join.ask')}</span>{/if}
 							</button>
 						</li>
 					{/each}

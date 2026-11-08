@@ -5,8 +5,11 @@ Rules (privacy first):
   its collections, songs or history, friends included.
 - A friendship only reveals display name and username. A pending invite only reveals the fade's name,
   icon and colour and who invites.
-- A friend's collection joins a fade only when the friend picks it. Before that the owner sees
-  nothing of it, not even which services the friend uses.
+- A friend's collection joins a fade only when the friend picks it and the owner approves it. Before
+  the friend picks, the owner sees nothing of it, not even which services the friend uses; a pending
+  request shows the owner only the picked collection's name, service and direction. The friend sees
+  the fade's content only after the approval.
+- The owner may change the direction of every collection in their fade; a friend only of their own.
 """
 from __future__ import annotations
 

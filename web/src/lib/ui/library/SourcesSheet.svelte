@@ -26,6 +26,18 @@
 			ui.fail(e);
 		}
 	}
+	let busy = $state(false);
+	async function setAll(list: CatalogSource[], on: boolean) {
+		busy = true;
+		try {
+			await Promise.all(list.filter((s) => s.included !== on).map((s) => put(`/api/catalog/sources/${s.id}`, { included: on })));
+		} catch (e) {
+			ui.fail(e);
+		} finally {
+			await c.load(true);
+			busy = false;
+		}
+	}
 	const connectedNotScanned = $derived(app.connected.filter((s) => !groups.some((g) => g.svc === s.service)).map((s) => s.service as Service));
 </script>
 
@@ -36,8 +48,12 @@
 	<div class="wrap">
 		<p class="intro t-sub t-2">{t('lib.sourcesIntro')}</p>
 		{#each groups as g (g.svc)}
+			{@const allOn = g.list.every((s) => s.included)}
 			<div class="section">
-				<div class="section-head"><span class="caps head"><ServiceMark service={g.svc} size={16} /> {SERVICE_NAME[g.svc]}</span></div>
+				<div class="section-head">
+					<span class="caps head"><ServiceMark service={g.svc} size={16} /> {SERVICE_NAME[g.svc]}</span>
+					{#if g.list.length > 1}<button class="gbtn glass lq" onclick={() => setAll(g.list, !allOn)} disabled={busy}>{allOn ? t('lib.allOff') : t('lib.allOn')}</button>{/if}
+				</div>
 				<div class="group">
 					{#each g.list as s (s.id)}
 						<div class="cell">

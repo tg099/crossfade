@@ -1,4 +1,5 @@
-"""Friends and shared fades: nothing is visible before the friend confirms with their own collection."""
+"""Friends and shared fades: nothing is visible before the friend picks their own collection and the
+owner approves it."""
 from __future__ import annotations
 
 import os
@@ -58,6 +59,13 @@ def befriend(a: TestClient, b: TestClient, b_username: str):
     assert b.post(f"/api/friends/requests/{req['id']}/accept", headers=H).status_code == 200
 
 
+def approve(owner: TestClient, line_id: int, guest_id: int, **body) -> dict:
+    inv = next(i for i in owner.get(f"/api/lines/{line_id}").json()["invites"] if i["user"]["id"] == guest_id)
+    r = owner.post(f"/api/lines/{line_id}/invites/{inv['id']}/approve", json=body, headers=H)
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
 def test_friend_request_needs_confirmation(trio):
     (anna, anna_id), (ben, ben_id), _ = trio
     ben_name = get_db().val("SELECT username FROM users WHERE id=?", (ben_id,))
@@ -103,11 +111,24 @@ def test_invite_reveals_nothing_until_joined(trio):
     assert anna.get(f"/api/lines/{own['id']}").status_code == 404
     assert own["id"] not in [x["id"] for x in anna.get("/api/lines").json()]
 
-    # Ben joins with a collection of his own choice
+    # Ben asks to join with a collection of his own choice: still nothing shared until Anna approves
     r = ben.post(f"/api/invites/{inv['id']}/accept", json={"service": "apple", "kind": "playlist",
                  "collection_id": "pl.ben", "collection_name": "Ben's summer", "role": "send"}, headers=H)
     assert r.status_code == 200, r.text
-    joined = r.json()
+    mine = next(i for i in r.json()["invites"] if i["id"] == inv["id"])
+    assert mine["request"]["collection_name"] == "Ben's summer" and mine["request"]["role"] == "send"
+    assert ben.get(f"/api/lines/{f['id']}").status_code == 404
+    asked = anna.get(f"/api/lines/{f['id']}").json()
+    assert [m["user_name"] for m in asked["members"]] == ["Anna"]
+    req = asked["invites"][0]["request"]
+    assert set(req) == {"service", "kind", "collection_name", "role", "follow_deletions", "create", "requested_at"}
+    assert (req["service"], req["collection_name"], req["role"]) == ("apple", "Ben's summer", "send")
+    # only the owner approves
+    assert ben.post(f"/api/lines/{f['id']}/invites/{inv['id']}/approve", json={}, headers=H).status_code == 404
+
+    approve(anna, f["id"], ben_id)
+    joined = ben.get(f"/api/lines/{f['id']}").json()
+    assert all(i["id"] != inv["id"] for i in ben.get("/api/friends").json()["invites"])
     assert joined["mine"] is False and joined["owner"]["id"] == anna_id and joined["invites"] == []
     assert [(m["collection_name"], m["mine"]) for m in joined["members"]] == [("Trip", False), ("Ben's summer", True)]
 
@@ -127,6 +148,7 @@ def test_friends_other_fades_stay_hidden(trio):
     inv = next(i for i in ben.get("/api/friends").json()["invites"] if i["fade"]["name"] == "Autumn")
     assert ben.post(f"/api/invites/{inv['id']}/accept", json={"service": "ytm", "kind": "liked",
                     "collection_name": "Likes", "role": "both"}, headers=H).status_code == 200
+    approve(anna, f["id"], ben_id)
     assert "Ben's night music" not in anna.get(f"/api/lines/{f['id']}").text
     assert "Ben's night music" not in anna.get("/api/lines").text
     # Ben himself is warned about his own collection
@@ -151,6 +173,10 @@ def test_rights_in_a_shared_fade(trio):
     assert r.status_code == 200 and next(m for m in r.json()["members"] if m["mine"])["role"] == "both"
     assert ben.put(f"/api/lines/{lid}/members/{anna_member['id']}", json={"role": "receive"},
                    headers=H).status_code == 403
+    # the owner may change the direction of every collection in their fade
+    r = anna.put(f"/api/lines/{lid}/members/{ben_member['id']}", json={"role": "receive"}, headers=H)
+    assert r.status_code == 200 and next(m for m in r.json()["members"] if not m["mine"])["role"] == "receive"
+    anna.put(f"/api/lines/{lid}/members/{ben_member['id']}", json={"role": "both"}, headers=H)
     # the owner's editor keeps the friend's collection
     body = {"name": "Summer 26", "color": "#0072CE", "members": [
         {"service": "ytm", "kind": "playlist", "collection_id": "PLa", "collection_name": "Trip", "role": "both"},
@@ -189,10 +215,46 @@ def test_unfriend_removes_shared_collections(trio):
     r = cleo.post(f"/api/invites/{inv['id']}/accept", json={"service": "ytm", "kind": "liked",
                   "collection_name": "Likes", "role": "receive"}, headers=H)
     assert r.status_code == 200, r.text
+    approve(anna, f["id"], cleo_id)
     assert anna.get("/api/friends").json()["friends"][0]["shared"] == 1
     assert cleo.delete(f"/api/friends/{anna_id}", headers=H).status_code == 200
     assert cleo.get(f"/api/lines/{f['id']}").status_code == 404
     assert [m["user_name"] for m in anna.get(f"/api/lines/{f['id']}").json()["members"]] == ["Anna"]
+
+
+def test_owner_changes_or_rejects_a_join_request():
+    suffix = str(int(time.time() * 1000) % 100000)
+    (owner, _), (guest, guest_id) = person(f"fio{suffix}", "Fio"), person(f"gus{suffix}", "Gus")
+    befriend(owner, guest, f"gus{suffix}")
+    f = fade(owner, "Requests")
+    owner.post(f"/api/lines/{f['id']}/invites", json={"user_id": guest_id}, headers=H)
+    inv = guest.get("/api/friends").json()["invites"][0]
+    ask = {"service": "apple", "kind": "liked", "collection_name": "Favourites", "role": "both"}
+    # nothing to approve before the friend picks
+    assert owner.post(f"/api/lines/{f['id']}/invites/{inv['id']}/approve", json={}, headers=H).status_code == 409
+    assert guest.post(f"/api/invites/{inv['id']}/accept", json=ask, headers=H).status_code == 200
+    # a no keeps the invite: the friend can pick something else
+    r = owner.post(f"/api/lines/{f['id']}/invites/{inv['id']}/reject", headers=H)
+    assert r.status_code == 200 and r.json()["invites"][0]["request"] is None
+    assert guest.get("/api/friends").json()["invites"][0]["request"] is None
+    assert guest.get(f"/api/lines/{f['id']}").status_code == 404
+    # asking again, the owner lets it in but only receiving
+    assert guest.post(f"/api/invites/{inv['id']}/accept", json=ask, headers=H).status_code == 200
+    line = approve(owner, f["id"], guest_id, role="receive")
+    assert [(m["user_name"], m["role"]) for m in line["members"]] == [("Fio", "both"), ("Gus", "receive")]
+    assert line["invites"] == []
+    assert guest.get(f"/api/lines/{f['id']}").status_code == 200
+    # a request to create a new playlist creates nothing until approved
+    f2 = fade(owner, "New list")
+    owner.post(f"/api/lines/{f2['id']}/invites", json={"user_id": guest_id}, headers=H)
+    inv2 = guest.get("/api/friends").json()["invites"][0]
+    r = guest.post(f"/api/invites/{inv2['id']}/accept", json={"service": "ytm", "kind": "playlist",
+                   "collection_name": "Gus' list", "role": "send", "create": True}, headers=H)
+    assert r.status_code == 200, r.text
+    assert r.json()["invites"][0]["request"]["create"] is True
+    # taking the request back drops the invite
+    assert guest.delete(f"/api/invites/{inv2['id']}", headers=H).status_code == 200
+    assert owner.get(f"/api/lines/{f2['id']}").json()["invites"] == []
 
 
 def test_cover_preview_only_for_visible_songs(trio):

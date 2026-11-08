@@ -7,6 +7,7 @@
 	import Glyph from '../Glyph.svelte';
 	import Mosaic from '../Mosaic.svelte';
 	import Page from '../Page.svelte';
+	import Segmented from '../Segmented.svelte';
 	import SwipeRow from '../SwipeRow.svelte';
 	import { askLeaveFade, fadeMenu, hold } from '../ctx.ts';
 	import { fadeCovers, fadeIcon, fadeStatus } from '../fade.ts';
@@ -14,10 +15,24 @@
 	import { Reorder } from '../reorder.svelte.ts';
 	import { flowIcon, nav, ui } from '../ui.svelte.ts';
 
-	// All fades, in your own order. "Reorder" shows handles; the first fade comes first everywhere.
+	// Your fades in your own order ("Reorder" shows handles; the first fade comes first everywhere),
+	// and the fades friends share with you on a tab of their own.
 	let ordering = $state(false);
-	// friends' fades are not yours to order: they follow your own ones
 	const own = $derived(app.lines.filter((f) => f.mine));
+	const shared = $derived(app.lines.filter((f) => !f.mine));
+	let tab = $state<'mine' | 'friends'>('mine');
+	// the tab only shows while there is something on it
+	$effect(() => {
+		if (!shared.length && tab === 'friends') tab = 'mine';
+	});
+	$effect(() => {
+		if (tab === 'friends') ordering = false;
+	});
+	// leaving the tab ends reordering
+	$effect(() => {
+		if (nav.tab !== 'fades') ordering = false;
+	});
+	const list = $derived(tab === 'mine' ? own : shared);
 	const order = new Reorder(
 		() => own.map((f) => f.id),
 		(from, to) => app.moveLine(from, to)
@@ -44,7 +59,7 @@
 
 <Page title={t('tab.fades')} avatar glow={app.lines.map((f) => f.color)}>
 	{#snippet actions()}
-		{#if own.length > 1}
+		{#if own.length > 1 && tab === 'mine'}
 			<button class="gbtn glass lq" class:tint={ordering} onclick={() => (ordering = !ordering)} aria-pressed={ordering}>
 				{ordering ? t('common.done') : t('fades.reorder')}
 			</button>
@@ -54,8 +69,20 @@
 		{/if}
 	{/snippet}
 
+	{#if shared.length}
+		<div class="tabs">
+			<Segmented
+				bind:value={tab}
+				label={t('fades.title')}
+				options={[
+					{ value: 'mine', label: t('fades.mine') },
+					{ value: 'friends', label: t('fades.friends', { n: shared.length }) }
+				]}
+			/>
+		</div>
+	{/if}
 	<ul class="group plain llist" class:ordering>
-		{#each app.lines as f, i (f.id)}
+		{#each list as f, i (f.id)}
 			<li class:lifted={order.dragId === f.id} style:transform={order.style(f.id)}>
 				{#if ordering}
 					<div class="cell" style:--inset="92px">
@@ -100,13 +127,22 @@
 			{#if app.connected.length < 2}<button class="text-btn" onclick={() => ui.openAccount()}>{t('start.servicesFirst')}</button>{/if}
 		</div>
 	{:else}
-		<p class="tip t-foot t-2">{ordering ? t('fades.orderHint') : t('fades.swipeHint')}</p>
+		{#if tab === 'mine' && !own.length}
+			<div class="empty">
+				<p class="t-sub t-2">{t('fades.noOwn')}</p>
+				<button class="pb glass tint lq" onclick={() => ui.edit(0)} disabled={app.connected.length < 2}><Glyph name="plus" size={18} weight={2.6} /> {t('fades.new')}</button>
+			</div>
+		{/if}
+		<p class="tip t-foot t-2">{ordering ? t('fades.orderHint') : tab === 'friends' ? t('fades.friendsHint') : t('fades.swipeHint')}</p>
 	{/if}
 </Page>
 
 <style>
 	.llist {
 		padding: 0 0 0 20px;
+	}
+	.tabs {
+		margin: 4px 20px 12px;
 	}
 	.llist :global(.cell) {
 		padding-right: 20px !important;
@@ -200,6 +236,10 @@
 		}
 		.tip {
 			padding: 16px 36px;
+		}
+		.tabs {
+			margin: 4px 36px 14px;
+			max-width: 420px;
 		}
 	}
 	@media (prefers-reduced-motion: reduce) {

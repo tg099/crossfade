@@ -346,6 +346,13 @@
 		{:else if page === 'unusual'}
 			<p class="intro t-sub t-2">{t('clean.unusualIntro')}</p>
 			<div class="section">
+				{#if k.unusual.length > 1}
+					{@const allOn = k.unusual.every((u) => picked.has(u.song_id))}
+					<div class="section-head">
+						<span class="caps">{t('lib.nPicked', { n: picked.size })}</span>
+						<button class="gbtn glass lq" onclick={() => (allOn ? picked.clear() : k.unusual.forEach((u) => picked.add(u.song_id)))}>{allOn ? t('lib.selectNone') : t('common.all')}</button>
+					</div>
+				{/if}
 				<div class="group">
 					{#each k.unusual as u (u.key)}
 						{@const on = picked.has(u.song_id)}

@@ -1,6 +1,7 @@
 """Friends and invitations into fades. See crossfade/sharing.py for the privacy rules."""
 from __future__ import annotations
 
+import json
 import time
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -10,7 +11,7 @@ from ..db import Database
 from ..sharing import are_friends, end_sharing, friendship, notify, public_person, shared_lines
 from ..worker import get_worker
 from .deps import current_user, db_dep
-from .lines import MemberIn, _resolve_members, get_line
+from .lines import MemberIn, _resolve_members, join_request
 
 router = APIRouter(prefix="/api/friends", tags=["friends"])
 
@@ -33,7 +34,7 @@ def overview(db: Database, uid: int) -> dict:
             outgoing.append({"id": r["id"], "user": person, "created_at": r["created_at"]})
         else:
             incoming.append({"id": r["id"], "user": person, "created_at": r["created_at"]})
-    invites = db.all("""SELECT i.id, i.created_at, l.name, l.icon, l.color, u.id AS uid, u.username, u.display_name
+    invites = db.all("""SELECT i.id, i.created_at, i.request, i.requested_at, l.name, l.icon, l.color, u.id AS uid, u.username, u.display_name
                         FROM fade_invites i JOIN lines l ON l.id=i.line_id JOIN users u ON u.id=i.from_user
                         WHERE i.to_user=? ORDER BY i.created_at DESC""", (uid,))
     return {
@@ -41,7 +42,9 @@ def overview(db: Database, uid: int) -> dict:
         # only what is needed to decide: the fade's name and look, and who asks
         "invites": [{"id": i["id"], "created_at": i["created_at"],
                      "fade": {"name": i["name"], "icon": i["icon"], "color": i["color"]},
-                     "from": {"id": i["uid"], "username": i["username"], "display_name": i["display_name"]}}
+                     "from": {"id": i["uid"], "username": i["username"], "display_name": i["display_name"]},
+                     # what you asked to join with, while the owner hasn't decided yet
+                     "request": join_request(i)}
                     for i in invites],
     }
 
@@ -165,34 +168,31 @@ def _invite(db: Database, invite_id: int, uid: int) -> dict:
 @invites.post("/{invite_id}/accept")
 def accept_invite(invite_id: int, body: MemberIn, user: dict = Depends(current_user),
                   db: Database = Depends(db_dep)):
-    """Joining is the confirmation: the invitee picks one of their own collections themselves."""
+    """The invitee picks one of their own collections and its direction. That is a request: the
+    collection joins only once the fade's owner approves it (they may change the direction).
+    Asking again replaces the previous request."""
     uid = user["id"]
     inv = _invite(db, invite_id, uid)
     if not are_friends(db, uid, inv["from_user"]):
         db.run("DELETE FROM fade_invites WHERE id=?", (invite_id,))
         raise HTTPException(410, "You're no longer friends.")
-    if get_worker().job(inv["line_id"]):
-        raise HTTPException(409, "The fade is syncing right now. Try again in a moment.")
-    if db.val("SELECT COUNT(*) FROM line_members WHERE line_id=?", (inv["line_id"],)) >= 12:
-        raise HTTPException(400, "The fade is full (at most 12 collections).")
-    member = _resolve_members(db, uid, [body])[0]   # may create a playlist, so after the checks above
-    if db.val("SELECT 1 FROM line_members WHERE line_id=? AND account_id=? AND kind=? AND collection_id=?",
-              (inv["line_id"], member["account_id"], member["kind"], member["collection_id"])):
+    member = _resolve_members(db, uid, [body], create=False)[0]   # checks only, creates nothing yet
+    if member["collection_id"] and db.val(
+            "SELECT 1 FROM line_members WHERE line_id=? AND account_id=? AND kind=? AND collection_id=?",
+            (inv["line_id"], member["account_id"], member["kind"], member["collection_id"])):
         raise HTTPException(409, "This collection is already in the fade.")
-    with db.tx() as c:
-        pos = (c.execute("SELECT MAX(position) FROM line_members WHERE line_id=?",
-                         (inv["line_id"],)).fetchone()[0] or 0) + 1
-        c.execute("""INSERT INTO line_members(line_id,account_id,kind,collection_id,collection_name,role,
-                     follow_deletions,position) VALUES(?,?,?,?,?,?,?,?)""",
-                  (inv["line_id"], member["account_id"], member["kind"], member["collection_id"],
-                   member["collection_name"], member["role"], member["follow_deletions"], pos))
-        c.execute("DELETE FROM fade_invites WHERE id=?", (invite_id,))
+    request = {"service": body.service, "kind": member["kind"], "collection_id": member["collection_id"],
+               "collection_name": member["collection_name"], "role": member["role"],
+               "follow_deletions": bool(member["follow_deletions"]), "create": bool(body.create)}
+    db.run("UPDATE fade_invites SET request=?, requested_at=? WHERE id=?",
+           (json.dumps(request), time.time(), invite_id))
     notify([inv["from_user"]], "fades")
-    return get_line(inv["line_id"], user, db)
+    return overview(db, uid)
 
 
 @invites.delete("/{invite_id}")
 def decline_invite(invite_id: int, user: dict = Depends(current_user), db: Database = Depends(db_dep)):
+    """Say no to an invite, or take back a request that is still waiting."""
     inv = _invite(db, invite_id, user["id"])
     db.run("DELETE FROM fade_invites WHERE id=?", (invite_id,))
     notify([inv["from_user"]], "fades")

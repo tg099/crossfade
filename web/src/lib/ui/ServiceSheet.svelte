@@ -8,6 +8,7 @@
 	import Sheet from './Sheet.svelte';
 	import SheetBar from './SheetBar.svelte';
 	import { t } from './i18n.svelte.ts';
+	import { devtoolsKeys } from './keys.ts';
 	import { ago, ui } from './ui.svelte.ts';
 
 	// One music service: connect it, renew the sign-in or disconnect. The ways to connect differ per
@@ -194,7 +195,7 @@
 					{:else}
 						<ol class="steps t-sub">
 							<li>{t('services.ytm.s1')} <a href="https://music.youtube.com" target="_blank" rel="noopener">music.youtube.com</a></li>
-							<li>{t('services.ytm.s2')}</li>
+							<li>{t('services.ytm.s2', { keys: devtoolsKeys })}</li>
 							<li>{t('services.ytm.s3')}</li>
 							<li>{t('services.ytm.s4')}</li>
 						</ol>

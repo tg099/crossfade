@@ -263,6 +263,34 @@
 			ui.fail(e);
 		}
 	}
+	// a friend asked to join with one of their collections: the owner lets it in (maybe with
+	// another direction) or says no, which keeps the invite open for another pick
+	type Invite = Line['invites'][number];
+	const requests = $derived(fade?.invites.filter((i) => i.request) ?? []);
+	const waiting = $derived(fade?.invites.filter((i) => !i.request) ?? []);
+	let reqRole = $state<Record<number, Role>>({});
+	let reqFor = $state<Invite | null>(null);
+	let reqBtn: HTMLButtonElement | undefined = $state();
+	let reqOpen = $state(false);
+	const askedRole = (inv: Invite) => reqRole[inv.id] ?? inv.request!.role;
+	async function approve(inv: Invite) {
+		try {
+			const role = askedRole(inv);
+			applyLine(await post<Line>(`/api/lines/${id}/invites/${inv.id}/approve`, { role, follow_deletions: role === 'send' && inv.request!.follow_deletions }));
+			app.loadFriends();
+			ui.say(t('share.approved', { name: inv.user.display_name }), 'users');
+		} catch (e) {
+			ui.fail(e);
+		}
+	}
+	async function reject(inv: Invite) {
+		try {
+			applyLine(await post<Line>(`/api/lines/${id}/invites/${inv.id}/reject`));
+			ui.say(t('share.rejected', { name: inv.user.display_name }), 'x', 'info');
+		} catch (e) {
+			ui.fail(e);
+		}
+	}
 	function removeGuest(g: { id: number; name: string }) {
 		ui.ask = {
 			title: t('share.removeQ', { name: g.name }),
@@ -279,7 +307,7 @@
 			}
 		};
 	}
-	// a friend sets the direction of their own collection right here (the owner uses the editor)
+	// the direction of a collection, right here: a friend for their own one, the owner for every one
 	let roleFor = $state<Member | null>(null);
 	let roleBtn: HTMLButtonElement | undefined = $state();
 	let roleOpen = $state(false);
@@ -463,8 +491,8 @@
 											</span>
 										{/if}
 									</span>
-									{#if !fade.mine && m.mine}
-										<button class="role t-foot press" title={t('share.yourDirection')} aria-haspopup="menu" onclick={(e) => chooseRole(m, e.currentTarget)}>
+									{#if fade.mine ? !m.mine : m.mine}
+										<button class="role t-foot press" title={fade.mine ? t('share.theirDirection', { name: m.user_name }) : t('share.yourDirection')} aria-haspopup="menu" onclick={(e) => chooseRole(m, e.currentTarget)}>
 											<Glyph name={roleIcon(m.role)} size={13} weight={2.4} />
 											{t(`role.${m.role}`)}
 											<Glyph name="updown" size={11} weight={2.4} />
@@ -501,7 +529,28 @@
 									</div>
 								</li>
 							{/each}
-							{#each fade.invites as inv (inv.id)}
+							{#each requests as inv (inv.id)}
+								{@const r = inv.request!}
+								<li>
+									<div class="cell req" style:--inset="18px">
+										<ServiceMark service={r.service} size={28} />
+										<span class="grow">
+											<span class="clip block">{t('share.wants', { name: inv.user.display_name })}</span>
+											<span class="t-foot t-2 clip block">{r.create ? t('share.newList', { name: r.collection_name }) : r.collection_name} · {SERVICE_NAME[r.service]}</span>
+										</span>
+										<button class="role t-foot press" title={t('share.theirDirection', { name: inv.user.display_name })} aria-haspopup="menu" onclick={(e) => ((reqFor = inv), (reqBtn = e.currentTarget), (reqOpen = true))}>
+											<Glyph name={roleIcon(askedRole(inv))} size={13} weight={2.4} />
+											{t(`role.${askedRole(inv)}`)}
+											<Glyph name="updown" size={11} weight={2.4} />
+										</button>
+									</div>
+									<div class="req-actions">
+										<button class="pb pb-small glass lq" onclick={() => reject(inv)}>{t('share.reject')}</button>
+										<button class="pb pb-small glass tint lq" onclick={() => approve(inv)}>{t('share.approve')}</button>
+									</div>
+								</li>
+							{/each}
+							{#each waiting as inv (inv.id)}
 								<li>
 									<div class="cell" style:--inset="18px">
 										<span class="grow">
@@ -526,7 +575,7 @@
 								{/if}
 							</li>
 						</ul>
-						<p class="section-foot">{app.friends.friends.length && !invitable.length ? t('share.allIn') : t('share.hint')}</p>
+						<p class="section-foot">{requests.length ? t('share.requestHint') : app.friends.friends.length && !invitable.length ? t('share.allIn') : t('share.hint')}</p>
 					</section>
 				{/if}
 
@@ -715,8 +764,14 @@
 		<Menu
 			bind:open={roleOpen}
 			anchor={roleBtn}
-			label={t('share.yourDirection')}
+			label={fade.mine && roleFor ? t('share.theirDirection', { name: roleFor.user_name }) : t('share.yourDirection')}
 			items={(['send', 'both', 'receive'] as Role[]).map((r) => ({ label: t(`role.${r}`), checked: roleFor?.role === r, run: () => roleFor && setRole(roleFor, r) }))}
+		/>
+		<Menu
+			bind:open={reqOpen}
+			anchor={reqBtn}
+			label={reqFor ? t('share.theirDirection', { name: reqFor.user.display_name }) : ''}
+			items={(['send', 'both', 'receive'] as Role[]).map((r) => ({ label: t(`role.${r}`), checked: !!reqFor && askedRole(reqFor) === r, run: () => reqFor && (reqRole[reqFor.id] = r) }))}
 		/>
 		<IssueSheet bind:open={pickOpen} bind:issue={picking} fadeId={fade.id} color={fade.color} onchange={reload} />
 	</div>
@@ -971,6 +1026,15 @@
 		box-shadow: var(--ctl-shadow);
 		color: var(--tint);
 		font-weight: 600;
+	}
+	.req {
+		gap: 12px;
+	}
+	.req-actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: 8px;
+		padding: 0 16px 12px 58px;
 	}
 
 	/* ------------------------------------------------ songs & history */

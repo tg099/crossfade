@@ -32,9 +32,12 @@
 			if (f.last_status === 'needs_confirm' && !f.job && f.mine)
 				out.push({ key: `h${f.id}`, text: t('status.held', { n: f.last_summary?.held ?? 0 }), sub: f.name, tone: 'orange', icon: 'trash', run: () => nav.openFade(f.id), fade: f });
 			if (f.issues) out.push({ key: `i${f.id}`, text: t('home.waiting', { n: f.issues }), sub: f.name, tone: 'orange', icon: 'note', run: () => ui.review(f.id), fade: f });
+			// a friend asked to join your fade
+			for (const inv of f.invites)
+				if (inv.request) out.push({ key: `q${inv.id}`, text: t('share.wants', { name: inv.user.display_name }), sub: f.name, tone: 'friend', icon: 'users', run: () => nav.openFade(f.id), fade: f });
 		}
-		// friends: an invitation into their fade, or someone asking to be friends
-		for (const inv of app.friends.invites)
+		// friends: an invitation into their fade (not yet answered), or someone asking to be friends
+		for (const inv of app.friends.invites.filter((i) => !i.request))
 			out.push({ key: `v${inv.id}`, text: t('friends.invitedBy', { name: inv.from.display_name }), sub: inv.fade.name, tone: 'tint', icon: 'users', run: () => ui.join(inv), fade: inv.fade });
 		const asking = app.friends.incoming;
 		if (asking.length) {

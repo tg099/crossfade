@@ -17,7 +17,7 @@
 	import RemoveSheet from '../library/RemoveSheet.svelte';
 	import SourcesSheet from '../library/SourcesSheet.svelte';
 	import { catalog as c, type Avail, type Facet, type Sort, type Special } from '../library/catalog.svelte.ts';
-	import { BRAND, ago, mmss, ui } from '../ui.svelte.ts';
+	import { BRAND, ago, mmss, nav, ui } from '../ui.svelte.ts';
 
 	// Everything in your collections on all services, as one list: search, filter, find gaps, and
 	// add or remove songs in bulk. A scan reads the collections; Crossfade never changes anything
@@ -75,6 +75,10 @@
 		c.selecting = false;
 		c.selected.clear();
 	}
+	// leaving the tab ends selecting
+	$effect(() => {
+		if (nav.tab !== 'library' && c.selecting) endSelect();
+	});
 	const selectedSongs = $derived((c.data?.songs ?? []).filter((s) => c.selected.has(s.id)));
 	function exportSongs(songs: CatalogSong[]) {
 		c.exportCsv(
@@ -128,8 +132,9 @@
 	function onkeydown(e: KeyboardEvent) {
 		const el = e.target as HTMLElement;
 		if (el.closest('input, textarea, [role="dialog"]') || nav_hidden()) return;
-		if ((e.metaKey || e.ctrlKey) && e.key === 'a' && c.selecting && c.filtered.length) {
+		if ((e.metaKey || e.ctrlKey) && e.key === 'a' && c.filtered.length) {
 			e.preventDefault();
+			c.selecting = true;
 			for (const s of c.filtered) c.selected.add(s.id);
 		} else if (e.key === 'Escape' && c.selecting) endSelect();
 	}
@@ -141,6 +146,9 @@
 <svelte:window {onkeydown} />
 
 {#snippet actions()}
+	{#if c.selecting && c.filtered.length}
+		<button class="gbtn glass lq" onclick={toggleAll}>{allSelected ? t('lib.selectNone') : t('lib.selectAllShort')}</button>
+	{/if}
 	{#if c.data?.songs.length}
 		<button class="gbtn glass lq" onclick={() => (c.selecting ? endSelect() : (c.selecting = true))}>{c.selecting ? t('common.done') : t('lib.select')}</button>
 	{/if}

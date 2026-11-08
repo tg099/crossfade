@@ -2,7 +2,7 @@
 	import { SERVICE_NAME } from '#lib/format.ts';
 	import { api, del, post } from '#lib/api.ts';
 	import { app } from '#lib/state.svelte.ts';
-	import type { CollectionInfo, Friends, Kind, Line, Role, Service } from '#lib/types.ts';
+	import type { CollectionInfo, Friends, Kind, Role, Service } from '#lib/types.ts';
 	import FadeBadge from './FadeBadge.svelte';
 	import Glyph from './Glyph.svelte';
 	import Segmented from './Segmented.svelte';
@@ -11,10 +11,11 @@
 	import { fadeIcon } from './fade.ts';
 	import { t } from './i18n.svelte.ts';
 	import { tintVars } from './tint.ts';
-	import { nav, ui } from './ui.svelte.ts';
+	import { ui } from './ui.svelte.ts';
 
-	// Answering an invitation into a friend's fade. Joining is the confirmation: you pick one of
-	// your own collections here, and only then does it (and the fade's content) become shared.
+	// Answering an invitation into a friend's fade: you pick one of your own collections and its
+	// direction here. That goes to the owner as a request; only once they approve it (maybe with
+	// another direction) does it, and the fade's content, become shared.
 	const inv = $derived(ui.joining);
 	const usable = $derived(app.connected.filter((s) => s.status !== 'error').map((s) => s.service));
 
@@ -27,19 +28,32 @@
 	let error = $state('');
 	let busy = $state(false);
 
+	let lastSvc: Service | null = null;
 	let openedFor = 0;
 	$effect(() => {
 		if (!ui.joinOpen || !inv || openedFor === inv.id) return;
 		openedFor = inv.id;
+		const r = inv.request;
+		// asked already: start from what you asked for, so changing it is one tap
+		svc = r && usable.includes(r.service) ? r.service : (usable[0] ?? 'ytm');
+		lastSvc = svc;
 		picked = null;
-		role = 'both';
+		role = r?.role ?? 'both';
 		filter = '';
-		svc = usable[0] ?? 'ytm';
+	});
+	// mark the collection you asked for once the list is there
+	$effect(() => {
+		const r = inv?.request;
+		if (!ui.joinOpen || !r || picked || svc !== r.service) return;
+		if (r.create) picked = { kind: 'playlist', id: '', name: r.collection_name, create: true };
+		else {
+			const c = (collections[svc] ?? []).find((x) => x.kind === r.kind && x.name === r.collection_name);
+			if (c) picked = { kind: c.kind, id: c.id, name: c.name, create: false };
+		}
 	});
 	$effect(() => {
 		if (ui.joinOpen && usable.includes(svc)) load(svc);
 	});
-	let lastSvc: Service | null = null;
 	$effect(() => {
 		if (lastSvc && lastSvc !== svc) picked = null;
 		lastSvc = svc;
@@ -74,7 +88,7 @@
 		if (!inv || !picked || busy) return;
 		busy = true;
 		try {
-			const line = await post<Line>(`/api/invites/${inv.id}/accept`, {
+			app.friends = await post<Friends>(`/api/invites/${inv.id}/accept`, {
 				service: svc,
 				kind: picked.kind,
 				collection_id: picked.id,
@@ -82,12 +96,8 @@
 				role,
 				create: picked.create
 			});
-			await Promise.all([app.loadLines(), app.loadFriends()]);
 			ui.joinOpen = false;
-			ui.friendsOpen = false;
-			ui.accountOpen = false;
-			ui.say(t('join.joined', { name: line.name }), 'users');
-			setTimeout(() => nav.openFade(line.id), 350);
+			ui.say(t('join.asked', { name: inv.from.display_name }), 'users');
 		} catch (e) {
 			ui.fail(e);
 		} finally {
@@ -98,9 +108,10 @@
 	async function decline() {
 		if (!inv) return;
 		try {
+			const withdrawn = !!inv.request;
 			app.friends = await del<Friends>(`/api/invites/${inv.id}`);
 			ui.joinOpen = false;
-			ui.say(t('join.declined'), 'x', 'info');
+			ui.say(withdrawn ? t('join.withdrawn') : t('join.declined'), 'x', 'info');
 		} catch (e) {
 			ui.fail(e);
 		}
@@ -109,7 +120,7 @@
 
 <Sheet bind:open={ui.joinOpen} label={t('join.title')} class="tinted" style={inv ? tintVars(inv.fade.color) : ''} onclosed={() => (openedFor = 0)}>
 	{#snippet header()}
-		<SheetBar title={t('join.title')} leading={{ label: t('common.close'), run: () => (ui.joinOpen = false) }} confirm={{ label: t('join.join'), run: join, disabled: !picked || busy }} />
+		<SheetBar title={t('join.title')} leading={{ label: t('common.close'), run: () => (ui.joinOpen = false) }} confirm={{ label: inv?.request ? t('join.update') : t('join.ask'), run: join, disabled: !picked || busy }} />
 	{/snippet}
 	{#if inv}
 		<div class="wrap">
@@ -118,6 +129,9 @@
 				<p class="t-title3 ttl">{inv.fade.name}</p>
 				<p class="t-sub">{t('join.text', { name: inv.from.display_name, fade: inv.fade.name })}</p>
 				<p class="t-foot t-2 privacy">{t('join.privacy', { name: inv.from.display_name })}</p>
+				{#if inv.request}
+					<p class="tag accent asked"><Glyph name="users" size={11} weight={2.6} /> {t('join.waiting', { name: inv.from.display_name })}</p>
+				{/if}
 			</div>
 
 			{#if !usable.length}
@@ -184,8 +198,8 @@
 			{/if}
 
 			<div class="section actions">
-				<button class="pb pb-fill press" onclick={join} disabled={!picked || busy}>{t('join.join')}</button>
-				<button class="text-btn danger" onclick={decline}>{t('join.decline')}</button>
+				<button class="pb pb-fill press" onclick={join} disabled={!picked || busy}>{inv.request ? t('join.update') : t('join.ask')}</button>
+				<button class="text-btn danger" onclick={decline}>{inv.request ? t('join.withdraw') : t('join.decline')}</button>
 			</div>
 		</div>
 	{/if}
@@ -208,6 +222,9 @@
 	.privacy {
 		max-width: 34em;
 		line-height: 1.4;
+	}
+	.asked {
+		margin-top: 4px;
 	}
 	.svc {
 		margin-bottom: 10px;

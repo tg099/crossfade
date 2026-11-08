@@ -116,7 +116,8 @@ def _serialize(db: Database, line: dict, number: int | None = None, viewer: int 
     mine = line["user_id"] == viewer
     owner = db.one("SELECT id, username, display_name FROM users WHERE id=?", (line["user_id"],))
     # only the owner sees whom they invited; the invitee's music stays hidden until they join
-    invites = db.all("""SELECT i.id, i.created_at, u.id AS uid, u.username, u.display_name FROM fade_invites i
+    invites = db.all("""SELECT i.id, i.created_at, i.request, i.requested_at, u.id AS uid, u.username,
+                        u.display_name FROM fade_invites i
                         JOIN users u ON u.id=i.to_user WHERE i.line_id=? ORDER BY i.created_at""",
                      (line["id"],)) if mine else []
     return {
@@ -127,7 +128,8 @@ def _serialize(db: Database, line: dict, number: int | None = None, viewer: int 
         "mine": mine,
         "owner": public_person(owner),
         "invites": [{"id": i["id"], "created_at": i["created_at"],
-                     "user": {"id": i["uid"], "username": i["username"], "display_name": i["display_name"]}}
+                     "user": {"id": i["uid"], "username": i["username"], "display_name": i["display_name"]},
+                     "request": join_request(i)}
                     for i in invites],
         "sync_deletions": bool(line["sync_deletions"]),
         "paused": bool(line["paused"]),
@@ -264,7 +266,9 @@ class LineIn(BaseModel):
         return v.upper()
 
 
-def _resolve_members(db: Database, user_id: int, members: list[MemberIn]) -> list[dict]:
+def _resolve_members(db: Database, user_id: int, members: list[MemberIn], create: bool = True) -> list[dict]:
+    """create=False only checks: a playlist to be created is not created yet (a join request
+    creates it once the owner approves)."""
     out, seen = [], set()
     for m in members:
         if m.service not in SERVICES:
@@ -274,6 +278,11 @@ def _resolve_members(db: Database, user_id: int, members: list[MemberIn]) -> lis
             raise HTTPException(400, f"{SERVICE_NAMES[m.service]} is not connected.")
         if m.kind != PLAYLIST:
             m.collection_id = ""
+        if m.kind == PLAYLIST and m.create and not create:
+            out.append({"account_id": acc["id"], "kind": m.kind, "collection_id": "",
+                        "collection_name": m.collection_name.strip(), "role": m.role,
+                        "follow_deletions": int(m.follow_deletions and m.role == "send")})
+            continue
         if m.kind == PLAYLIST and m.create:
             try:
                 col = build_provider(db, acc).create_playlist(m.collection_name.strip())
@@ -770,6 +779,17 @@ def replace_version(line_id: int, song_id: int, body: ReplaceBody, user: dict = 
 
 
 # ---------------------------------------------------------------------- sharing with friends
+def join_request(inv: dict) -> dict | None:
+    """What a friend asked to join with: one collection and its direction. Shown to the owner
+    (to approve it) and to the friend (to see what is waiting)."""
+    if not inv.get("request"):
+        return None
+    r = json.loads(inv["request"])
+    return {"service": r["service"], "kind": r["kind"], "collection_name": r["collection_name"],
+            "role": r["role"], "follow_deletions": bool(r["follow_deletions"]), "create": bool(r["create"]),
+            "requested_at": inv["requested_at"]}
+
+
 def _notify_others(db: Database, line_id: int, user_id: int) -> None:
     notify(participants(db, line_id) - {user_id}, "fades")
 
@@ -802,6 +822,65 @@ def cancel_invite(line_id: int, invite_id: int, user: dict = Depends(current_use
         raise HTTPException(404, "Invite not found.")
     db.run("DELETE FROM fade_invites WHERE id=?", (invite_id,))
     notify([to], "fades")
+    return get_line(line_id, user, db)
+
+
+class ApproveBody(BaseModel):
+    # the owner may change the direction the friend asked for
+    role: Literal["both", "send", "receive"] | None = None
+    follow_deletions: bool | None = None
+
+
+def _requested_invite(db: Database, line_id: int, invite_id: int) -> dict:
+    inv = db.one("SELECT * FROM fade_invites WHERE id=? AND line_id=?", (invite_id, line_id))
+    if not inv:
+        raise HTTPException(404, "Invite not found.")
+    if not inv["request"]:
+        raise HTTPException(409, "Nothing to approve yet: your friend hasn't picked a collection.")
+    return inv
+
+
+@router.post("/{line_id}/invites/{invite_id}/approve")
+def approve_request(line_id: int, invite_id: int, body: ApproveBody, user: dict = Depends(current_user),
+                    db: Database = Depends(db_dep)):
+    """The owner lets a friend's collection in, as asked or with another direction."""
+    _line_or_404(db, line_id, user["id"])
+    inv = _requested_invite(db, line_id, invite_id)
+    guest = inv["to_user"]
+    if not are_friends(db, user["id"], guest):
+        db.run("DELETE FROM fade_invites WHERE id=?", (invite_id,))
+        raise HTTPException(410, "You're no longer friends.")
+    if get_worker().job(line_id):
+        raise HTTPException(409, "The fade is syncing right now. Try again in a moment.")
+    if db.val("SELECT COUNT(*) FROM line_members WHERE line_id=?", (line_id,)) >= 12:
+        raise HTTPException(400, "The fade is full (at most 12 collections).")
+    req = MemberIn(**json.loads(inv["request"]))
+    if body.role:
+        req.role = body.role
+    if body.follow_deletions is not None:
+        req.follow_deletions = body.follow_deletions
+    member = _resolve_members(db, guest, [req])[0]   # creates the friend's new playlist only now
+    if db.val("SELECT 1 FROM line_members WHERE line_id=? AND account_id=? AND kind=? AND collection_id=?",
+              (line_id, member["account_id"], member["kind"], member["collection_id"])):
+        raise HTTPException(409, "This collection is already in the fade.")
+    with db.tx() as c:
+        pos = (c.execute("SELECT MAX(position) FROM line_members WHERE line_id=?", (line_id,)).fetchone()[0] or 0) + 1
+        c.execute("""INSERT INTO line_members(line_id,account_id,kind,collection_id,collection_name,role,
+                     follow_deletions,position) VALUES(?,?,?,?,?,?,?,?)""",
+                  (line_id, member["account_id"], member["kind"], member["collection_id"],
+                   member["collection_name"], member["role"], member["follow_deletions"], pos))
+        c.execute("DELETE FROM fade_invites WHERE id=?", (invite_id,))
+    notify([guest], "fades")
+    return get_line(line_id, user, db)
+
+
+@router.post("/{line_id}/invites/{invite_id}/reject")
+def reject_request(line_id: int, invite_id: int, user: dict = Depends(current_user), db: Database = Depends(db_dep)):
+    """The owner says no to this collection. The invite stays, so the friend can pick another one."""
+    _line_or_404(db, line_id, user["id"])
+    inv = _requested_invite(db, line_id, invite_id)
+    db.run("UPDATE fade_invites SET request=NULL, requested_at=NULL WHERE id=?", (invite_id,))
+    notify([inv["to_user"]], "fades")
     return get_line(line_id, user, db)
 
 
@@ -842,11 +921,16 @@ class MembershipBody(BaseModel):
 @router.put("/{line_id}/members/{member_id}")
 def set_member_role(line_id: int, member_id: int, body: MembershipBody, user: dict = Depends(current_user),
                     db: Database = Depends(db_dep)):
-    """Everyone decides the direction of their own collection, also in a friend's fade."""
-    _visible_or_404(db, line_id, user["id"])
+    """Everyone decides the direction of their own collection, also in a friend's fade. The owner
+    may change it for every collection in their fade."""
+    line = _visible_or_404(db, line_id, user["id"])
     if get_worker().job(line_id):
         raise HTTPException(409, "The fade is syncing right now. Wait until it's done.")
-    _own_member(db, line_id, member_id, user["id"])
+    if line["user_id"] == user["id"]:
+        if not db.val("SELECT 1 FROM line_members WHERE id=? AND line_id=?", (member_id, line_id)):
+            raise HTTPException(404, "Collection not found.")
+    else:
+        _own_member(db, line_id, member_id, user["id"])
     db.run("UPDATE line_members SET role=?, follow_deletions=? WHERE id=?",
            (body.role, int(body.follow_deletions and body.role == "send"), member_id))
     _notify_others(db, line_id, user["id"])
