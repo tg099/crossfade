@@ -152,6 +152,7 @@
 	{#if c.data?.songs.length}
 		<button class="gbtn glass lq" onclick={() => (c.selecting ? endSelect() : (c.selecting = true))}>{c.selecting ? t('common.done') : t('lib.select')}</button>
 	{/if}
+	<button class="gbtn round glass lq" onclick={() => ui.timeTravel()} aria-label={t('tt.title')} title={t('tt.title')}><Glyph name="history" size={20} weight={2.1} /></button>
 	<button class="gbtn round glass lq" onclick={() => (c.sourcesOpen = true)} aria-label={t('lib.sources')}><Glyph name="settings" size={19} weight={2.1} /></button>
 {/snippet}
 

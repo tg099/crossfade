@@ -2,7 +2,7 @@
 // appearance and language. Data lives in lib/state.svelte.ts.
 import { pushState, replaceState } from '$app/navigation';
 import { put } from '#lib/api.ts';
-import type { FadeInvite, Service, TrackInfo } from '#lib/types.ts';
+import type { FadeInvite, Kind, Service, TrackInfo } from '#lib/types.ts';
 import type { GlyphName } from './Glyph.svelte';
 import { i18n, t, type Key, type LangPref } from './i18n.svelte.ts';
 import { project, reducedMotion, rubberband, Spring } from './motion.ts';
@@ -66,6 +66,9 @@ class UI {
 	appsOpen = $state(false);
 	notifyOpen = $state(false);
 	healthOpen = $state(false);
+	historyOpen = $state(false);
+	/** time travel opened right at one collection (from a fade); null = the list of all */
+	historyTarget = $state<{ account_id: number; kind: Kind; collection_id: string } | null>(null);
 	passwordOpen = $state(false);
 	friendsOpen = $state(false);
 	/** an invitation into a friend's fade, being answered */
@@ -164,6 +167,10 @@ class UI {
 	join(inv: FadeInvite) {
 		this.joining = inv;
 		this.joinOpen = true;
+	}
+	timeTravel(target: { account_id: number; kind: Kind; collection_id: string } | null = null) {
+		this.historyTarget = target;
+		this.historyOpen = true;
 	}
 	openService(s: Service) {
 		this.serviceFocus = s;

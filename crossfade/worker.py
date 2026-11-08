@@ -10,7 +10,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from . import health, notify
+from . import health, history, notify
 from .config import config
 from .db import Database, get_db
 from .engine import LineSync, Stopped
@@ -188,6 +188,12 @@ class Worker:
                     result = cat.playlists(params.get("delete") or [], params.get("merge") or [])
                 elif action == "undo":
                     result = cat.undo()
+                elif action == "restore":
+                    try:
+                        result = history.restore(db, user_id, providers, params["snapshot_id"], params["mode"],
+                                                 params.get("only"), progress, stop.is_set)
+                    except history.Stopped:
+                        raise CatalogStopped() from None
                 else:
                     raise ValueError(action)
                 for acc_id, msg in cat.auth_errors.items():

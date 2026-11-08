@@ -17,6 +17,7 @@
 	import FriendsSheet from '#lib/ui/FriendsSheet.svelte';
 	import Glyph from '#lib/ui/Glyph.svelte';
 	import Hearing from '#lib/ui/Hearing.svelte';
+	import HistorySheet from '#lib/ui/HistorySheet.svelte';
 	import JoinSheet from '#lib/ui/JoinSheet.svelte';
 	import { moveKeys } from '#lib/ui/keys.ts';
 	import PasswordSheet from '#lib/ui/PasswordSheet.svelte';
@@ -407,6 +408,7 @@
 	<JoinSheet />
 	<UserSheet />
 	<AppsSheet />
+	<HistorySheet />
 	<PasswordSheet />
 	<PlanSheet />
 	<ReviewSheet />

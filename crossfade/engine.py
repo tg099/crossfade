@@ -24,7 +24,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from . import matcher
+from . import history, matcher
 from .db import Database
 from .identity import Identity
 from .models import SERVICE_NAMES, ApiError, AuthError, Track
@@ -143,6 +143,8 @@ class LineSync:
                 if m.current.setdefault(sid, t) is not t:
                     m.extra.setdefault(sid, []).append(t)
             m.known = {r["song_id"]: r for r in self.db.all("SELECT * FROM member_items WHERE member_id=?", (m.id,))}
+            history.capture(self.db, m.row["account_id"], m.row["kind"], m.row["collection_id"] or "",
+                            [t.id for t in tracks], "sync")
 
     def _merge_across_services(self) -> None:
         """Identify the same song across members of different services before any search."""

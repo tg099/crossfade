@@ -12,7 +12,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 
-from . import matcher
+from . import history, matcher
 from .db import Database
 from .identity import Identity
 from .models import LIBRARY, LIKED, PLAYLIST, SERVICE_NAMES, ApiError, AuthError, Track
@@ -106,6 +106,8 @@ class Catalog:
                 db.run("UPDATE catalog_sources SET error=? WHERE id=?", (str(e), src["id"]))
                 errors.append(f"{_source_label(src)}: {e}")
                 continue
+            history.capture(db, src["account_id"], src["kind"], src["collection_id"] or "", [t.id for t in tracks],
+                            "scan")
             rows = []
             pool = by_service.setdefault(src["service"], {})
             for pos, t in enumerate(tracks):

@@ -326,6 +326,22 @@ MIGRATIONS: list[str] = [
         PRIMARY KEY (hour, service)
     );
     """,
+    # ---- 17: time travel: how each collection looked over time (see crossfade/history.py)
+    """
+    CREATE TABLE snapshots (
+        id INTEGER PRIMARY KEY,
+        account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL,
+        collection_id TEXT NOT NULL DEFAULT '',
+        taken_at REAL NOT NULL,          -- when this content was first seen
+        last_seen REAL NOT NULL,         -- last read that still found exactly this
+        count INTEGER NOT NULL,
+        digest TEXT NOT NULL,
+        items BLOB NOT NULL,             -- zlib JSON list of the service's ids, in listed order
+        origin TEXT NOT NULL             -- sync | scan | restore
+    );
+    CREATE INDEX snapshots_collection ON snapshots(account_id, kind, collection_id, taken_at);
+    """,
 ]
 
 

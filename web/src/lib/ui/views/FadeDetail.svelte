@@ -485,6 +485,11 @@
 											</span>
 										{/if}
 									</span>
+									{#if m.mine && m.initialized}
+										<button class="gbtn round glass lq tt" onclick={() => ui.timeTravel({ account_id: m.account_id, kind: m.kind, collection_id: m.collection_id })} aria-label={t('tt.of', { name: m.collection_name })} title={t('tt.title')}>
+											<Glyph name="history" size={17} weight={2.2} />
+										</button>
+									{/if}
 									{#if fade.mine ? !m.mine : m.mine}
 										<button class="role t-foot press" title={fade.mine ? t('share.theirDirection', { name: m.user_name }) : t('share.yourDirection')} aria-haspopup="menu" onclick={(e) => chooseRole(m, e.currentTarget)}>
 											<Glyph name={roleIcon(m.role)} size={13} weight={2.4} />
@@ -972,6 +977,14 @@
 	}
 	.readonly :global(.chev) {
 		display: none;
+	}
+	.tt {
+		flex: none;
+		width: 32px;
+		height: 32px;
+		min-width: 32px;
+		min-height: 32px;
+		padding: 0;
 	}
 	.role {
 		display: inline-flex;

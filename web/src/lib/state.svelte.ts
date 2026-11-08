@@ -237,10 +237,12 @@ class AppState {
 		else if (f.action === 'swap') text = t('clean.done.swap', { n: num(r.swapped), without: r.without ?? 0 });
 		else if (f.action === 'playlists') text = t('clean.done.playlists', { n: num(r.deleted), failed: r.failed ?? 0 });
 		else if (f.action === 'undo') text = t('clean.done.undo', { n: num(r.restored) });
+		else if (f.action === 'restore') text = t('tt.done', { n: num(r.added ?? 0), removed: r.removed ?? 0, failed: r.failed ?? 0 });
 		else text = t('lib.job.added', { n: num(r.added), target: r.target ?? '', missing: r.missing?.length ?? 0 });
 		const tone = f.status === 'ok' ? 'good' : f.status === 'stopped' || f.status === 'partial' ? 'info' : 'fault';
 		ui.say(text, tone === 'fault' ? 'alert' : 'check', tone);
 		if (f.status === 'auth_error' || f.status === 'partial') this.loadServices();
+		if (f.action === 'restore' && (f.status === 'ok' || f.status === 'partial')) this.loadLines();
 	}
 
 	/** kept for older call sites: one way to give feedback */
