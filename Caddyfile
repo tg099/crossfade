@@ -1,0 +1,8 @@
+{$CROSSFADE_DOMAIN} {
+	encode zstd gzip
+	# live progress uses server-sent events: don't buffer
+	reverse_proxy crossfade:8765 {
+		flush_interval -1
+	}
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+}

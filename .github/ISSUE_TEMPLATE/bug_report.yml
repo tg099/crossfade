@@ -1,0 +1,59 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please **never paste cookies, tokens, `media-user-token`, cURL commands or your `CROSSFADE_SECRET_KEY`** here.
+  - type: input
+    id: version
+    attributes:
+      label: Crossfade version
+      description: Shown at the bottom of the Account sheet, or the image tag you run (e.g. `0.2.1`).
+      placeholder: "0.2.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Installation
+      options:
+        - Docker Compose (with Caddy)
+        - Docker behind another reverse proxy
+        - Unraid
+        - Local (start.sh / from source)
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: services
+    attributes:
+      label: Affected services
+      multiple: true
+      options:
+        - YouTube Music
+        - Apple Music
+        - Spotify
+        - Not service-specific
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Create a fade with …
+        2. Run a sync …
+        3. …
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant output of `docker logs crossfade`. Remove anything personal first.
+      render: text
