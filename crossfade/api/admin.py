@@ -1,24 +1,29 @@
 """Admin: users (only admins create and manage them), app credentials for Spotify/Google."""
 from __future__ import annotations
 
+import os
 import platform
 import re
 import secrets
 import shutil
+import tempfile
 import time
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from .. import backup, updates
 from .. import notify as alert
 from ..config import config
 from ..db import Database
 from ..models import APPLE, SERVICE_NAMES, SERVICES
 from ..providers import APP_KEYS, app_credential, app_credential_source, set_app_credential
-from ..security import hash_password
+from ..security import hash_password, token_hash
 from ..sharing import notify, participants
 from ..worker import get_worker
-from .deps import admin_user, db_dep
+from .deps import SESSION_COOKIE, admin_user, db_dep
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -207,14 +212,14 @@ class SmtpTest(BaseModel):
 
 
 @router.post("/smtp/test")
-def test_smtp(body: SmtpTest, _: dict = Depends(admin_user), db: Database = Depends(db_dep)):
+def test_smtp(body: SmtpTest, admin: dict = Depends(admin_user), db: Database = Depends(db_dep)):
     s = alert.smtp_settings(db)
     if not s:
         raise HTTPException(400, "Save the mail server first.")
     try:
         cfg = alert.clean_config("email", {"to": body.to})
-        alert._send("email", cfg, {"event": "test", "title": "Test from Crossfade",
-                                    "message": "The mail server works.", "url": config.base_url}, s)
+        title, message = alert.text(alert.language(db, admin["id"]), "smtp_test")
+        alert._send("email", cfg, {"event": "test", "title": title, "message": message, "url": config.base_url}, s)
     except alert.ChannelError as e:
         raise HTTPException(400, str(e)) from e
     except Exception as e:  # noqa: BLE001
@@ -296,3 +301,120 @@ def instance_health(_: dict = Depends(admin_user), db: Database = Depends(db_dep
                   "overdue": overdue or 0},
         "errors": health.recent_errors(),
     }
+
+
+# ---------------------------------------------------------------------- backups
+MAX_UPLOAD = 4 * 1024 ** 3
+
+
+@router.get("/backups")
+def backups(_: dict = Depends(admin_user), db: Database = Depends(db_dep)):
+    return {"backups": backup.listing(db), "daily": config.backup_daily, "on_start": config.backup_on_start,
+            "key_from_env": bool(os.environ.get("CROSSFADE_SECRET_KEY")), "keep": backup.KEEP,
+            "schema": db.val("PRAGMA user_version")}
+
+
+@router.post("/backups")
+def make_backup(_: dict = Depends(admin_user), db: Database = Depends(db_dep)):
+    if get_worker().restoring:
+        raise HTTPException(409, "A restore is running.")
+    target = db.backup("manual")
+    if not target:
+        raise HTTPException(400, "There is nothing to back up yet.")
+    return backups(_, db)
+
+
+def _backup_file(db: Database, name: str) -> Path:
+    try:
+        return backup.path_of(db, name)
+    except backup.BackupError as e:
+        raise HTTPException(404, str(e)) from e
+
+
+@router.get("/backups/{name}")
+def download_backup(name: str, _: dict = Depends(admin_user), db: Database = Depends(db_dep)):
+    return FileResponse(_backup_file(db, name), media_type="application/vnd.sqlite3", filename=name)
+
+
+@router.delete("/backups/{name}")
+def delete_backup(name: str, _: dict = Depends(admin_user), db: Database = Depends(db_dep)):
+    _backup_file(db, name).unlink(missing_ok=True)
+    return backups(_, db)
+
+
+def _restore(db: Database, request: Request, path: Path) -> dict:
+    w = get_worker()
+    if not w.begin_restore():
+        raise HTTPException(409, "Something is syncing right now. Try again when it's done.")
+    try:
+        tok = request.cookies.get(SESSION_COOKIE)
+        info = backup.restore(db, path, keep_session=token_hash(tok) if tok else None)
+    except backup.BackupError as e:
+        raise HTTPException(400, str(e)) from e
+    finally:
+        w.end_restore()
+    # every open app reloads: what it shows is gone
+    for uid in [r["id"] for r in db.all("SELECT id FROM users")]:
+        w.bus.publish(uid, {"type": "restored"})
+    return info
+
+
+@router.post("/backups/{name}/restore")
+def restore_backup(name: str, request: Request, _: dict = Depends(admin_user), db: Database = Depends(db_dep)):
+    return _restore(db, request, _backup_file(db, name))
+
+
+@router.post("/backup-upload/check")
+async def check_upload(request: Request, _: dict = Depends(admin_user), db: Database = Depends(db_dep)):
+    """What an uploaded backup holds, before anything is replaced."""
+    path = await _receive(request, db)
+    try:
+        return backup.inspect(path)
+    except backup.BackupError as e:
+        raise HTTPException(400, str(e)) from e
+    finally:
+        path.unlink(missing_ok=True)
+
+
+@router.post("/backup-upload/restore")
+async def restore_upload(request: Request, _: dict = Depends(admin_user), db: Database = Depends(db_dep)):
+    path = await _receive(request, db)
+    try:
+        import asyncio
+        return await asyncio.to_thread(_restore, db, request, path)
+    finally:
+        path.unlink(missing_ok=True)
+
+
+async def _receive(request: Request, db: Database) -> Path:
+    """The request body (the raw file) into a private temporary file next to the backups."""
+    folder = backup.folder_of(db.path)
+    folder.mkdir(exist_ok=True)
+    fd, name = tempfile.mkstemp(prefix=".upload-", suffix=".sqlite3", dir=folder)
+    size = 0
+    try:
+        with os.fdopen(fd, "wb") as out:
+            async for chunk in request.stream():
+                size += len(chunk)
+                if size > MAX_UPLOAD:
+                    raise HTTPException(413, "The file is too big.")
+                out.write(chunk)
+        if size < 512:
+            raise HTTPException(400, "This isn't a Crossfade backup.")
+    except BaseException:
+        Path(name).unlink(missing_ok=True)
+        raise
+    return Path(name)
+
+
+# ---------------------------------------------------------------------- updates
+@router.get("/update")
+def update_state(_: dict = Depends(admin_user), db: Database = Depends(db_dep)):
+    return updates.state(db)
+
+
+@router.post("/update/check")
+def update_check(_: dict = Depends(admin_user), db: Database = Depends(db_dep)):
+    if not updates.enabled():
+        return updates.state(db)
+    return updates.check(db)

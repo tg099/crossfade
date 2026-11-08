@@ -1,7 +1,9 @@
 <script lang="ts">
 	import ServiceMark from '#lib/components/ServiceMark.svelte';
+	import { api, put } from '#lib/api.ts';
 	import { SERVICE_NAME } from '#lib/format.ts';
 	import { app } from '#lib/state.svelte.ts';
+	import { updates } from '#lib/updates.svelte.ts';
 	import Avatar from '../Avatar.svelte';
 	import Cover from '../Cover.svelte';
 	import FadeBadge from '../FadeBadge.svelte';
@@ -12,7 +14,7 @@
 	import WeekRecap from '../WeekRecap.svelte';
 	import { fadeMenu, hold } from '../ctx.ts';
 	import { fadeCovers, fadeIcon, fadeStatus, toneColor } from '../fade.ts';
-	import { i18n, num, t } from '../i18n.svelte.ts';
+	import { i18n, num, t, type Key } from '../i18n.svelte.ts';
 	import { tintVars } from '../tint.ts';
 	import { BRAND, ago, nav, ui } from '../ui.svelte.ts';
 
@@ -21,7 +23,7 @@
 	const hello = $derived(t(hour < 11 ? 'home.morning' : hour < 18 ? 'home.day' : 'home.evening', { name: first }));
 	const today = $derived(new Date().toLocaleDateString(i18n.locale, { weekday: 'long', day: 'numeric', month: 'long' }));
 
-	type Att = { key: string; text: string; sub: string; tone: 'red' | 'orange' | 'tint' | 'friend'; icon: 'key' | 'note' | 'trash' | 'users'; run: () => void; fade?: { icon: string; color: string } };
+	type Att = { key: string; text: string; sub: string; tone: 'red' | 'orange' | 'tint' | 'friend'; icon: 'key' | 'note' | 'trash' | 'users' | 'sparkle'; run: () => void; fade?: { icon: string; color: string } };
 	// what needs a human, most important first
 	const attention = $derived.by(() => {
 		const out: Att[] = [];
@@ -45,6 +47,9 @@
 			const sub = asking.length === 1 ? `@${asking[0].user.username}` : asking.map((r) => r.user.display_name).join(', ');
 			out.push({ key: 'fr', text, sub, tone: 'friend', icon: 'users', run: () => ((ui.accountOpen = true), (ui.friendsOpen = true)) });
 		}
+		// admins: a new release, until its notes were opened from here
+		if (app.user?.is_admin && updates.fresh)
+			out.push({ key: 'upd', text: t('update.available', { version: (updates.state?.latest ?? '').toUpperCase() }), sub: t('update.whatsNew'), tone: 'tint', icon: 'sparkle', run: () => updates.open() });
 		return out;
 	});
 	const TONE_BG: Record<Att['tone'], string> = { red: 'var(--red)', orange: 'var(--orange)', tint: 'var(--tint-fill)', friend: '#30b0c7' };
@@ -64,7 +69,90 @@
 	});
 	const fresh = $derived(app.activity?.items ?? []);
 	const needServices = $derived(app.connected.length < 2);
+
+	// first steps: a checklist until everything is set up or put away (stored with the account)
+	const showIntro = $derived(!!app.user && !app.user.intro_done && app.linesLoaded);
+	let channels = $state<number | null>(null);
+	$effect(() => {
+		// again after the notification sheet closed: a channel may have been added
+		if (!showIntro || ui.notifyOpen) return;
+		api<{ channels: unknown[] }>('/api/notifications')
+			.then((r) => (channels = r.channels.length))
+			.catch(() => (channels = 0));
+	});
+	type Step = { id: 'services' | 'fade' | 'sync' | 'notify'; done: boolean; optional?: boolean };
+	const steps = $derived.by<Step[]>(() => {
+		// a friend's fade counts as a fade, and then one service of your own is enough
+		const friends = app.lines.some((l) => !l.mine);
+		return [
+			{ id: 'services', done: app.connected.length >= 2 || (friends && app.connected.length >= 1) },
+			{ id: 'fade', done: app.lines.length > 0 },
+			{ id: 'sync', done: app.lines.some((l) => !!l.last_run_at) },
+			{ id: 'notify', done: (channels ?? 0) > 0, optional: true }
+		];
+	});
+	const step = $derived(steps.find((s) => !s.done)?.id ?? null);
+	const stepsDone = $derived(steps.filter((s) => s.done).length);
+	const firstFade = $derived(app.lines.find((l) => !l.last_run_at) ?? app.lines[0]);
+	const STEP_TEXT: Record<Step['id'], [Key, Key]> = {
+		services: ['intro.services', 'intro.servicesText'],
+		fade: ['intro.fade', 'intro.fadeText'],
+		sync: ['intro.sync', 'intro.syncText'],
+		notify: ['intro.notify', 'intro.notifyText']
+	};
+	async function finishIntro() {
+		if (!app.user) return;
+		app.user.intro_done = true;
+		try {
+			await put('/api/auth/me', { intro_done: true });
+		} catch {
+			ui.say(t('err.notSaved'), 'alert', 'fault');
+		}
+	}
 </script>
+
+{#snippet serviceList()}
+	<ul class="group svc">
+		{#each app.services as s (s.service)}
+			<li>
+				<button class="cell" style:--inset="58px" onclick={() => ui.openAccount(s.service)}>
+					<ServiceMark service={s.service} size={30} />
+					<span class="grow">
+						<span class="block">{s.name}</span>
+						<span class="t-foot t-2 block">{s.connected ? t('services.as', { account: s.display_name ?? '' }) : t('services.notConnected')}</span>
+					</span>
+					{#if s.connected}<span class="ok"><Glyph name="check" size={18} weight={2.6} /></span>{:else}<span class="cell-pill">{t('services.connect')}</span>{/if}
+				</button>
+			</li>
+		{/each}
+	</ul>
+{/snippet}
+
+{#snippet templates()}
+	<ul class="tpls">
+		<li>
+			<button class="tpl glass lq" onclick={() => ui.edit(0, 'likes')}>
+				<span class="tile-icon" style:background="#C4007A"><Glyph name="heart" size={18} weight={2.3} /></span>
+				<span class="b">{t('start.likes')}</span>
+				<span class="t-foot t-2">{t('start.likesText', { services: app.connected.map((s) => s.name).join(' · ') })}</span>
+			</button>
+		</li>
+		<li>
+			<button class="tpl glass lq" onclick={() => ui.edit(0, 'copy')}>
+				<span class="tile-icon" style:background="#0072CE"><Glyph name="right" size={18} weight={2.3} /></span>
+				<span class="b">{t('start.copy')}</span>
+				<span class="t-foot t-2">{t('start.copyText')}</span>
+			</button>
+		</li>
+		<li>
+			<button class="tpl glass lq" onclick={() => ui.edit(0)}>
+				<span class="tile-icon" style:background="#8E8E93"><Glyph name="plus" size={18} weight={2.6} /></span>
+				<span class="b">{t('start.own')}</span>
+				<span class="t-foot t-2">{t('start.ownText')}</span>
+			</button>
+		</li>
+	</ul>
+{/snippet}
 
 <Page title={t('tab.home')} large={false} glow={BRAND}>
 	{#snippet hero()}
@@ -82,55 +170,60 @@
 		</header>
 	{/snippet}
 
-	{#if needServices}
-		<!-- first steps: services, then a fade -->
+	{#if showIntro}
+		<section class="section" aria-labelledby="intro-h">
+			<div class="start glass strong">
+				<div class="intro-head">
+					<h2 id="intro-h" class="t-title3">{step ? t('intro.title') : t('intro.allDone')}</h2>
+					<button class="text-btn" onclick={finishIntro}>{step ? t('intro.hide') : t('intro.finish')}</button>
+				</div>
+				<p class="t-sub t-2">{step ? t('intro.progress', { done: stepsDone, total: steps.length }) : t('intro.allDoneText')}</p>
+				<div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax={steps.length} aria-valuenow={stepsDone} aria-label={t('intro.title')}>
+					<span style:width="{(stepsDone / steps.length) * 100}%"></span>
+				</div>
+				<ol class="steps">
+					{#each steps as s, i (s.id)}
+						<li class:done={s.done} class:now={step === s.id}>
+							<span class="mark" aria-hidden="true">{#if s.done}<Glyph name="check" size={14} weight={3} />{:else}{i + 1}{/if}</span>
+							<div class="step-body">
+								<p class="step-t">
+									{t(STEP_TEXT[s.id][0])}
+									{#if s.optional}<span class="tag">{t('intro.optional')}</span>{/if}
+								</p>
+								{#if step === s.id}
+									<p class="t-foot t-2">{t(STEP_TEXT[s.id][1])}</p>
+									<div class="step-do">
+										{#if s.id === 'services'}
+											{@render serviceList()}
+										{:else if s.id === 'fade'}
+											{@render templates()}
+										{:else if s.id === 'sync' && firstFade}
+											<button class="pb glass tint lq pb-small" style={tintVars(firstFade.color)} onclick={() => nav.openFade(firstFade.id)}>{t('intro.syncGo', { name: firstFade.name })}</button>
+										{:else if s.id === 'notify'}
+											<button class="pb glass tint lq pb-small" onclick={() => ((ui.accountOpen = true), (ui.notifyOpen = true))}><Glyph name="bell" size={16} weight={2.3} />{t('intro.notifyGo')}</button>
+										{/if}
+									</div>
+								{/if}
+							</div>
+						</li>
+					{/each}
+				</ol>
+			</div>
+		</section>
+	{:else if needServices}
+		<!-- first steps were put away: services, then a fade -->
 		<section class="section">
 			<div class="start glass strong">
 				<p class="t-title3">{t('start.servicesTitle')}</p>
 				<p class="t-sub t-2">{t('start.servicesText')}</p>
-				<ul class="group svc">
-					{#each app.services as s (s.service)}
-						<li>
-							<button class="cell" style:--inset="58px" onclick={() => ui.openAccount(s.service)}>
-								<ServiceMark service={s.service} size={30} />
-								<span class="grow">
-									<span class="block">{s.name}</span>
-									<span class="t-foot t-2 block">{s.connected ? t('services.as', { account: s.display_name ?? '' }) : t('services.notConnected')}</span>
-								</span>
-								{#if s.connected}<span class="ok"><Glyph name="check" size={18} weight={2.6} /></span>{:else}<span class="cell-pill">{t('services.connect')}</span>{/if}
-							</button>
-						</li>
-					{/each}
-				</ul>
+				{@render serviceList()}
 			</div>
 		</section>
 	{:else if app.linesLoaded && !app.lines.length}
 		<section class="section" aria-labelledby="tpl-h">
 			<div class="section-head"><h2 id="tpl-h">{t('start.fadeTitle')}</h2></div>
 			<p class="t-sub t-2 lead">{t('start.fadeText')}</p>
-			<ul class="tpls">
-				<li>
-					<button class="tpl glass lq" onclick={() => ui.edit(0, 'likes')}>
-						<span class="tile-icon" style:background="#C4007A"><Glyph name="heart" size={18} weight={2.3} /></span>
-						<span class="b">{t('start.likes')}</span>
-						<span class="t-foot t-2">{t('start.likesText', { services: app.connected.map((s) => s.name).join(' · ') })}</span>
-					</button>
-				</li>
-				<li>
-					<button class="tpl glass lq" onclick={() => ui.edit(0, 'copy')}>
-						<span class="tile-icon" style:background="#0072CE"><Glyph name="right" size={18} weight={2.3} /></span>
-						<span class="b">{t('start.copy')}</span>
-						<span class="t-foot t-2">{t('start.copyText')}</span>
-					</button>
-				</li>
-				<li>
-					<button class="tpl glass lq" onclick={() => ui.edit(0)}>
-						<span class="tile-icon" style:background="#8E8E93"><Glyph name="plus" size={18} weight={2.6} /></span>
-						<span class="b">{t('start.own')}</span>
-						<span class="t-foot t-2">{t('start.ownText')}</span>
-					</button>
-				</li>
-			</ul>
+			{@render templates()}
 		</section>
 	{/if}
 
@@ -285,6 +378,92 @@
 	}
 	.svc {
 		margin-top: 8px;
+	}
+	.intro-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 0 4px;
+	}
+	.meter {
+		height: 6px;
+		margin: 6px 4px 4px;
+		border-radius: 999px;
+		background: var(--fill-3);
+		overflow: hidden;
+	}
+	.meter span {
+		display: block;
+		height: 100%;
+		border-radius: inherit;
+		background: linear-gradient(90deg, #ff3b4e, #2e6bff);
+		transition: width 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+	}
+	.steps {
+		display: grid;
+		gap: 4px;
+		margin: 6px 0 0;
+		padding: 0;
+		list-style: none;
+	}
+	.steps li {
+		display: flex;
+		align-items: flex-start;
+		gap: 12px;
+		padding: 8px 4px;
+	}
+	.mark {
+		display: grid;
+		flex: none;
+		place-items: center;
+		width: 26px;
+		height: 26px;
+		margin-top: -1px;
+		border-radius: 50%;
+		background: var(--fill-3);
+		color: var(--label-2);
+		font-size: var(--f-foot);
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+	}
+	.now .mark {
+		background: var(--label);
+		color: var(--bg);
+	}
+	.done .mark {
+		background: var(--green);
+		color: #fff;
+	}
+	.step-body {
+		flex: 1;
+		min-width: 0;
+		display: grid;
+		gap: 4px;
+	}
+	.step-t {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-weight: 600;
+	}
+	.done .step-t {
+		color: var(--label-2);
+		font-weight: 500;
+	}
+	.step-do {
+		margin-top: 6px;
+	}
+	.step-do .svc {
+		margin-top: 0;
+	}
+	.step-do .pb {
+		gap: 6px;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.meter span {
+			transition: none;
+		}
 	}
 	.ok {
 		color: var(--green);

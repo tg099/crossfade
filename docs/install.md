@@ -131,6 +131,9 @@ docker compose pull && docker compose up -d       # setups A and B
 For `docker run`: `docker pull ghcr.io/tg099/crossfade:latest`, then remove and start the container again with
 the same command. Before each start Crossfade backs up its database and then migrates it if needed.
 
+Admins see a hint on the home page when a new version is out (Crossfade asks the GitHub releases twice a day; set
+`CROSSFADE_UPDATE_CHECK=false` to turn that off).
+
 Which tag to use:
 
 | Tag | Gets |
@@ -145,8 +148,12 @@ New releases and what changed: [GitHub releases](https://github.com/tg099/crossf
 ## Backups
 
 Everything lives in `/data` in the container (the `crossfade-data` volume): the SQLite database with fades and
-encrypted logins, and `backups/` with the last 10 database snapshots (one per start). Back up that volume, and keep
-your secret key separately.
+encrypted logins, and `backups/` with database backups: the last 10 from starts, 14 daily ones and up to 20 made by
+hand. Admins can make, download and restore backups in the app (**Account → Backups**), also from a downloaded file
+on a new server. Keep your secret key separately: a backup never contains it, and without it the stored logins
+can't be read.
+
+To copy the whole volume instead:
 
 ```sh
 docker run --rm -v crossfade-data:/data -v "$PWD":/backup alpine \
@@ -173,6 +180,8 @@ mkdir -p ./data && sudo chown 99:100 ./data
 | Sign-in works but you're logged out again right away | `CROSSFADE_BASE_URL` starts with `https://` but you open the site over `http://`. Use the HTTPS address, or for local testing leave `CROSSFADE_BASE_URL` unset. |
 | Progress bar doesn't move during a sync | Your proxy buffers `/api/events`; turn off buffering (see setup B). |
 | *"Permission denied"* on `/data` | The mounted folder isn't writable for `99:100`; see [Using a folder](#using-a-folder-instead-of-a-volume). |
+| Restoring from a file fails with *"HTTP 413"* | Your proxy limits uploads (Nginx: 1 MB by default). Allow bigger bodies, e.g. `client_max_body_size 0;` (in Nginx Proxy Manager under *Advanced*). |
+| Restoring says *"saved with another secret key"* | The backup comes from an instance with a different key. Start Crossfade with that key, then restore. |
 | *"CROSSFADE_SECRET_KEY changed?"* | The key differs from the one the logins were stored with. Put the old key back. |
 | Spotify login fails with a redirect error | The redirect URI in the Spotify dashboard must be exactly `https://<your-domain>/api/services/spotify/callback`. |
 

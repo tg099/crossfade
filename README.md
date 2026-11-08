@@ -159,11 +159,19 @@ Each fade remembers which songs it knows and where it last saw them.
 - **Notifications** (**Account → Notifications**): through [ntfy](https://ntfy.sh), a webhook (Discord and Slack are
   recognised, otherwise JSON, e.g. for Home Assistant) or e-mail through an SMTP server the admin adds under
   **App credentials**. Per channel: a login stops working or ends soon, a sync is waiting for you, new open songs,
-  syncs that keep failing, friends. Each problem is reported only once.
+  syncs that keep failing, friends, and for admins a new release. Each problem is reported only once, in the
+  person's language (their setting, else their browser's).
 - **Login checks:** Crossfade tries every login twice a day, also those no fade uses, and remembers when it ends if
   the service says so (e.g. after 7 days for Google apps in testing mode).
 - **Health** (admins only, **Account → Health**): requests, errors, throttling and duration per service and hour,
   syncs of the last 24 hours, database, backups, free storage and the latest errors. Counts only, nothing private.
+- **Backups** (admins only, **Account → Backups**): Crossfade backs up its database on every start and once a day.
+  Make one by hand, download it, or restore one (also from a downloaded file, e.g. when moving to a new server).
+  Before a restore the current state is backed up too. The secret key is never part of a backup: keep it separately.
+- **Update hint** (admins only): twice a day Crossfade looks at the GitHub releases and shows a new version on the
+  home page and under **Account**. Development builds never look; `CROSSFADE_UPDATE_CHECK=false` turns it off.
+- **First steps:** new users get a checklist on the home page (connect services, first fade, first sync,
+  notifications) until everything is set up or they hide it.
 
 ## Security
 

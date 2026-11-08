@@ -58,6 +58,8 @@
 		// time travel: a clock whose hand runs back
 		history: 'M4.6 12a7.4 7.4 0 1 0 2.2-5.2M4.5 4.5v3.6h3.6M12 8v4.3l2.8 1.7',
 		pulse: 'M3.5 12.5h3.8l2.2-5.5 4 11 2.4-5.5h4.6',
+		archive: 'M4 5.5h16v4H4zM5.5 9.5V18a1.5 1.5 0 0 0 1.5 1.5h10a1.5 1.5 0 0 0 1.5-1.5V9.5M10 13h4',
+		download: 'M12 4.5v10.5M7.5 10.5 12 15l4.5-4.5M5 19.5h14',
 		key: 'M14.5 13.5a4.5 4.5 0 1 0-4-2.4L4 17.6V20h2.5v-2h2v-2h2l1.5-1.5a4.5 4.5 0 0 0 2.5-1Z'
 	} as const;
 	export type GlyphName = keyof typeof P;

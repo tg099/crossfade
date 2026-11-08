@@ -812,8 +812,7 @@ def invite(line_id: int, body: InviteBody, user: dict = Depends(current_user), d
     db.run("INSERT INTO fade_invites(line_id,from_user,to_user,created_at) VALUES(?,?,?,?)",
            (line_id, user["id"], body.user_id, time.time()))
     fade = db.val("SELECT name FROM lines WHERE id=?", (line_id,))
-    alert.safely(alert.social, db, body.user_id, f"Invite to {fade}",
-                 f"{user['display_name']} invites you to the fade {fade}.", "/fades")
+    alert.safely(alert.social, db, body.user_id, "fade_invite", "/fades", name=user["display_name"], fade=fade)
     notify([body.user_id], "fades")
     return get_line(line_id, user, db)
 
@@ -875,8 +874,7 @@ def approve_request(line_id: int, invite_id: int, body: ApproveBody, user: dict 
                    member["collection_name"], member["role"], member["follow_deletions"], pos))
         c.execute("DELETE FROM fade_invites WHERE id=?", (invite_id,))
     fade = db.val("SELECT name FROM lines WHERE id=?", (line_id,))
-    alert.safely(alert.social, db, guest, f"You're in {fade}",
-                 f"{user['display_name']} let your collection into {fade}.", f"/fades/{line_id}")
+    alert.safely(alert.social, db, guest, "fade_joined", f"/fades/{line_id}", name=user["display_name"], fade=fade)
     notify([guest], "fades")
     return get_line(line_id, user, db)
 

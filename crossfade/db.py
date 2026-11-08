@@ -342,6 +342,15 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX snapshots_collection ON snapshots(account_id, kind, collection_id, taken_at);
     """,
+    # ---- 18: notifications in the user's language (browser_lang for "system"), first steps on the
+    # home page (intro_done: hidden for good), admins hear about new releases on their channels
+    """
+    ALTER TABLE users ADD COLUMN browser_lang TEXT;
+    ALTER TABLE users ADD COLUMN intro_done INTEGER NOT NULL DEFAULT 0;
+    UPDATE users SET intro_done=1 WHERE id IN (SELECT user_id FROM lines);
+    UPDATE notify_channels SET events=json_insert(events, '$[#]', 'update')
+     WHERE user_id IN (SELECT id FROM users WHERE is_admin=1);
+    """,
 ]
 
 
@@ -354,24 +363,30 @@ class Database:
             self.backup()
         self.migrate()
 
-    def backup(self, keep: int = 10) -> Path | None:
-        """Consistent copy of the database (SQLite online backup) into data/backups, before
-        migrations run – an update can always be rolled back with the previous image + this file."""
+    def backup(self, kind: str = "start") -> Path | None:
+        """Consistent copy of the database (SQLite online backup) into data/backups: on every start
+        before migrations run (an update can always be rolled back with the previous image + this
+        file), daily, by hand and before a restore. See crossfade/backup.py."""
         if not self.path.exists() or self.path.stat().st_size == 0:
             return None
-        folder = self.path.parent / "backups"
+        from .backup import KEEP, folder_of, prune
+        folder = folder_of(self.path)
         folder.mkdir(exist_ok=True)
         version = self.conn.execute("PRAGMA user_version").fetchone()[0]
-        target = folder / f"crossfade-{time.strftime('%Y%m%d-%H%M%S')}-schema{version}.sqlite3"
+        suffix = "" if kind == "start" else f"-{kind}"
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        target = folder / f"crossfade-{stamp}-schema{version}{suffix}.sqlite3"
+        n = 1
+        while target.exists():            # two in the same second
+            n += 1
+            target = folder / f"crossfade-{stamp}-schema{version}{suffix}-{n}.sqlite3"
         dst = sqlite3.connect(target)
         try:
             self.conn.backup(dst)
         finally:
             dst.close()
         target.chmod(0o600)
-        backups = sorted(folder.glob("crossfade-*.sqlite3"), key=lambda f: f.stat().st_mtime)
-        for old in backups[:-keep]:
-            old.unlink(missing_ok=True)
+        prune(folder, kind, KEEP.get(kind, 10))
         return target
 
     @property

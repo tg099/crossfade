@@ -69,13 +69,31 @@ def _login(db: Database, response: Response, request: Request, user_id: int) -> 
                         secure=secure, samesite="lax", path="/")
 
 
+def browser_lang(request: Request) -> str | None:
+    """de or en from Accept-Language, whichever comes first; None when neither is there."""
+    for part in (request.headers.get("accept-language") or "").split(","):
+        code = part.split(";")[0].strip().lower()[:2]
+        if code in ("de", "en"):
+            return code
+    return None
+
+
+def _remember_lang(db: Database, request: Request, user: dict) -> None:
+    """Notifications of a user on "system" follow the browser they last opened Crossfade in."""
+    lang = browser_lang(request)
+    if lang and lang != user.get("browser_lang"):
+        db.run("UPDATE users SET browser_lang=? WHERE id=?", (lang, user["id"]))
+
+
 @router.get("/state")
 def auth_state(request: Request, db: Database = Depends(db_dep)):
     setup_needed = not db.val("SELECT COUNT(*) FROM users")
     user = None
     if not setup_needed and request.cookies.get(SESSION_COOKIE):
         try:
-            user = public_user(current_user(request, db))
+            row = current_user(request, db)
+            _remember_lang(db, request, row)
+            user = public_user(row)
         except HTTPException:
             user = None
     return {"setup_needed": setup_needed, "user": user}
@@ -101,6 +119,7 @@ def setup(body: SetupBody, request: Request, response: Response, db: Database = 
                         "VALUES(?,?,?,1,?)", (body.username, body.display_name.strip(),
                                               hash_password(body.password), time.time())).lastrowid
     _login(db, response, request, uid)
+    _remember_lang(db, request, {"id": uid})
     return {"user": public_user(db.one("SELECT * FROM users WHERE id=?", (uid,)))}
 
 
@@ -126,6 +145,7 @@ def login(body: LoginBody, request: Request, response: Response, db: Database = 
         _failed(account)
         raise HTTPException(401, "Wrong username or password.")
     _login(db, response, request, u["id"])
+    _remember_lang(db, request, u)
     return {"user": public_user(u)}
 
 
@@ -144,6 +164,7 @@ class ProfileBody(BaseModel):
     lang: Literal["system", "de", "en"] | None = None
     release_pref: Literal["album", "single"] | None = None
     share_stats: bool | None = None
+    intro_done: bool | None = None
 
 
 @router.put("/me")

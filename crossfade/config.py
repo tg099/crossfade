@@ -29,6 +29,8 @@ class Config:
     worker_threads: int
     scheduler: bool             # run lines on their interval
     backup_on_start: bool       # copy the database to data/backups on every start
+    backup_daily: bool          # and once a day while running
+    update_check: bool          # ask GitHub twice a day whether there is a newer release
     version: str                # set at image build time
 
     @property
@@ -68,6 +70,8 @@ def load() -> Config:
         worker_threads=int(env("WORKER_THREADS", "3")),
         scheduler=_bool(env("SCHEDULER"), True),
         backup_on_start=_bool(env("BACKUP_ON_START"), True),
+        backup_daily=_bool(env("BACKUP_DAILY"), True),
+        update_check=_bool(env("UPDATE_CHECK"), True),
         version=env("VERSION", "dev"),
     )
 

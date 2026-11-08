@@ -7,6 +7,7 @@
 	import SheetBar from './SheetBar.svelte';
 	import { i18n, num, t } from './i18n.svelte.ts';
 	import { ago, ui } from './ui.svelte.ts';
+	import { updates } from '#lib/updates.svelte.ts';
 
 	// Admin only: how the instance and the services are doing. Counts only, nothing private.
 	type Totals = { calls: number; errors: number; auth_errors: number; rate_limited: number; failed_items: number; avg_ms: number | null };
@@ -90,6 +91,7 @@
 		if (h.syncs.overdue) out.push(t('health.att.overdue', { n: h.syncs.overdue }));
 		if (!h.instance.scheduler) out.push(t('health.att.scheduler'));
 		if (h.instance.disk_free_bytes < 1024 ** 3) out.push(t('health.att.disk', { free: bytes(h.instance.disk_free_bytes) }));
+		if (updates.state?.available) out.push(t('health.att.update', { version: (updates.state.latest ?? '').toUpperCase() }));
 		return out;
 	});
 	const runs = $derived(h ? Object.entries(h.syncs.day).reduce((a, [, v]) => a + v.n, 0) : 0);

@@ -108,13 +108,12 @@ def request_friend(body: RequestBody, user: dict = Depends(current_user), db: Da
         raise HTTPException(409, "The request has already been sent.")
     if f:   # they asked first: asking back is saying yes
         db.run("UPDATE friendships SET status='accepted', accepted_at=? WHERE id=?", (time.time(), f["id"]))
-        alert.safely(alert.social, db, other["id"], f"{user['display_name']} is your friend now",
-                     f"{user['display_name']} accepted your friend request.")
+        alert.safely(alert.social, db, other["id"], "friend_accepted", name=user["display_name"])
     else:
         db.run("INSERT INTO friendships(requester_id,addressee_id,status,created_at) VALUES(?,?,'pending',?)",
                (uid, other["id"], time.time()))
-        alert.safely(alert.social, db, other["id"], "New friend request",
-                     f"{user['display_name']} (@{user['username']}) wants to be friends on Crossfade.")
+        alert.safely(alert.social, db, other["id"], "friend_request", name=user["display_name"],
+                     username=user["username"])
     notify([other["id"]])
     return overview(db, uid)
 
@@ -133,8 +132,7 @@ def accept_request(request_id: int, user: dict = Depends(current_user), db: Data
     if f["addressee_id"] != user["id"]:
         raise HTTPException(403, "Only the person who was asked can accept.")
     db.run("UPDATE friendships SET status='accepted', accepted_at=? WHERE id=?", (time.time(), request_id))
-    alert.safely(alert.social, db, f["requester_id"], f"{user['display_name']} is your friend now",
-                 f"{user['display_name']} accepted your friend request.")
+    alert.safely(alert.social, db, f["requester_id"], "friend_accepted", name=user["display_name"])
     notify([f["requester_id"]])
     return overview(db, user["id"])
 
@@ -194,9 +192,8 @@ def accept_invite(invite_id: int, body: MemberIn, user: dict = Depends(current_u
     db.run("UPDATE fade_invites SET request=?, requested_at=? WHERE id=?",
            (json.dumps(request), time.time(), invite_id))
     fade = db.val("SELECT name FROM lines WHERE id=?", (inv["line_id"],)) or "your fade"
-    alert.safely(alert.social, db, inv["from_user"], f"{user['display_name']} wants to join {fade}",
-                 f"{user['display_name']} picked a collection for {fade}. Approve it in the fade.",
-                 f"/fades/{inv['line_id']}")
+    alert.safely(alert.social, db, inv["from_user"], "fade_request", f"/fades/{inv['line_id']}",
+                 name=user["display_name"], fade=fade)
     notify([inv["from_user"]], "fades")
     return overview(db, uid)
 

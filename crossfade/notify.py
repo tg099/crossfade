@@ -3,6 +3,10 @@
 Every user sets up their own channels and picks the events per channel. A lasting problem (a login
 that stopped working, a sync waiting for confirmation) is reported once and again only after it was
 resolved in between; `notify_state` remembers what was sent.
+
+Messages go out in the recipient's language (their setting, else the browser language they last used),
+unlike the rest of the backend, which speaks English only. Details that come from a service (an error
+text) stay as the service said them.
 """
 from __future__ import annotations
 
@@ -25,8 +29,8 @@ from .security import decrypt, encrypt
 
 log = logging.getLogger("crossfade.notify")
 
-# event -> what it is about (the UI has its own texts for these)
-EVENTS = ("auth", "expiring", "confirm", "issues", "errors", "social")
+# event -> what it is about (the UI has its own texts for these); "update" only reaches admins
+EVENTS = ("auth", "expiring", "confirm", "issues", "errors", "social", "update")
 KINDS = ("ntfy", "webhook", "email")
 NTFY_DEFAULT = "https://ntfy.sh"
 TOPIC = re.compile(r"[A-Za-z0-9_-]{1,64}")
@@ -39,6 +43,113 @@ _deliver_hook = None
 
 class ChannelError(ValueError):
     """A channel's settings are invalid."""
+
+
+# ---------------------------------------------------------------------- texts
+LANGS = ("en", "de")
+
+
+def _n(n: int, one: str, many: str) -> str:
+    return one if n == 1 else many
+
+
+# key -> lang -> (title, message); a value is a format string or a function of the variables
+TEXTS: dict[str, dict[str, tuple]] = {
+    "test": {
+        "en": ("Test from Crossfade", "Notifications on this channel work."),
+        "de": ("Test von Crossfade", "Benachrichtigungen über diesen Kanal kommen an."),
+    },
+    "smtp_test": {
+        "en": ("Test from Crossfade", "The mail server works."),
+        "de": ("Test von Crossfade", "Der Mailserver funktioniert."),
+    },
+    "auth": {
+        "en": ("{service}: sign in again", "Your {service} login stopped working, so syncs with it are paused. {detail}"),
+        "de": ("{service}: bitte neu anmelden",
+               "Deine Anmeldung bei {service} geht nicht mehr, deshalb pausieren die Syncs damit. {detail}"),
+    },
+    "expiring": {
+        "en": (lambda v: f"{v['service']} login ends {_when('en', v['days'])}",
+               lambda v: f"Your {v['service']} login ends {_when('en', v['days'])}. "
+                         "Renew it in Crossfade so your syncs keep running."),
+        "de": (lambda v: f"{v['service']}-Anmeldung läuft {_when('de', v['days'])} ab",
+               lambda v: f"Deine Anmeldung bei {v['service']} läuft {_when('de', v['days'])} ab. "
+                         "Erneuere sie in Crossfade, damit deine Syncs weiterlaufen."),
+    },
+    "confirm_held": {
+        "en": ("{fade} is waiting for you",
+               lambda v: f"{v['n']} {_n(v['n'], 'deletion is', 'deletions are')} waiting for your confirmation."),
+        "de": ("{fade} wartet auf dich",
+               lambda v: f"{v['n']} {_n(v['n'], 'Löschung wartet', 'Löschungen warten')} auf deine Bestätigung."),
+    },
+    "confirm_blocked": {
+        "en": ("{fade} is waiting for you", "A sync was stopped to be safe. {detail}"),
+        "de": ("{fade} wartet auf dich", "Ein Sync wurde zur Sicherheit angehalten. {detail}"),
+    },
+    "errors": {
+        "en": ("{fade} keeps failing", "The last three syncs failed. Last error: {detail}"),
+        "de": ("{fade} scheitert immer wieder", "Die letzten drei Syncs sind fehlgeschlagen. Letzter Fehler: {detail}"),
+    },
+    "issues": {
+        "en": (lambda v: f"{v['fade']}: {v['n']} {_n(v['n'], 'song', 'songs')} to check",
+               lambda v: f"Crossfade couldn't find {v['n']} {_n(v['n'], 'song', 'songs')} for certain. "
+                         "Pick the right version in the fade."),
+        "de": (lambda v: f"{v['fade']}: {v['n']} {_n(v['n'], 'Song', 'Songs')} zum Prüfen",
+               lambda v: f"Crossfade hat {v['n']} {_n(v['n'], 'Song', 'Songs')} nicht sicher gefunden. "
+                         "Such dir im Fade die richtige Version aus."),
+    },
+    "friend_request": {
+        "en": ("New friend request", "{name} (@{username}) wants to be friends on Crossfade."),
+        "de": ("Neue Freundschaftsanfrage", "{name} (@{username}) möchte auf Crossfade mit dir befreundet sein."),
+    },
+    "friend_accepted": {
+        "en": ("{name} is your friend now", "{name} accepted your friend request."),
+        "de": ("{name} und du seid jetzt befreundet", "{name} hat deine Freundschaftsanfrage angenommen."),
+    },
+    "fade_invite": {
+        "en": ("Invite to {fade}", "{name} invites you to the fade {fade}."),
+        "de": ("Einladung zu {fade}", "{name} lädt dich in den Fade {fade} ein."),
+    },
+    "fade_request": {
+        "en": ("{name} wants to join {fade}", "{name} picked a collection for {fade}. Approve it in the fade."),
+        "de": ("{name} möchte zu {fade}", "{name} hat eine Sammlung für {fade} ausgesucht. Bestätige sie im Fade."),
+    },
+    "fade_joined": {
+        "en": ("You're in {fade}", "{name} let your collection into {fade}."),
+        "de": ("Du bist in {fade}", "{name} hat deine Sammlung in {fade} aufgenommen."),
+    },
+    "update": {
+        "en": ("Crossfade {latest} is out", "You're running {current}. See what's new in the release notes."),
+        "de": ("Crossfade {latest} ist da", "Du nutzt gerade {current}. Was neu ist, steht in den Release Notes."),
+    },
+}
+
+
+def _when(lang: str, days: int) -> str:
+    if lang == "de":
+        return "heute" if days == 0 else "morgen" if days == 1 else f"in {days} Tagen"
+    return "today" if days == 0 else "tomorrow" if days == 1 else f"in {days} days"
+
+
+def language(db: Database, user_id: int) -> str:
+    """The language a user reads their notifications in: their setting, else their browser's."""
+    row = db.one("SELECT lang, browser_lang FROM users WHERE id=?", (user_id,))
+    if not row:
+        return "en"
+    for v in (row["lang"], row["browser_lang"]):
+        if v in LANGS:
+            return v
+    return "en"
+
+
+def text(lang: str, key: str, **v) -> tuple[str, str]:
+    """Title and message of a notification in this language."""
+    entry = TEXTS[key].get(lang) or TEXTS[key]["en"]
+    out = []
+    for part in entry:
+        s = part(v) if callable(part) else part.format(**v)
+        out.append(" ".join(s.split()))      # an empty {detail} leaves no stray space
+    return out[0], out[1]
 
 
 # ---------------------------------------------------------------------- channel settings
@@ -184,8 +295,8 @@ def _deliver(db: Database, channel: dict, msg: dict) -> str | None:
 
 
 def send_test(db: Database, channel: dict) -> str | None:
-    return _deliver(db, channel, {"event": "test", "title": "Test from Crossfade",
-                                  "message": "Notifications on this channel work.", "url": config.base_url,
+    title, message = text(language(db, channel["user_id"]), "test")
+    return _deliver(db, channel, {"event": "test", "title": title, "message": message, "url": config.base_url,
                                   "ts": time.time()})
 
 
@@ -200,21 +311,24 @@ def _dispatch(db: Database, user_id: int, msg: dict, sync: bool = False) -> None
 
 
 # ---------------------------------------------------------------------- events
-def emit(db: Database, user_id: int, event: str, key: str, title: str, message: str, path: str = "/",
-         value: str | None = None, urgent: bool = False, repeat: bool = False, sync: bool = False) -> bool:
-    """Report something to a user's channels. With the same `key` (and `value`) it is sent only once
-    until `resolve` clears it; `repeat` sends every time. Returns whether it was sent."""
+def emit(db: Database, user_id: int, event: str, key: str, msg: str, path: str = "/",
+         value: str | None = None, urgent: bool = False, repeat: bool = False, sync: bool = False,
+         url: str | None = None, **v) -> bool:
+    """Report something to a user's channels: `msg` names the text in TEXTS, filled with `v` in the
+    user's language. With the same `key` (and `value`) it is sent only once until `resolve` clears
+    it; `repeat` sends every time. Returns whether it was sent."""
     assert event in EVENTS, event
+    title, message = text(language(db, user_id), msg, **v)
     if not repeat:
         old = db.one("SELECT value FROM notify_state WHERE user_id=? AND key=?", (user_id, key))
         if old is not None and old["value"] == value:
             return False
         db.run("INSERT INTO notify_state(user_id,key,value,sent_at) VALUES(?,?,?,?) ON CONFLICT(user_id,key) "
                "DO UPDATE SET value=excluded.value, sent_at=excluded.sent_at", (user_id, key, value, time.time()))
-    _dispatch(db, user_id, {"event": event, "title": title, "message": message, "url": config.base_url + path,
+    _dispatch(db, user_id, {"event": event, "title": title, "message": message, "url": url or config.base_url + path,
                             "urgent": urgent, "ts": time.time(),
                             "tag": {"auth": "warning", "expiring": "hourglass", "confirm": "raised_hand",
-                                    "issues": "mag", "errors": "x", "social": "wave"}[event]}, sync)
+                                    "issues": "mag", "errors": "x", "social": "wave", "update": "tada"}[event]}, sync)
     return True
 
 
@@ -246,9 +360,8 @@ def account_failed(db: Database, account_id: int, message: str | None) -> None:
     if not a:
         return
     name = SERVICE_NAMES.get(a["service"], a["service"])
-    emit(db, a["user_id"], "auth", f"auth:{account_id}", f"{name}: sign in again",
-         f"Your {name} login stopped working, so syncs with it are paused. {message or ''}".strip(),
-         path="/services?service=" + a["service"], urgent=True)
+    emit(db, a["user_id"], "auth", f"auth:{account_id}", "auth", path="/services?service=" + a["service"],
+         urgent=True, service=name, detail=message or "")
 
 
 def account_ok(db: Database, account_id: int) -> None:
@@ -263,30 +376,30 @@ def account_expiring(db: Database, account_id: int, expires_at: float) -> None:
         return
     name = SERVICE_NAMES.get(a["service"], a["service"])
     days = max(0, round((expires_at - time.time()) / 86400))
-    when = "today" if days == 0 else "tomorrow" if days == 1 else f"in {days} days"
-    emit(db, a["user_id"], "expiring", f"expiring:{account_id}", f"{name} login ends {when}",
-         f"Your {name} login ends {when}. Renew it in Crossfade so your syncs keep running.",
-         path="/services?service=" + a["service"], value=str(int(expires_at)))
+    emit(db, a["user_id"], "expiring", f"expiring:{account_id}", "expiring", path="/services?service=" + a["service"],
+         value=str(int(expires_at)), service=name, days=days)
 
 
 def run_finished(db: Database, line_id: int, status: str, message: str | None, trigger: str) -> None:
     """After a real sync: tell the owner when it waits for them or keeps failing, and every
     participant about new open songs in their own collections."""
-    line = db.one("SELECT id, user_id, name FROM lines WHERE id=?", (line_id,))
+    line = db.one("SELECT id, user_id, name, last_summary FROM lines WHERE id=?", (line_id,))
     if not line or trigger == "preview":
         return
     owner, name, path = line["user_id"], line["name"], f"/fades/{line_id}"
-    if status in ("needs_confirm", "blocked"):
-        emit(db, owner, "confirm", f"confirm:{line_id}", f"{name} is waiting for you",
-             message or "A sync needs your confirmation.", path=path, urgent=True)
+    if status == "needs_confirm":
+        held = (json.loads(line["last_summary"] or "{}") or {}).get("held") or 0
+        emit(db, owner, "confirm", f"confirm:{line_id}", "confirm_held", path=path, urgent=True, fade=name, n=held)
+    elif status == "blocked":
+        emit(db, owner, "confirm", f"confirm:{line_id}", "confirm_blocked", path=path, urgent=True, fade=name,
+             detail=message or "")
     elif status in ("ok", "partial"):
         resolve(db, owner, f"confirm:{line_id}")
     if status == "error":
         recent = [r["status"] for r in db.all("SELECT status FROM runs WHERE line_id=? AND trigger<>'preview' "
                                               "ORDER BY id DESC LIMIT 3", (line_id,))]
         if len(recent) == 3 and all(s == "error" for s in recent):
-            emit(db, owner, "errors", f"errors:{line_id}", f"{name} keeps failing",
-                 f"The last three syncs failed. Last error: {message or 'unknown'}", path=path)
+            emit(db, owner, "errors", f"errors:{line_id}", "errors", path=path, fade=name, detail=message or "–")
     elif status in ("ok", "partial", "needs_confirm"):
         resolve(db, owner, f"errors:{line_id}")
     if status in ("ok", "partial", "needs_confirm"):
@@ -300,17 +413,15 @@ def run_finished(db: Database, line_id: int, status: str, message: str | None, t
             old = db.val("SELECT value FROM notify_state WHERE user_id=? AND key=?", (uid, f"issues:{line_id}"))
             if n > int(old or 0):
                 new = n - int(old or 0)
-                emit(db, uid, "issues", f"issues:{line_id}", f"{name}: {new} song{'s' if new != 1 else ''} to check",
-                     f"Crossfade couldn't find {new} song{'s' if new != 1 else ''} for certain. "
-                     "Pick the right version in the fade.", path=path, value=str(n))
+                emit(db, uid, "issues", f"issues:{line_id}", "issues", path=path, value=str(n), fade=name, n=new)
             elif n == 0:
                 resolve(db, uid, f"issues:{line_id}")
             else:
                 remember(db, uid, f"issues:{line_id}", str(n))
 
 
-def social(db: Database, user_id: int, title: str, message: str, path: str = "/") -> None:
-    emit(db, user_id, "social", "social", title, message, path=path, repeat=True)
+def social(db: Database, user_id: int, msg: str, path: str = "/", **v) -> None:
+    emit(db, user_id, "social", "social", msg, path=path, repeat=True, **v)
 
 
 def person(db: Database, user_id: int) -> str:

@@ -10,7 +10,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from . import health, history, notify
+from . import backup, health, history, notify, updates
 from .config import config
 from .db import Database, get_db
 from .engine import LineSync, Stopped
@@ -74,6 +74,22 @@ class Worker:
         self._scheduler: threading.Thread | None = None
         self._shutdown = threading.Event()
         self._checking: set[int] = set()                   # accounts whose login is being tried
+        self._house = None                                 # the running daily backup / update check
+        self.restoring = False                             # an admin restores a backup: start nothing
+
+    def busy(self) -> bool:
+        """Anything that writes to the database is running (a restore waits for a quiet moment)."""
+        return bool(self.jobs or self.catalog_jobs or self._checking or (self._house and not self._house.done()))
+
+    def begin_restore(self) -> bool:
+        with self._lock:
+            if self.restoring or self.busy():
+                return False
+            self.restoring = True
+            return True
+
+    def end_restore(self) -> None:
+        self.restoring = False
 
     # ------------------------------------------------------------------ public
     def start_scheduler(self) -> None:
@@ -103,7 +119,7 @@ class Worker:
         if not line:
             return False
         with self._lock:
-            if line_id in self.jobs:
+            if line_id in self.jobs or self.restoring:
                 return False
             self._stop_flags[line_id] = threading.Event()
             self.jobs[line_id] = {"line_id": line_id, "state": "queued", "mode": "apply" if apply else "preview",
@@ -126,7 +142,7 @@ class Worker:
     def start_catalog(self, user_id: int, action: str, params: dict | None = None) -> bool:
         """Catalog jobs (scan / bulk remove / bulk add) run one at a time per user, after any line run."""
         with self._lock:
-            if user_id in self.catalog_jobs:
+            if user_id in self.catalog_jobs or self.restoring:
                 return False
             self._catalog_stop[user_id] = threading.Event()
             self.catalog_jobs[user_id] = {"action": action, "state": "queued", "phase": "Waiting …", "done": 0,
@@ -362,8 +378,11 @@ class Worker:
                 log.error("scheduler: %s", traceback.format_exc())
 
     def _tick(self) -> None:
+        if self.restoring:
+            return
         health.flush(self.db)
         self._check_accounts()
+        self._housekeeping()
         now = time.time()
         due = self.db.all("""
             SELECT l.id FROM lines l
@@ -377,6 +396,24 @@ class Worker:
             self.start(row["id"], trigger="schedule")
 
 
+    def _housekeeping(self) -> None:
+        """A daily backup and the update check, in the background so syncs aren't held up."""
+        if self._house and not self._house.done():
+            return
+        need_backup = config.backup_daily and backup.daily_due(self.db)
+        need_update = updates.due(self.db)
+        if need_backup or need_update:
+            self._house = self.pool.submit(self._house_run, need_backup, need_update)
+
+    def _house_run(self, need_backup: bool, need_update: bool) -> None:
+        try:
+            if need_backup and not self.restoring:
+                self.db.backup("daily")
+            if need_update:
+                updates.check(self.db)
+        except Exception:  # noqa: BLE001
+            log.error("housekeeping: %s", traceback.format_exc())
+
     # ------------------------------------------------------------------ login checks
     def _check_accounts(self) -> None:
         """Try every working login about twice a day, also those no fade uses: an expired login is
@@ -385,9 +422,10 @@ class Worker:
         due = self.db.one("""SELECT id, user_id FROM accounts WHERE credentials IS NOT NULL AND status='ok'
                               AND (checked_at IS NULL OR checked_at < ?) ORDER BY checked_at IS NOT NULL, checked_at
                               LIMIT 1""", (time.time() - CHECK_EVERY,))
-        if not due or due["id"] in self._checking:
-            return
-        self._checking.add(due["id"])
+        with self._lock:
+            if not due or due["id"] in self._checking or self.restoring:
+                return
+            self._checking.add(due["id"])
         self.pool.submit(self._check_one, due["id"], due["user_id"])
 
     def _check_one(self, account_id: int, user_id: int) -> None:

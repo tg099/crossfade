@@ -3,6 +3,7 @@ import { api, put } from './api.ts';
 import type { Activity, Board, CatalogFinished, CatalogJob, Friends, Job, Line, Member, ServiceInfo, User } from './types.ts';
 import { num, t, type Key } from './ui/i18n.svelte.ts';
 import { ui } from './ui/ui.svelte.ts';
+import { updates } from './updates.svelte.ts';
 
 const FINISH: Record<string, Key> = {
 	ok: 'run.ok',
@@ -71,6 +72,7 @@ class AppState {
 		ui.applyPrefs(user.theme, user.lang);
 		if (user.must_change_password) return; // nothing else until the start password is replaced
 		await Promise.all([this.loadLines(), this.loadServices(), this.loadActivity(), this.loadFriends(), this.loadBoard()]);
+		if (user.is_admin) updates.load();
 		this.connectEvents();
 	}
 
@@ -186,6 +188,8 @@ class AppState {
 				return;
 			}
 			if (ev.type === 'catalog') return this.#onCatalog(ev);
+			// an admin restored a backup: everything shown here may be gone
+			if (ev.type === 'restored') return location.reload();
 			// a friend asked, answered, joined or left: refresh what we show of them
 			if (ev.type === 'social') {
 				this.loadFriends();

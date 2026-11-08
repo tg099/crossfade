@@ -46,4 +46,4 @@ def public_user(u: dict) -> dict:
             "is_admin": bool(u["is_admin"]), "must_change_password": bool(u.get("must_change_password")),
             "theme": u.get("theme") or "system", "lang": u.get("lang") or "system",
             "release_pref": u.get("release_pref") or "album",
-            "share_stats": bool(u.get("share_stats", 1))}
+            "share_stats": bool(u.get("share_stats", 1)), "intro_done": bool(u.get("intro_done", 0))}

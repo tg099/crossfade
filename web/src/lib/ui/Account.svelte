@@ -6,6 +6,8 @@
 	import { app } from '#lib/state.svelte.ts';
 	import type { User } from '#lib/types.ts';
 	import Glyph from './Glyph.svelte';
+	import { updates } from '#lib/updates.svelte.ts';
+	import BackupSheet from './BackupSheet.svelte';
 	import HealthSheet from './HealthSheet.svelte';
 	import NotifySheet from './NotifySheet.svelte';
 	import Segmented from './Segmented.svelte';
@@ -15,7 +17,7 @@
 	import ThemePicker from './ThemePicker.svelte';
 	import { userHue } from './artcolor.ts';
 	import { i18n, t, type LangPref } from './i18n.svelte.ts';
-	import { ui } from './ui.svelte.ts';
+	import { ago, ui } from './ui.svelte.ts';
 
 	// Your account: profile, your services, appearance, language. Admins also manage users here.
 	const me = $derived(app.user);
@@ -25,7 +27,19 @@
 		name = app.user?.display_name ?? '';
 		app.loadServices().catch(() => {});
 		loadAbout();
+		if (app.user?.is_admin) updates.load();
 	});
+
+	async function checkUpdate() {
+		if (updates.state?.available) return updates.open();
+		try {
+			await updates.check();
+			if (updates.state && !updates.state.available && !updates.state.error) ui.say(t('update.upToDate'));
+		} catch (e) {
+			ui.fail(e);
+		}
+	}
+	const upd = $derived(updates.state);
 
 	async function saveName() {
 		const n = name.trim();
@@ -150,6 +164,27 @@
 				<div class="section">
 					<div class="section-head"><span class="caps">{t('account.admin')}</span></div>
 					<div class="group">
+						{#if upd}
+							<button class="cell" style:--inset="58px" onclick={checkUpdate} disabled={updates.checking || (!upd.enabled && !upd.available)}>
+								<span class="tile-icon" style:background={upd.available ? 'var(--tint-fill, #ff3b4e)' : '#8e8e93'}><Glyph name={upd.available ? 'sparkle' : 'refresh'} size={18} weight={2.2} /></span>
+								<span class="grow">
+									{#if upd.available}
+										<span class="b">{t('update.available', { version: (upd.latest ?? '').toUpperCase() })}</span>
+										<span class="b t-foot t-2">{t('update.current', { version: upd.current.toUpperCase() })} · {t('update.whatsNew')}</span>
+									{:else}
+										<span class="b">{t('update.current', { version: upd.current.toUpperCase() })}</span>
+										<span class="b t-foot t-2">
+											{#if !upd.enabled}{upd.current === 'dev' ? t('update.dev') : t('update.off')}
+											{:else if updates.checking}{t('update.checking')}
+											{:else if upd.error}{t('update.failed')}
+											{:else}{t('update.upToDate')}{upd.checked_at ? ` · ${t('update.checked', { ago: ago(upd.checked_at) })}` : ''}{/if}
+										</span>
+									{/if}
+								</span>
+								{#if upd.available}<span class="chev"><Glyph name="external" size={17} weight={2.2} /></span>
+								{:else if upd.enabled}<span class="cell-pill">{t('update.check')}</span>{/if}
+							</button>
+						{/if}
 						<button class="cell" style:--inset="58px" onclick={() => (ui.usersOpen = true)}>
 							<span class="tile-icon" style:background="#5e5ce6"><Glyph name="users" size={19} weight={2.1} /></span>
 							<span class="grow">{t('users.title')}</span>
@@ -158,6 +193,11 @@
 						<button class="cell" style:--inset="58px" onclick={() => (ui.healthOpen = true)}>
 							<span class="tile-icon" style:background="#34c759"><Glyph name="pulse" size={19} weight={2.2} /></span>
 							<span class="grow">{t('account.health')}</span>
+							<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
+						</button>
+						<button class="cell" style:--inset="58px" onclick={() => (ui.backupOpen = true)}>
+							<span class="tile-icon" style:background="#0a84ff"><Glyph name="archive" size={18} weight={2.2} /></span>
+							<span class="grow">{t('account.backup')}</span>
 							<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
 						</button>
 						<button class="cell" style:--inset="58px" onclick={() => (ui.appsOpen = true)}>
@@ -196,6 +236,7 @@
 <ServiceSheet />
 <NotifySheet />
 <HealthSheet />
+<BackupSheet />
 
 <style>
 	.acc {

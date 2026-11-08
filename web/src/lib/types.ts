@@ -12,6 +12,8 @@ export interface User {
 	lang: 'system' | 'de' | 'en';
 	release_pref: Release;
 	share_stats: boolean;
+	/** the first steps on the home page were finished or put away */
+	intro_done: boolean;
 }
 
 export interface AdminUser {

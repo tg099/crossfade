@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { api, del, post, put } from '#lib/api.ts';
+	import { app } from '#lib/state.svelte.ts';
 	import Glyph from './Glyph.svelte';
 	import Segmented from './Segmented.svelte';
 	import Sheet from './Sheet.svelte';
@@ -11,7 +12,7 @@
 	// Your notification channels: ntfy, a webhook (Discord, Slack, Home Assistant …) or e-mail,
 	// each with the events it should get. Everyone sets up their own.
 	type Kind = 'ntfy' | 'webhook' | 'email';
-	type Event = 'auth' | 'expiring' | 'confirm' | 'issues' | 'errors' | 'social';
+	type Event = 'auth' | 'expiring' | 'confirm' | 'issues' | 'errors' | 'social' | 'update';
 	type Channel = {
 		id: number;
 		kind: Kind;
@@ -29,13 +30,14 @@
 	let editing = $state<number | null>(null);
 	let kind = $state<Kind>('ntfy');
 	let form = $state({ server: '', topic: '', token: '', url: '', to: '' });
-	let events = $state<Record<Event, boolean>>({ auth: true, expiring: true, confirm: true, issues: true, errors: true, social: true });
+	let events = $state<Record<Event, boolean>>({ auth: true, expiring: true, confirm: true, issues: true, errors: true, social: true, update: true });
 	let enabled = $state(true);
 	let busy = $state(false);
 	let error = $state('');
 
 	const current = $derived(editing ? data?.channels.find((c) => c.id === editing) : undefined);
-	const EVENTS: Event[] = ['auth', 'expiring', 'confirm', 'issues', 'errors', 'social'];
+	// news about new releases only reach admins
+	const EVENTS = $derived<Event[]>(['auth', 'expiring', 'confirm', 'issues', 'errors', 'social', ...(app.user?.is_admin ? (['update'] as Event[]) : [])]);
 
 	async function load() {
 		data = await api<Overview>('/api/notifications');
@@ -59,7 +61,7 @@
 		} else {
 			kind = 'ntfy';
 			form = { server: '', topic: '', token: '', url: '', to: '' };
-			events = { auth: true, expiring: true, confirm: true, issues: true, errors: true, social: true };
+			events = { auth: true, expiring: true, confirm: true, issues: true, errors: true, social: true, update: true };
 			enabled = true;
 			editing = 0;
 		}

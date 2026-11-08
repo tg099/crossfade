@@ -159,12 +159,22 @@ Jeder Fade merkt sich, welche Songs er kennt und wo er sie zuletzt gesehen hat.
 - **Benachrichtigungen** (**Konto → Benachrichtigungen**): per [ntfy](https://ntfy.sh), Webhook (Discord und Slack
   werden erkannt, sonst JSON, z. B. für Home Assistant) oder E-Mail über einen SMTP-Server, den der Admin unter
   **App-Zugänge** einträgt. Pro Kanal wählbar: Anmeldung geht nicht mehr oder läuft bald ab, ein Sync wartet auf
-  dich, neue offene Songs, wiederholt gescheiterte Syncs, Freunde. Jedes Problem wird nur einmal gemeldet.
+  dich, neue offene Songs, wiederholt gescheiterte Syncs, Freunde und für Admins eine neue Version. Jedes Problem
+  wird nur einmal gemeldet, in der Sprache der Person (ihre Einstellung, sonst die ihres Browsers).
 - **Anmeldungen prüfen:** Crossfade probiert jede Anmeldung zweimal am Tag aus, auch wenn sie in keinem Fade steckt,
   und merkt sich, wann sie abläuft, wenn der Dienst es verrät (z. B. bei Google-Apps im Testmodus nach 7 Tagen).
 - **Systemzustand** (nur Admins, **Konto → Systemzustand**): Anfragen, Fehler, Ausbremsungen und Dauer pro Dienst
   und Stunde, Syncs der letzten 24 Stunden, Datenbank, Backups, freier Speicher und die letzten Fehler. Nur Zahlen,
   nichts Privates.
+- **Backups** (nur Admins, **Konto → Backups**): Crossfade sichert seine Datenbank bei jedem Start und einmal am Tag.
+  Du kannst von Hand sichern, Backups herunterladen und wiederherstellen (auch aus einer heruntergeladenen Datei,
+  z. B. beim Umzug auf einen neuen Server). Vor dem Wiederherstellen wird der jetzige Stand noch gesichert. Der
+  geheime Schlüssel steckt nie in einem Backup: Bewahre ihn getrennt auf.
+- **Update-Hinweis** (nur Admins): Zweimal am Tag schaut Crossfade bei den GitHub-Releases nach und zeigt eine neue
+  Version auf der Übersicht und unter **Konto**. Entwicklungsversionen schauen nie nach;
+  `CROSSFADE_UPDATE_CHECK=false` schaltet es ab.
+- **Erste Schritte:** Neue Nutzer bekommen auf der Übersicht eine Checkliste (Dienste verbinden, erster Fade, erster
+  Sync, Benachrichtigungen), bis alles eingerichtet ist oder sie sie ausblenden.
 
 ## Sicherheit
 

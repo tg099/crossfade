@@ -66,6 +66,7 @@ class UI {
 	appsOpen = $state(false);
 	notifyOpen = $state(false);
 	healthOpen = $state(false);
+	backupOpen = $state(false);
 	historyOpen = $state(false);
 	/** time travel opened right at one collection (from a fade); null = the list of all */
 	historyTarget = $state<{ account_id: number; kind: Kind; collection_id: string } | null>(null);
