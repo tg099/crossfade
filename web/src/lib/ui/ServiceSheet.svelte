@@ -22,14 +22,23 @@
 	let appleToken = $state('');
 	let timer: ReturnType<typeof setTimeout> | null = null;
 	let loadedFor = '';
+	let hadDevice = false;
 
 	$effect(() => {
-		if (!ui.serviceOpen || !s || loadedFor === s.service) return;
+		if (!ui.serviceOpen || !s) return;
+		const hasDevice = s.methods.includes('device');
+		if (loadedFor === s.service) {
+			// The admin just set up the Google app from here: switch to the recommended code sign-in.
+			if (hasDevice && !hadDevice) ytmWay = 'device';
+			hadDevice = hasDevice;
+			return;
+		}
 		loadedFor = s.service;
+		hadDevice = hasDevice;
 		error = '';
 		device = null;
 		pasteText = appleToken = '';
-		ytmWay = s.methods.includes('device') ? 'device' : 'paste';
+		ytmWay = hasDevice ? 'device' : 'paste';
 	});
 	function closed() {
 		loadedFor = '';
@@ -193,6 +202,20 @@
 							<p class="section-foot">{t('services.ytm.deviceHint')}</p>
 						{/if}
 					{:else}
+						{#if !s.methods.includes('device')}
+							{#if app.user?.is_admin}
+								<div class="group">
+									<button class="cell" onclick={() => (ui.appsOpen = true)}>
+										<span class="grow tintc">{t('services.ytm.setup')}</span>
+										<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
+									</button>
+								</div>
+								<p class="section-foot">{t('services.ytm.setupHint')}</p>
+							{:else}
+								<p class="section-foot">{t('services.ytm.askAdmin')}</p>
+							{/if}
+							<div class="section-head alt"><span class="caps">{t('services.ytm.paste')}</span></div>
+						{/if}
 						<ol class="steps t-sub">
 							<li>{t('services.ytm.s1')} <a href="https://music.youtube.com" target="_blank" rel="noopener">music.youtube.com</a></li>
 							<li>{t('services.ytm.s2', { keys: devtoolsKeys })}</li>
@@ -266,6 +289,9 @@
 	}
 	.way {
 		margin: 0 16px 12px;
+	}
+	.section-head.alt {
+		margin-top: 22px;
 	}
 	.steps {
 		margin: 0 16px 14px;
