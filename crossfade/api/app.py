@@ -71,9 +71,9 @@ def health():
 
 def source_link() -> str:
     """The source of exactly this version when it is an official release, else the repository."""
-    if config.source_url == DEFAULT_SOURCE and re.fullmatch(r"\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?", config.version):
-        return f"{config.source_url}/tree/v{config.version}"
-    return config.source_url
+    if re.fullmatch(r"\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?", config.version):
+        return f"{DEFAULT_SOURCE}/tree/v{config.version}"
+    return DEFAULT_SOURCE
 
 
 @app.get("/api/events")

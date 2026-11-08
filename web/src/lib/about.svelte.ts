@@ -1,7 +1,6 @@
 import { api } from '#lib/api.ts';
 
-// Version and source code link of this instance. The AGPL (§13) asks every instance to offer its
-// users the source of what they run, so the link is shown on the sign-in page and in the account.
+// Version and source code link of this instance, shown on the sign-in page and in the account.
 const FALLBACK_SOURCE = 'https://github.com/tg099/crossfade';
 
 export const about = $state({ version: '', source: FALLBACK_SOURCE });

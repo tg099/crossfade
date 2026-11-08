@@ -167,7 +167,7 @@ Bitte Syncs nicht gegen deine echten Konten testen: nimm ein eigenes `CROSSFADE_
 | `web/` | Oberfläche (SvelteKit, statisch gebaut) |
 
 Umgebungsvariablen: siehe `.env.example`. Zusätzlich `CROSSFADE_DATA_DIR`, `CROSSFADE_BASE_URL`,
-`CROSSFADE_WEB_DIR`, `CROSSFADE_SECURE_COOKIES` und `CROSSFADE_SOURCE_URL`.
+`CROSSFADE_WEB_DIR` und `CROSSFADE_SECURE_COOKIES`.
 
 Die Oberfläche nutzt ein Liquid-Glass-Design für Telefon und Desktop, mit Hell/Dunkel/System und Deutsch und Englisch
 (Texte in `web/src/lib/ui/lang/`, beide Dateien haben dieselben Schlüssel).
@@ -187,7 +187,7 @@ Image prüfen: `gh attestation verify oci://ghcr.io/tg099/crossfade:X.Y.Z -R tg0
 ## Mitmachen
 
 Fehler und Ideen gern als [Issue](https://github.com/tg099/crossfade/issues), Fragen in den
-[Discussions](https://github.com/tg099/crossfade/discussions). Pull Requests werden per Squash gemergt.
+[Discussions](https://github.com/tg099/crossfade/discussions). Pull Requests werden per Squash gemergt; mit einem PR stimmst du den Beitragsbedingungen der [Lizenz](LICENSE) zu.
 
 ## Projekt unterstützen
 
@@ -204,4 +204,10 @@ sich jederzeit ändern können. Die Nutzung erfolgt auf eigenes Risiko und im Ra
 
 ## Lizenz
 
-[PolyForm Strict License 1.0.0](LICENSE).
+[PolyForm Strict License 1.0.0](LICENSE) mit zusätzlichen Erlaubnissen. Kurz gesagt:
+
+- Du darfst Crossfade kostenlos für dich nutzen und kostenlos für Freunde und Familie bereitstellen.
+- Keine kommerzielle Nutzung, kein Verkauf (auch nicht des Zugangs), keine Weitergabe und keine eigenen, geänderten Versionen oder Forks.
+- Änderungen sind nur erlaubt, um sie hier als Pull Request vorzuschlagen.
+
+Rechtlich verbindlich ist der englische Text in [LICENSE](LICENSE).

@@ -330,17 +330,14 @@ def test_fade_stats_from_history(admin):
 
 
 def test_health_links_the_source_of_this_version(admin, monkeypatch):
-    """AGPL §13: every instance points its users to the source code of the running version."""
+    """Every instance points its users to the source code of the running version."""
     import dataclasses
 
     from crossfade.api import app as app_module
     cfg = app_module.config
-    assert admin.get("/api/health").json()["source"] == cfg.source_url          # dev build: the repository
+    assert admin.get("/api/health").json()["source"] == "https://github.com/tg099/crossfade"  # dev build: the repository
     monkeypatch.setattr(app_module, "config", dataclasses.replace(cfg, version="1.4.2"))
     assert admin.get("/api/health").json()["source"] == "https://github.com/tg099/crossfade/tree/v1.4.2"
-    monkeypatch.setattr(app_module, "config", dataclasses.replace(cfg, version="1.4.2",
-                                                                   source_url="https://git.example.org/me/fork"))
-    assert admin.get("/api/health").json()["source"] == "https://git.example.org/me/fork"
 
 
 def test_spotify_callback_needs_the_session_that_started_it(admin):

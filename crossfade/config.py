@@ -30,7 +30,6 @@ class Config:
     scheduler: bool             # run lines on their interval
     backup_on_start: bool       # copy the database to data/backups on every start
     version: str                # set at image build time
-    source_url: str             # where users get the source code (AGPL §13); forks set their own
 
     @property
     def db_path(self) -> Path:
@@ -70,7 +69,6 @@ def load() -> Config:
         scheduler=_bool(env("SCHEDULER"), True),
         backup_on_start=_bool(env("BACKUP_ON_START"), True),
         version=env("VERSION", "dev"),
-        source_url=env("SOURCE_URL", DEFAULT_SOURCE).rstrip("/"),
     )
 
 

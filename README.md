@@ -167,7 +167,7 @@ Please don't test syncs against your real accounts: use a scratch `CROSSFADE_DAT
 | `web/` | UI (SvelteKit, static build) |
 
 Environment variables: see `.env.example`. Additionally `CROSSFADE_DATA_DIR`, `CROSSFADE_BASE_URL`,
-`CROSSFADE_WEB_DIR`, `CROSSFADE_SECURE_COOKIES` and `CROSSFADE_SOURCE_URL`.
+`CROSSFADE_WEB_DIR` and `CROSSFADE_SECURE_COOKIES`.
 
 The UI uses a Liquid Glass design for phone and desktop, with light/dark/system themes and German and English
 (texts in `web/src/lib/ui/lang/`, both files share the same keys).
@@ -187,7 +187,7 @@ Verify an image: `gh attestation verify oci://ghcr.io/tg099/crossfade:X.Y.Z -R t
 ## Contributing
 
 Bugs and feature ideas are welcome as [issues](https://github.com/tg099/crossfade/issues), questions in
-[Discussions](https://github.com/tg099/crossfade/discussions). Pull requests are squash-merged.
+[Discussions](https://github.com/tg099/crossfade/discussions). Pull requests are squash-merged; by opening one you agree to the contribution terms in the [license](LICENSE).
 
 ## Support the project
 
@@ -204,4 +204,8 @@ time; use Crossfade at your own risk and in line with each service's terms.
 
 ## License
 
-[PolyForm Strict License 1.0.0](LICENSE).
+[PolyForm Strict License 1.0.0](LICENSE) with additional permissions. In short:
+
+- You may use Crossfade for free for yourself and host it for friends and family, free of charge.
+- No commercial use, no selling it or access to it, no redistribution and no changed versions or forks of your own.
+- Changes are only allowed to propose them here as a pull request.
