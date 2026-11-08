@@ -18,7 +18,7 @@ from .deps import current_user, db_dep
 router = APIRouter(prefix="/api/catalog", tags=["catalog"])
 
 MAX_SONGS = 20000
-VIDEO_TYPES = ("MUSIC_VIDEO_TYPE_OMV", "MUSIC_VIDEO_TYPE_UGC")
+VIDEO_TYPES = matcher.VIDEO_TYPES
 
 
 def _sources(db: Database, user_id: int) -> list[dict]:

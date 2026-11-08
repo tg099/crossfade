@@ -134,7 +134,9 @@ class Catalog:
 
     def _merge(self, by_service: dict[str, dict[int, Track]]) -> int:
         """Identify the same song across services. Only identical versions are merged – the
-        identity is shared with the lines, and a line set to "exact" must be able to rely on it."""
+        identity is shared with the lines, and a line set to "exact" must be able to rely on it.
+        Besides those: a YouTube upload credited to its channel instead of the artist, when nothing
+        else of that title and length exists on either side (matcher.pair_renamed)."""
         services = sorted(by_service)
         merged = 0
         for ai, a_svc in enumerate(services):
@@ -148,7 +150,13 @@ class Catalog:
                 right = {sid: t for sid, t in by_service[b_svc].items() if sid not in has_a}
                 lids = {id(v): k for k, v in left.items()}
                 rids = {id(v): k for k, v in right.items()}
-                for lt, rt, _ in matcher.pair_lists(list(left.values()), list(right.values()), require_exact=True):
+                pairs = [(lt, rt) for lt, rt, _ in
+                         matcher.pair_lists(list(left.values()), list(right.values()), require_exact=True)]
+                paired = {id(t) for p in pairs for t in p}
+                pairs += matcher.pair_renamed([t for t in left.values() if id(t) not in paired],
+                                              [t for t in right.values() if id(t) not in paired],
+                                              list(by_service[a_svc].values()), list(by_service[b_svc].values()))
+                for lt, rt in pairs:
                     keep, drop = lids[id(lt)], rids[id(rt)]
                     if keep != drop:
                         self.ident.merge(keep, drop)

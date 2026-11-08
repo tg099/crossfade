@@ -13,7 +13,7 @@ from .providers.base import Provider
 
 SEARCH_RETRY_DAYS = 7
 # results that were not the exact version are searched again when the matcher got better since
-MATCHER_CHANGED_AT = 1794101552
+MATCHER_CHANGED_AT = 1794148101
 
 
 class Identity:
@@ -402,7 +402,7 @@ def _near(a: Track, b: Track, secs: int) -> bool:
 
 
 def _is_video(t: Track) -> bool:
-    return t.video_type in ("MUSIC_VIDEO_TYPE_OMV", "MUSIC_VIDEO_TYPE_UGC")
+    return t.video_type in matcher.VIDEO_TYPES
 
 
 class Match:

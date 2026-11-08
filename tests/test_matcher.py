@@ -65,3 +65,28 @@ def test_remixers():
     assert matcher.remixers("Song (MRJay Remix)") == ["MRJay"]
     assert matcher.remixers("Song [Tiësto's VIP Mix]") == ["Tiësto"]
     assert matcher.remixers("Song (Radio Edit)") == [] and matcher.remixers("Song (Club Mix)") == []
+
+
+OSM = "MUSIC_VIDEO_TYPE_OFFICIAL_SOURCE_MUSIC"
+
+
+def test_official_source_video_length_is_not_a_version():
+    # the artist's own channel: a video with an intro, artists in another order
+    vid = _t("Barbie Boy", "Ennoia, TiDo, DJ DRECKISCH", 175, OSM, "ytm")
+    song = _t("Barbie Boy", "DJ DRECKISCH, Ennoia, TiDo", 160)
+    a = matcher.assess(vid, song)
+    assert a.exact and a.score >= matcher.ACCEPT
+    # … but its title is not torn apart like a fan upload's
+    assert matcher.tidy_video("Song - Remix", "X", OSM) == ("Song - Remix", "X")
+
+
+def test_pair_renamed_channel_upload():
+    songs = [_t("B4LLER", "beastboy", 186), _t("TAKE THE LEAD", "beastboy", 170), _t("Hello", "Adele", 295)]
+    vids = [_t("B4LLER", "TJ_babybrain", 187, OMV, "ytm"), _t("TAKE THE LEAD", "TJ_babybrain", 173, OMV, "ytm"),
+            _t("Hello", "Some Channel", 296, OMV, "ytm"), _t("Hello", "Lionel Richie", 296, OMV, "ytm")]
+    pairs = {(a.title, b.artist) for a, b in matcher.pair_renamed(songs, vids)}
+    assert pairs == {("B4LLER", "TJ_babybrain"), ("TAKE THE LEAD", "TJ_babybrain")}   # "Hello" is ambiguous
+    # two streaming services' own data: a different artist is a different song
+    assert matcher.pair_renamed([_t("Oxygen", "OSVISS", 202)], [_t("oxygen", "yerbby", 203, svc="spotify")]) == []
+    # another length is another song
+    assert matcher.pair_renamed([_t("Chaos", "A", 125)], [_t("Chaos", "B", 141, OMV, "ytm")]) == []

@@ -75,7 +75,7 @@ def _tidy_once(title: str, artist: str, video_type: str | None) -> tuple[str, st
         return left, artist
     if video_type == "MUSIC_VIDEO_TYPE_ATV":
         return t, artist          # real song titles may contain " - "
-    if video_type in VIDEO_TYPES or video_type is None:
+    if video_type in _LOOSE_LABELS or video_type is None:
         return right, left        # channel name is a label/fan channel, the title says who it is
     return t, artist
 
@@ -177,7 +177,9 @@ def _artist_sim(a: str, b: str) -> float:
     return max(primary, whole * 0.95) / 100
 
 
-VIDEO_TYPES = ("MUSIC_VIDEO_TYPE_OMV", "MUSIC_VIDEO_TYPE_UGC")
+# OFFICIAL_SOURCE_MUSIC: an official video from the artist's own channel ("Barbie Boy" with a 15 s intro) –
+# the artist is reliable (unlike _LOOSE_LABELS), the length is not
+VIDEO_TYPES = ("MUSIC_VIDEO_TYPE_OMV", "MUSIC_VIDEO_TYPE_UGC", "MUSIC_VIDEO_TYPE_OFFICIAL_SOURCE_MUSIC")
 
 
 def is_video(t: Track) -> bool:
@@ -293,10 +295,10 @@ def _assess(src: Track, cand: Track) -> Assessment:
 RENAMED = "different artist name"
 
 
-def same_but_artist(src: Track, cand: Track) -> bool:
-    """Identical title, same length (±2 s), same version – only the artist reads differently (an artist
+def same_but_artist(src: Track, cand: Track, secs: int = 2) -> bool:
+    """Identical title, same length (±secs), same version – only the artist reads differently (an artist
     who renamed, a YouTube channel name). Whether that is enough depends on the other results."""
-    if not (src.duration and cand.duration and abs(src.duration - cand.duration) <= 2):
+    if not (src.duration and cand.duration and abs(src.duration - cand.duration) <= secs):
         return False
     for s in readings(src):
         for c in readings(cand):
@@ -348,4 +350,39 @@ def pair_lists(left: list[Track], right: list[Track], require_exact: bool = Fals
         used_l.add(li)
         used_r.add(ri)
         out.append((left[li], right[ri], s))
+    return out
+
+
+def _title_keys(t: Track) -> set[str]:
+    return {k for r in readings(t) if (k := _base(norm_title(r.title)))}
+
+
+def pair_renamed(left: list[Track], right: list[Track], left_all: list[Track] | None = None,
+                 right_all: list[Track] | None = None) -> list[tuple[Track, Track]]:
+    """Pairs that differ only in the artist name, one of them a YouTube upload credited to its channel
+    ("B4LLER" by TJ_babybrain on YouTube is "B4LLER" by beastboy elsewhere). Only unambiguous ones: no
+    other song of that title on either side (left_all/right_all: the whole lists, not just the leftovers)."""
+    def index(ts: list[Track]) -> dict[str, list[Track]]:
+        out: dict[str, list[Track]] = {}
+        for t in ts:
+            for k in _title_keys(t):
+                out.setdefault(k, []).append(t)
+        return out
+
+    all_l, all_r = index(left_all if left_all is not None else left), index(right_all if right_all is not None else right)
+    right_ids = {id(t) for t in right}
+    out: list[tuple[Track, Track]] = []
+    used: set[int] = set()
+    for lt in left:
+        for k in _title_keys(lt):
+            ls, rs = all_l.get(k, []), all_r.get(k, [])
+            if len(ls) != 1 or len(rs) != 1 or id(rs[0]) not in right_ids or id(rs[0]) in used:
+                continue
+            rt = rs[0]
+            if not (_loose(lt) or _loose(rt)):
+                continue                                   # labels' own data: a different artist is a different song
+            if same_but_artist(lt, rt, secs=4) and not assess(lt, rt).hard_mismatch:
+                out.append((lt, rt))
+                used.add(id(rt))
+                break
     return out
