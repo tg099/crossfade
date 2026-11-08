@@ -21,6 +21,8 @@
 	let pasteText = $state('');
 	let appleToken = $state('');
 	let arl = $state('');
+	// YouTube: song or music video, picked before connecting and saved once the account exists
+	let ytPick = $state<YtFormat>('song');
 	let timer: ReturnType<typeof setTimeout> | null = null;
 	let loadedFor = '';
 	let hadDevice = false;
@@ -39,6 +41,7 @@
 		error = '';
 		device = null;
 		pasteText = appleToken = arl = '';
+		ytPick = s.yt_format ?? 'song';
 		ytmWay = hasDevice ? 'device' : 'paste';
 	});
 	function closed() {
@@ -60,6 +63,7 @@
 	}
 	async function connected() {
 		const name = s?.name ?? '';
+		if (s?.service === 'ytm' && !s.connected) await put('/api/services/ytm/format', { format: ytPick });
 		await Promise.all([app.loadServices(), app.loadLines()]);
 		ui.say(t('services.connectedNamed', { service: name }), 'link');
 		ui.serviceOpen = false;
@@ -147,6 +151,8 @@
 
 	// YouTube: music video or audio track for everything Crossfade adds
 	async function setFormat(f: YtFormat) {
+		ytPick = f;
+		if (!s?.connected) return;
 		try {
 			await put('/api/services/ytm/format', { format: f });
 			await app.loadServices();
@@ -174,6 +180,24 @@
 					<p class="t-sub t-2">{t('services.why')}</p>
 				{/if}
 			</div>
+
+			{#if s.service === 'ytm'}
+				<div class="section">
+					<div class="section-head"><span class="caps">{t('services.yt.format')}</span></div>
+					<div class="group" role="radiogroup" aria-label={t('services.yt.format')}>
+						{#each [{ v: 'song', title: 'services.yt.songTitle', sub: 'services.yt.songSub' }, { v: 'video', title: 'services.yt.videoTitle', sub: 'services.yt.videoSub' }] as const as o (o.v)}
+							<button class="cell pick" role="radio" aria-checked={ytPick === o.v} onclick={() => setFormat(o.v)}>
+								<span class="grow">
+									<span class="b">{t(o.title)}</span>
+									<span class="b t-foot t-2">{t(o.sub)}</span>
+								</span>
+								<span class="ck" aria-hidden="true">{#if ytPick === o.v}<Glyph name="check" size={20} weight={2.6} />{/if}</span>
+							</button>
+						{/each}
+					</div>
+					<p class="section-foot">{t(s.connected ? 'services.yt.formatHint' : 'services.yt.formatLater')}</p>
+				</div>
+			{/if}
 
 			<div class="section">
 				<div class="section-head"><span class="caps">{s.connected ? t('services.renew') : t('services.connect')}</span></div>
@@ -317,21 +341,6 @@
 				</div>
 			{/if}
 
-			{#if s.connected && s.service === 'ytm'}
-				<div class="section">
-					<div class="section-head"><span class="caps">{t('services.yt.format')}</span></div>
-					<Segmented
-						bind:value={() => s.yt_format ?? 'song', (v) => ((s.yt_format = v), setFormat(v))}
-						label={t('services.yt.format')}
-						options={[
-							{ value: 'song', label: t('clean.yt.song') },
-							{ value: 'video', label: t('clean.yt.video') }
-						]}
-					/>
-					<p class="section-foot">{t('services.yt.formatHint')}</p>
-				</div>
-			{/if}
-
 			{#if s.connected}
 				<div class="section">
 					<div class="group">
@@ -364,6 +373,14 @@
 	}
 	.warn {
 		color: var(--orange-text);
+	}
+	.pick {
+		text-align: left;
+	}
+	.ck {
+		display: inline-flex;
+		width: 22px;
+		color: var(--tint);
 	}
 	.section-head.alt {
 		margin-top: 22px;

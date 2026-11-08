@@ -515,7 +515,12 @@ export const de = {
 	'services.apple.s2': 'Entwicklertools öffnen: „Application“ (Chrome, Edge) bzw. „Speicher“ (Safari, Firefox).',
 	'services.apple.s3': 'Unter Cookies → music.apple.com den Wert von „media-user-token“ kopieren und hier einfügen.',
 	'services.apple.hint': 'Ein Apple-Developer-Account ist nicht nötig. Der Token gilt meist mehrere Monate.',
-	'services.yt.format': 'Bei YouTube speichern als',
+	'services.yt.format': 'Song oder Musikvideo',
+	'services.yt.songTitle': 'YouTube Music: Songs',
+	'services.yt.songSub': 'Speichert die Song-Version, wie auf Alben. Richtig, wenn du in YouTube Music hörst.',
+	'services.yt.videoTitle': 'YouTube: Musikvideos',
+	'services.yt.videoSub': 'Speichert das offizielle Musikvideo, wenn es eins gibt. Richtig, wenn du im normalen YouTube schaust.',
+	'services.yt.formatLater': 'Das kannst du später hier jederzeit ändern.',
 	'services.yt.formatHint': 'Gilt für alles, was Crossfade künftig zu YouTube hinzufügt. Bestehende Einträge tauschst du in der Mediathek unter „Aufräumen“.',
 
 	// users (admins only)

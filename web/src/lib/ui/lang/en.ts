@@ -517,7 +517,12 @@ export const en: Record<keyof typeof de, string | ((v: V) => string)> = {
 	'services.apple.s2': 'Open the developer tools: “Application” (Chrome, Edge) or “Storage” (Safari, Firefox).',
 	'services.apple.s3': 'Under Cookies → music.apple.com, copy the value of “media-user-token” and paste it here.',
 	'services.apple.hint': 'No Apple developer account needed. The token usually lasts several months.',
-	'services.yt.format': 'Save on YouTube as',
+	'services.yt.format': 'Song or music video',
+	'services.yt.songTitle': 'YouTube Music: songs',
+	'services.yt.songSub': 'Saves the song version, as on albums. Right if you listen in YouTube Music.',
+	'services.yt.videoTitle': 'YouTube: music videos',
+	'services.yt.videoSub': 'Saves the official music video when there is one. Right if you watch on regular YouTube.',
+	'services.yt.formatLater': 'You can change this here any time later.',
 	'services.yt.formatHint': 'Applies to everything Crossfade adds to YouTube from now on. Swap existing entries in the library under “Tidy up”.',
 
 	// users (admins only)
