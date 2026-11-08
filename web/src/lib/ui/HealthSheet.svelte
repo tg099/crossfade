@@ -183,7 +183,7 @@
 			<div class="section">
 				<div class="section-head"><span class="caps">{t('health.instance')}</span></div>
 				<ul class="group">
-					<li class="cell"><span class="grow">{t('health.version')}</span><span class="t-2 mono">{h.instance.version}</span></li>
+					<li class="cell"><span class="grow">{t('health.version')}</span><span class="t-2 mono">{h.instance.version.toUpperCase()}</span></li>
 					<li class="cell"><span class="grow">{t('health.uptime')}</span><span class="t-2">{ago(h.instance.started_at)}</span></li>
 					<li class="cell"><span class="grow">{t('health.scheduler')}</span><span class="t-2">{h.instance.scheduler ? t('health.on', { n: h.instance.workers }) : t('health.off')}</span></li>
 					<li class="cell"><span class="grow">{t('health.database')}</span><span class="t-2">{bytes(h.instance.database_bytes)} · {t('health.schema', { n: h.instance.schema })}</span></li>

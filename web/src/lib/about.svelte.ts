@@ -11,7 +11,8 @@ export function loadAbout() {
 	requested = true;
 	api<{ version: string; source?: string }>('/api/health')
 		.then((h) => {
-			about.version = h.version;
+			// shown in capitals everywhere (DEV, 1.4.0-RC.1); the API keeps the tag's spelling
+			about.version = h.version.toUpperCase();
 			if (h.source) about.source = h.source;
 		})
 		.catch(() => (requested = false));
