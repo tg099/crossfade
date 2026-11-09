@@ -88,6 +88,12 @@ class Identity:
                       (keep, drop))
             c.execute("UPDATE OR IGNORE issues SET song_id=? WHERE song_id=?", (keep, drop))
             c.execute("UPDATE catalog_items SET song_id=? WHERE song_id=?", (keep, drop))
+            # A personal correction wins over an assistant's annotation when identities merge.
+            c.execute("""INSERT INTO music_annotations(user_id,song_id,data,origin,updated_at)
+                         SELECT user_id,?,data,origin,updated_at FROM music_annotations WHERE song_id=?
+                         ON CONFLICT(user_id,song_id) DO UPDATE SET data=excluded.data,
+                         origin=excluded.origin, updated_at=excluded.updated_at
+                         WHERE music_annotations.origin<>'user' AND excluded.origin='user'""", (keep, drop))
             c.execute("UPDATE changes SET song_id=? WHERE song_id=?", (keep, drop))
             c.execute("DELETE FROM search_cache WHERE song_id IN (?,?)", (keep, drop))
             c.execute("UPDATE songs SET isrc=COALESCE(isrc,(SELECT isrc FROM songs WHERE id=?)) WHERE id=?",

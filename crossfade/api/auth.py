@@ -196,4 +196,5 @@ def change_password(body: PasswordBody, request: Request, user: dict = Depends(c
     # sign out other sessions
     db.run("DELETE FROM sessions WHERE user_id=? AND token_hash<>?",
            (user["id"], token_hash(request.cookies.get(SESSION_COOKIE, ""))))
+    db.run("DELETE FROM mcp_tokens WHERE user_id=?", (user["id"],))
     return {"ok": True}

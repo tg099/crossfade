@@ -32,6 +32,7 @@ class Config:
     backup_daily: bool          # and once a day while running
     update_check: bool          # ask GitHub twice a day whether there is a newer release
     version: str                # set at image build time
+    mcp_enabled: bool           # personal-token MCP endpoint (no access until a user creates a token)
 
     @property
     def db_path(self) -> Path:
@@ -73,6 +74,7 @@ def load() -> Config:
         backup_daily=_bool(env("BACKUP_DAILY"), True),
         update_check=_bool(env("UPDATE_CHECK"), True),
         version=env("VERSION", "dev"),
+        mcp_enabled=_bool(env("MCP_ENABLED"), True),
     )
 
 

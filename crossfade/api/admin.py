@@ -108,6 +108,7 @@ def reset_password(user_id: int, admin: dict = Depends(admin_user), db: Database
     password = _start_password()
     db.run("UPDATE users SET password_hash=?, must_change_password=1 WHERE id=?", (hash_password(password), user_id))
     db.run("DELETE FROM sessions WHERE user_id=?", (user_id,))   # signed out everywhere
+    db.run("DELETE FROM mcp_tokens WHERE user_id=?", (user_id,))
     return {"password": password}
 
 

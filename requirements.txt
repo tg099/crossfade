@@ -5,3 +5,4 @@ httpx==0.28.1
 ytmusicapi==1.12.3
 RapidFuzz==3.14.6
 cryptography==50.0.2
+mcp==2.3.0

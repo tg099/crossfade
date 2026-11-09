@@ -351,6 +351,53 @@ MIGRATIONS: list[str] = [
     UPDATE notify_channels SET events=json_insert(events, '$[#]', 'update')
      WHERE user_id IN (SELECT id FROM users WHERE is_admin=1);
     """,
+    # ---- 19: personal MCP connections, reviewable actions and music annotations
+    """
+    CREATE TABLE mcp_tokens (
+        id INTEGER PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        scopes TEXT NOT NULL,
+        created_at REAL NOT NULL,
+        expires_at REAL NOT NULL,
+        last_used_at REAL
+    );
+    CREATE INDEX mcp_tokens_user ON mcp_tokens(user_id);
+    CREATE TABLE music_annotations (
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        song_id INTEGER NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+        data TEXT NOT NULL,
+        origin TEXT NOT NULL,
+        updated_at REAL NOT NULL,
+        PRIMARY KEY (user_id, song_id)
+    );
+    CREATE TABLE mcp_actions (
+        id TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_id INTEGER REFERENCES mcp_tokens(id) ON DELETE SET NULL,
+        operation TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        params TEXT NOT NULL,
+        preview TEXT NOT NULL,
+        destructive INTEGER NOT NULL,
+        state TEXT NOT NULL DEFAULT 'pending',
+        created_at REAL NOT NULL,
+        expires_at REAL NOT NULL,
+        result TEXT,
+        error TEXT
+    );
+    CREATE INDEX mcp_actions_user ON mcp_actions(user_id, created_at DESC);
+    CREATE TABLE mcp_audit (
+        id INTEGER PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        connection TEXT NOT NULL,
+        tool TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at REAL NOT NULL
+    );
+    CREATE INDEX mcp_audit_user ON mcp_audit(user_id, id DESC);
+    """,
 ]
 
 

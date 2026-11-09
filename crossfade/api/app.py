@@ -11,11 +11,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from starlette.routing import Route
 
 from ..config import DEFAULT_SOURCE, config
 from ..db import get_db
+from ..mcp_server import http_app as mcp_app
+from ..mcp_server import server as mcp_server
 from ..worker import get_worker
-from . import admin, auth, catalog, history, lines, notifications, preview, services, social
+from . import admin, auth, catalog, history, lines, mcp, notifications, preview, services, social
 from .deps import current_user
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -27,8 +30,14 @@ async def lifespan(_: FastAPI):
     w = get_worker()
     if config.scheduler:
         w.start_scheduler()
-    yield
-    w.shutdown()
+    # Proposals are persisted; work interrupted by a restart must never silently run again.
+    get_db().run("UPDATE mcp_actions SET state='error',error='Interrupted by a server restart. Review the collection "
+                 "before preparing another action.' WHERE state IN ('executing','queued')")
+    try:
+        async with mcp_server.session_manager.run():
+            yield
+    finally:
+        w.shutdown()
 
 
 app = FastAPI(title="Crossfade", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
@@ -53,14 +62,17 @@ async def guard(request: Request, call_next):
     response.headers.setdefault("Referrer-Policy", "same-origin")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-    if request.url.path.startswith("/api/"):
+    if request.url.path.startswith("/api/") or request.url.path.rstrip("/") == "/mcp":
         response.headers.setdefault("Cache-Control", "no-store")
     return response
 
 
 for r in (auth.router, admin.router, services.router, lines.router, catalog.router, preview.router, social.router,
-          social.invites, notifications.router, history.router):
+          social.invites, notifications.router, history.router, mcp.router):
     app.include_router(r)
+
+for path in ("/mcp", "/mcp/"):
+    app.router.routes.append(Route(path, endpoint=mcp_app, methods=["GET", "POST", "DELETE"]))
 
 
 @app.get("/api/health")

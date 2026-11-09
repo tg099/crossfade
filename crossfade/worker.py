@@ -8,6 +8,7 @@ import threading
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import ContextVar
 from typing import Any
 
 from . import backup, health, history, notify, updates
@@ -18,6 +19,13 @@ from .models import ApiError, AuthError
 from .providers import build_provider
 
 log = logging.getLogger("crossfade.worker")
+action_context: ContextVar[str | None] = ContextVar("mcp_action", default=None)
+
+
+def _finish_action(db: Database, action_id: str | None, status: str, result: dict, message: str | None) -> None:
+    if action_id:
+        db.run("UPDATE mcp_actions SET state=?,result=?,error=? WHERE id=? AND state IN ('executing','queued')",
+               (status, json.dumps(result), message, action_id))
 
 
 class EventBus:
@@ -124,7 +132,7 @@ class Worker:
             self._stop_flags[line_id] = threading.Event()
             self.jobs[line_id] = {"line_id": line_id, "state": "queued", "mode": "apply" if apply else "preview",
                                   "trigger": trigger, "phase": "Waiting …", "done": 0, "total": 0,
-                                  "started_at": time.time(), "live_n": 0}
+                                  "started_at": time.time(), "live_n": 0, "mcp_action_id": action_context.get()}
             self.live[line_id] = []
         self._emit(line["user_id"], line_id)
         self.pool.submit(self._run, line_id, line["user_id"], trigger, apply, allow_deletions)
@@ -146,7 +154,7 @@ class Worker:
                 return False
             self._catalog_stop[user_id] = threading.Event()
             self.catalog_jobs[user_id] = {"action": action, "state": "queued", "phase": "Waiting …", "done": 0,
-                                          "total": 0, "started_at": time.time()}
+                                          "total": 0, "started_at": time.time(), "mcp_action_id": action_context.get()}
         self._emit_catalog(user_id)
         self.pool.submit(self._run_catalog, user_id, action, params or {})
         return True
@@ -214,7 +222,7 @@ class Worker:
                     raise ValueError(action)
                 for acc_id, msg in cat.auth_errors.items():
                     self._mark_account(acc_id, "error", msg)
-                if cat.auth_errors or result.get("errors") or result.get("failed"):
+                if cat.auth_errors or result.get("errors") or result.get("failed") or result.get("missing"):
                     status = "partial"
             except CatalogStopped:
                 status, message = "stopped", "Stopped"
@@ -228,6 +236,7 @@ class Worker:
             finally:
                 if action == "scan" and status in ("ok", "partial"):
                     db.set_setting(f"catalog_scanned_{user_id}", time.time())
+                _finish_action(db, (self.catalog_jobs.get(user_id) or {}).get("mcp_action_id"), status, result, message)
                 with self._lock:
                     self.catalog_jobs.pop(user_id, None)
                     self._catalog_stop.pop(user_id, None)
@@ -338,6 +347,8 @@ class Worker:
             if apply or status in ("auth_error", "blocked", "error"):
                 db.run("UPDATE lines SET last_run_at=?, last_status=?, last_summary=? WHERE id=?",
                        (time.time(), status, json.dumps(summary), line_id))
+            _finish_action(db, (self.jobs.get(line_id) or {}).get("mcp_action_id"), status,
+                           {"run_id": run_id, "summary": summary, "plan": plan}, message)
             with self._lock:
                 self.jobs.pop(line_id, None)
                 self.live.pop(line_id, None)

@@ -10,6 +10,7 @@
 	import BackupSheet from './BackupSheet.svelte';
 	import HealthSheet from './HealthSheet.svelte';
 	import NotifySheet from './NotifySheet.svelte';
+	import McpSheet from './McpSheet.svelte';
 	import Segmented from './Segmented.svelte';
 	import ServiceSheet from './ServiceSheet.svelte';
 	import Sheet from './Sheet.svelte';
@@ -135,6 +136,11 @@
 						{#if app.socialBadge}<span class="count" aria-hidden="true">{app.socialBadge}</span>{/if}
 						<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
 					</button>
+					<button class="cell" style:--inset="58px" onclick={() => (ui.mcpOpen = true)}>
+						<span class="tile-icon" style:background="#7c5ce6"><Glyph name="sparkle" size={19} weight={2.1} /></span>
+						<span class="grow">{t('mcp.title')}</span>
+						<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
+					</button>
 				</div>
 			</div>
 
@@ -235,6 +241,7 @@
 
 <ServiceSheet />
 <NotifySheet />
+<McpSheet />
 <HealthSheet />
 <BackupSheet />
 

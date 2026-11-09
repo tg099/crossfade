@@ -65,6 +65,7 @@ class UI {
 	userOpen = $state(false);
 	appsOpen = $state(false);
 	notifyOpen = $state(false);
+	mcpOpen = $state(false);
 	healthOpen = $state(false);
 	backupOpen = $state(false);
 	historyOpen = $state(false);
