@@ -164,6 +164,7 @@ export interface Line {
 	icon: string;
 	sync_deletions: boolean;
 	interval_minutes: number;
+	delete_confirm: boolean;
 	delete_guard_min: number;
 	delete_guard_ratio: number;
 	paused: boolean;

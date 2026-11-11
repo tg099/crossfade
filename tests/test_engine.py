@@ -224,6 +224,20 @@ def test_mass_removal_is_held_until_confirmed(env):
     assert r.status == "ok" and a.keys() == y.keys() and len(a.keys()) == 5
 
 
+
+def test_mass_removal_passes_without_asking_when_switched_off(env):
+    y, a = P(env, YTM), P(env, APPLE)
+    keys = [s[0] for s in SONGS]
+    y.put(LIKED, "", *keys)
+    a.put(LIKED, "", *keys)
+    lid = make_line(env, [(YTM, LIKED, "", "both"), (APPLE, LIKED, "", "both")], guard_min=2)
+    env[0].run("UPDATE lines SET delete_confirm=0 WHERE id=?", (lid,))
+    sync(env, lid)
+    y.drop(LIKED, "", *keys[:5])
+    r = sync(env, lid)
+    assert r.status == "ok" and a.keys() == y.keys() and len(a.keys()) == 5
+
+
 def test_empty_list_blocks(env):
     y, a = P(env, YTM), P(env, APPLE)
     y.put(LIKED, "", "lucky", "blind", "hello", "haus")

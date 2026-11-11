@@ -94,6 +94,7 @@ class FadeChange(BaseModel):
     icon: str | None = Field(None, pattern=r"^[a-z]{2,20}$")
     sync_deletions: bool | None = None
     interval_minutes: int | None = Field(None, ge=0, le=10080)
+    delete_confirm: bool | None = None
     delete_guard_min: int | None = Field(None, ge=0, le=100000)
     delete_guard_ratio: float | None = Field(None, ge=0, le=1)
     paused: bool | None = None
@@ -206,7 +207,8 @@ def _merged_fade(db: Database, uid: int, fade_id: int, changes: dict) -> tuple[d
     line = lines._line_or_404(db, fade_id, uid)
     current = {k: line[k] for k in ("name", "color", "icon", "interval_minutes", "delete_guard_min",
                                     "delete_guard_ratio", "version_policy")}
-    current |= {"sync_deletions": bool(line["sync_deletions"]), "paused": bool(line["paused"])}
+    current |= {"sync_deletions": bool(line["sync_deletions"]), "paused": bool(line["paused"]),
+                "delete_confirm": bool(line["delete_confirm"])}
     current["members"] = [{"service": m["service"], "kind": m["kind"], "collection_id": m["collection_id"],
                            "collection_name": m["collection_name"], "role": m["role"],
                            "follow_deletions": bool(m["follow_deletions"]), "rule": m["rule"],
@@ -233,6 +235,8 @@ def _widens_deletions(db: Database, uid: int, line: dict | None, body: lines.Lin
     if not body.sync_deletions:
         return False
     if line is None or not line["sync_deletions"]:
+        return True
+    if line["delete_confirm"] and not body.delete_confirm:
         return True
     if body.delete_guard_min > line["delete_guard_min"] or body.delete_guard_ratio > line["delete_guard_ratio"]:
         return True

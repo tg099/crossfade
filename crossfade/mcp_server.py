@@ -272,7 +272,7 @@ def prepare_fade(ctx: Context, fade: actions.FadeIn) -> dict[str, Any]:
 def prepare_fade_update(ctx: Context, fade_id: int, changes: actions.FadeChange) -> dict[str, Any]:
     """Prepare changing an owned fade. Only pass what changes (e.g. name, interval_minutes, paused);
     members replaces your own collections in the given order, with their rule and move_sorted. Switching
-    sync_deletions or move_sorted on, or raising delete_guard_min/ratio, needs the user's approval in
+    sync_deletions or move_sorted on, or raising delete_guard_min/ratio or switching delete_confirm off, needs the user's approval in
     Crossfade; everything else (including rules) applies directly."""
     return actions.prepare(get_db(), _user(ctx), "fade_update",
                            {"fade_id": fade_id, "changes": changes.model_dump(exclude_none=True)})

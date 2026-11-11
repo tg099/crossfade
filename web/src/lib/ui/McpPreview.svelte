@@ -18,7 +18,7 @@
 		title: 'mcp.song', artist: 'mcp.artist', album: 'mcp.album', duration: 'mcp.duration', only: 'mcp.only',
 		groups: 'mcp.groups', copies: 'mcp.copies', keep: 'mcp.keep', delete: 'mcp.delete', merge: 'mcp.merge',
 		changes: 'mcp.changes', selection: 'mcp.collections', color: 'mcp.color', icon: 'mcp.icon',
-		delete_guard_min: 'mcp.guardMin', delete_guard_ratio: 'mcp.guardRatio', version_policy: 'mcp.versionPolicy',
+		delete_confirm: 'mcp.askFirst', delete_guard_min: 'mcp.guardMin', delete_guard_ratio: 'mcp.guardRatio', version_policy: 'mcp.versionPolicy',
 		create: 'mcp.create', added: 'mcp.added', removed: 'mcp.removed', failed: 'mcp.failed', summary: 'mcp.summary'
 	};
 	// ids, internal state and things that are only noise to a person

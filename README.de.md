@@ -146,7 +146,8 @@ Jeder Fade merkt sich, welche Songs er kennt und wo er sie zuletzt gesehen hat.
 - Gelöscht werden nur Songs, die vorher in einer Sammlung **gesehen** wurden. Ein gerade hinzugefügter Song, den
   der Dienst noch nicht anzeigt, gilt als „ausstehend“, nicht als gelöscht.
 - Eine **leere Liste** von einem Dienst, obwohl dort Songs bekannt sind → der Sync bricht ab.
-- **Sicherheitsgrenze** pro Fade: mehr Löschungen als erlaubt → wartet auf Bestätigung. Automatische Syncs bestätigen nie.
+- **Sicherheitsgrenze** pro Fade (Standard: mehr als 10 Songs bzw. 20 %): mehr Löschungen als erlaubt → wartet auf
+  Bestätigung. Automatische Syncs bestätigen nie. Die Rückfrage lässt sich pro Fade abschalten.
 - Fehlgeschlagene Löschungen werden beim nächsten Sync erneut versucht, statt rückgängig gemacht zu werden.
 - Die **Vorschau** zeigt jeden Sync, ohne etwas zu ändern.
 

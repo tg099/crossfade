@@ -756,7 +756,7 @@
 						</button>
 						{#if fade.sync_deletions}
 							<button class="cell" onclick={() => ui.edit(fade.id)}>
-								<span class="grow">{t('fade.guard')}</span><span class="value">{t('fade.guardValue', { n: fade.delete_guard_min, pct: Math.round(fade.delete_guard_ratio * 100) })}</span><span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
+								<span class="grow">{t('fade.guard')}</span><span class="value">{fade.delete_confirm ? t('fade.guardValue', { n: fade.delete_guard_min, pct: Math.round(fade.delete_guard_ratio * 100) }) : t('fade.guardOff')}</span><span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
 							</button>
 						{/if}
 					</div>

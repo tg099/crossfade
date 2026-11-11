@@ -138,6 +138,7 @@ def _serialize(db: Database, line: dict, number: int | None = None, viewer: int 
                      "request": join_request(i)}
                     for i in invites],
         "sync_deletions": bool(line["sync_deletions"]),
+        "delete_confirm": bool(line["delete_confirm"]),
         "paused": bool(line["paused"]),
         "last_summary": json.loads(line["last_summary"]) if line["last_summary"] else None,
         "members": members,
@@ -261,7 +262,8 @@ class LineIn(BaseModel):
     icon: str = Field("note", pattern=r"^[a-z]{2,20}$")
     sync_deletions: bool = True
     interval_minutes: int = Field(60, ge=0, le=10080)
-    delete_guard_min: int = Field(5, ge=0, le=100000)
+    delete_confirm: bool = True       # off: pass on deletions without ever asking first
+    delete_guard_min: int = Field(10, ge=0, le=100000)
     delete_guard_ratio: float = Field(0.2, ge=0, le=1)
     paused: bool = False
     version_policy: Literal["closest", "exact"] = "closest"
@@ -326,10 +328,10 @@ def create_line(body: LineIn, user: dict = Depends(current_user), db: Database =
     pos = (db.val("SELECT MAX(position) FROM lines WHERE user_id=?", (user["id"],)) or 0) + 1
     with db.tx() as c:
         lid = c.execute("""INSERT INTO lines(user_id,name,color,icon,sync_deletions,interval_minutes,delete_guard_min,
-                           delete_guard_ratio,paused,position,version_policy,created_at,updated_at)
-                           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                           delete_guard_ratio,delete_confirm,paused,position,version_policy,created_at,updated_at)
+                           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                         (user["id"], body.name.strip(), body.color, body.icon, int(body.sync_deletions), body.interval_minutes,
-                         body.delete_guard_min, body.delete_guard_ratio, int(body.paused), pos, body.version_policy,
+                         body.delete_guard_min, int(body.delete_confirm), body.delete_guard_ratio, int(body.paused), pos, body.version_policy,
                          now, now)).lastrowid
         for i, m in enumerate(members):
             c.execute("""INSERT INTO line_members(line_id,account_id,kind,collection_id,collection_name,role,
@@ -354,9 +356,9 @@ def update_line(line_id: int, body: LineIn, user: dict = Depends(current_user), 
     keep_ids = set()
     with db.tx() as c:
         c.execute("""UPDATE lines SET name=?, color=?, icon=?, sync_deletions=?, interval_minutes=?, delete_guard_min=?,
-                     delete_guard_ratio=?, paused=?, version_policy=?, updated_at=? WHERE id=?""",
+                     delete_confirm=?, delete_guard_ratio=?, paused=?, version_policy=?, updated_at=? WHERE id=?""",
                   (body.name.strip(), body.color, body.icon, int(body.sync_deletions), body.interval_minutes,
-                   body.delete_guard_min, body.delete_guard_ratio, int(body.paused), body.version_policy,
+                   body.delete_guard_min, int(body.delete_confirm), body.delete_guard_ratio, int(body.paused), body.version_policy,
                    time.time(), line_id))
         for i, m in enumerate(members):
             old = existing.get((m["account_id"], m["kind"], m["collection_id"]))

@@ -21,6 +21,7 @@
 		stops: DraftStop[];
 		interval: number;
 		deletions: boolean;
+		confirm: boolean;
 		guardMin: number;
 		guardPct: number;
 		paused: boolean;
@@ -76,7 +77,8 @@
 			stops: [],
 			interval: 60,
 			deletions: true,
-			guardMin: 5,
+			confirm: true,
+			guardMin: 10,
 			guardPct: 20,
 			paused: false,
 			versionPolicy: 'closest'
@@ -90,6 +92,7 @@
 			stops: f.members.filter((m) => m.mine).map((m) => ({ uid: ++uid, service: m.service, kind: m.kind, collection_id: m.collection_id, collection_name: m.collection_name, role: m.role, follow: m.follow_deletions, create: false, rule: m.rule, move: m.move_sorted })),
 			interval: f.interval_minutes,
 			deletions: f.sync_deletions,
+			confirm: f.delete_confirm,
 			guardMin: f.delete_guard_min,
 			guardPct: Math.round(f.delete_guard_ratio * 100),
 			paused: f.paused,
@@ -193,6 +196,7 @@
 			icon: d.icon,
 			sync_deletions: d.deletions,
 			interval_minutes: d.interval,
+			delete_confirm: d.confirm,
 			delete_guard_min: d.guardMin,
 			delete_guard_ratio: d.guardPct / 100,
 			paused: d.paused,
@@ -547,6 +551,12 @@
 				</div>
 				{#if d.deletions}
 					<div class="cell">
+						<span class="grow">{t('editor.askFirst')}</span>
+						<Switch bind:checked={d.confirm} label={t('editor.askFirst')} />
+					</div>
+				{/if}
+				{#if d.deletions && d.confirm}
+					<div class="cell">
 						<span class="grow">{t('editor.askFrom')}</span>
 						<span class="value">{t('n.songs', { n: d.guardMin })}</span>
 						<span class="stepper">
@@ -566,7 +576,7 @@
 					</div>
 				{/if}
 			</div>
-			<p class="section-foot">{d.deletions ? t('editor.deletesOn', { n: d.guardMin, pct: d.guardPct }) : t('editor.deletesOff')}</p>
+			<p class="section-foot">{!d.deletions ? t('editor.deletesOff') : d.confirm ? t('editor.deletesOn', { n: d.guardMin, pct: d.guardPct }) : t('editor.deletesNoAsk')}</p>
 		</div>
 
 		<div class="section">

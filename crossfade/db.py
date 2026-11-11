@@ -60,7 +60,7 @@ MIGRATIONS: list[str] = [
         color TEXT NOT NULL,
         sync_deletions INTEGER NOT NULL DEFAULT 1,
         interval_minutes INTEGER NOT NULL DEFAULT 60,
-        delete_guard_min INTEGER NOT NULL DEFAULT 5,
+        delete_guard_min INTEGER NOT NULL DEFAULT 5,  -- the API default is 10
         delete_guard_ratio REAL NOT NULL DEFAULT 0.2,
         paused INTEGER NOT NULL DEFAULT 0,
         position INTEGER NOT NULL DEFAULT 0,
@@ -403,6 +403,10 @@ MIGRATIONS: list[str] = [
     """
     ALTER TABLE line_members ADD COLUMN rule TEXT;
     ALTER TABLE line_members ADD COLUMN move_sorted INTEGER NOT NULL DEFAULT 0;
+    """,
+    # ---- 21: a fade can pass on deletions without ever asking first (delete_confirm = 0)
+    """
+    ALTER TABLE lines ADD COLUMN delete_confirm INTEGER NOT NULL DEFAULT 1;
     """,
 ]
 

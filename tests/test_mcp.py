@@ -463,6 +463,9 @@ def test_fade_changes_keep_what_is_left_out_and_only_deletions_need_approval(env
     calmer = mcp_actions.prepare(env.db, principal, "fade_update",
                                  {"fade_id": fade, "changes": {"delete_guard_ratio": 0.1}})
     assert not calmer["requires_browser_confirmation"]
+    no_asking = mcp_actions.prepare(env.db, principal, "fade_update",
+                                    {"fade_id": fade, "changes": {"delete_confirm": False}})
+    assert no_asking["requires_browser_confirmation"]
     follow = call(env, "prepare_fade_update", {"fade_id": fade, "changes": {"members": [
         {"service": "ytm", "kind": "liked", "collection_name": "Likes", "role": "send", "follow_deletions": True}]}})
     assert follow["requires_browser_confirmation"]

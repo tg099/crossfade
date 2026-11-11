@@ -146,7 +146,8 @@ Each fade remembers which songs it knows and where it last saw them.
 - Only songs that were previously **seen** in a collection can be deleted. A song that was just added but isn't
   shown by the service yet counts as "pending", not as deleted.
 - An **empty list** from a service although songs are known there → the sync stops.
-- **Safety limit** per fade: more deletions than allowed → waits for confirmation. Automatic syncs never confirm.
+- **Safety limit** per fade (default: more than 10 songs or 20 %): more deletions than allowed → waits for confirmation.
+  Automatic syncs never confirm. Asking can be switched off per fade.
 - Failed deletions are retried on the next sync instead of being reverted.
 - **Preview** shows every sync without changing anything.
 

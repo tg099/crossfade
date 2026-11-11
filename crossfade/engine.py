@@ -282,7 +282,9 @@ class LineSync:
         # -- removals above the safety limit are held back until confirmed
         removal_targets = sum(1 for sid, src in self.removed.items() for m in self.members
                               if m.takes_removals and m is not src and sid in m.current)
-        limit = max(int(line["delete_guard_min"]), int(line["delete_guard_ratio"] * max(len(L), 1)))
+        # delete_confirm off: the user never wants to be asked, however many songs go at once
+        limit = (max(int(line["delete_guard_min"]), int(line["delete_guard_ratio"] * max(len(L), 1)))
+                 if line["delete_confirm"] else float("inf"))
         needs_confirm = bool(self.removed) and removal_targets > limit and not allow_deletions
         if needs_confirm:
             self.held = set(self.removed)
