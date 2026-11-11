@@ -73,6 +73,11 @@
 		align-items: center;
 		gap: 8px;
 		min-width: 0;
+	}
+	/* only the buttons take taps: an empty side must not cover what lies under the bar (the avatar
+	   of a page whose large title starts right under the status bar) */
+	.lead > :global(*),
+	.trail > :global(*) {
 		pointer-events: auto;
 	}
 	.trail {

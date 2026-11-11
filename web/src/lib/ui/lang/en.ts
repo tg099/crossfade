@@ -404,6 +404,7 @@ export const en: Record<keyof typeof de, string | ((v: V) => string)> = {
 	'review.skip': 'Ignore',
 	'review.for': 'for {service}',
 	'review.versionIn': 'Version in {service}',
+	'review.noneSure': 'None of the suggestions is surely the same song. Pick one, paste a link or ignore the song.',
 	'review.sameLength': 'same length',
 	'review.hint': 'Swipe right to take the chosen version, left to ignore the song.',
 	'review.done': 'All done',

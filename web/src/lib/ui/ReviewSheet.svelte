@@ -11,7 +11,7 @@
 	import HearButton from './HearButton.svelte';
 	import { seedColors } from './artcolor.ts';
 	import { t } from './i18n.svelte.ts';
-	import { ignoreIssue, loadIssues, resolveIssue, sameLength, unignore } from './issues.ts';
+	import { fitting, ignoreIssue, loadIssues, resolveIssue, sameLength, unignore } from './issues.ts';
 	import { tintVars } from './tint.ts';
 	import { mmss, ui } from './ui.svelte.ts';
 
@@ -121,7 +121,9 @@
 		}
 	}
 
-	const target = (i: Issue) => links[i.id]?.trim() || i.data.candidates?.[choice[i.id] ?? 0]?.id || '';
+	/** a suggestion is only chosen for you when it convincingly is the song; otherwise you pick */
+	const preset = (i: Issue) => (i.data.candidates ?? []).findIndex(fitting);
+	const target = (i: Issue) => links[i.id]?.trim() || i.data.candidates?.[pick(i)]?.id || '';
 
 	async function fly(how: 'take' | 'skip', vx = 0, vy = 0) {
 		if (!cur || busy || !line) return;
@@ -176,7 +178,9 @@
 	}
 	const taken = $derived(log.filter((l) => l.how === 'take').length);
 	const skipped = $derived(log.length - taken);
-	const pick = (i: Issue) => choice[i.id] ?? 0;
+	function pick(i: Issue) {
+		return choice[i.id] ?? preset(i);
+	}
 	const cardColors = $derived(cur ? seedColors(cur.data.track.id) : []);
 </script>
 
@@ -233,6 +237,7 @@
 					</div>
 					<p class="why t-foot">{cur.data.reason ? `${cur.data.reason} · ` : ''}{t('review.for', { service: `${SERVICE_NAME[cur.service]} · ${cur.collection_name}` })}</p>
 					{#if cands.length}
+						{#if pick(cur) < 0 && !links[cur.id]}<p class="t-foot t-2 unsure">{t('review.noneSure')}</p>{/if}
 						<div class="cands" role="radiogroup" aria-label={t('review.versionIn', { service: SERVICE_NAME[cur.service] })}>
 							{#each cands as c, ci (c.id)}
 								<div class="cand" class:on={pick(cur) === ci && !links[cur.id]}>
@@ -240,7 +245,7 @@
 									<button class="cand-pick" role="radio" aria-checked={pick(cur) === ci && !links[cur.id]} onclick={() => ((choice[cur.id] = ci), (links[cur.id] = ''))}>
 										<span class="grow">
 											<span class="b clip">{c.title}</span>
-											<span class="b t-foot t-2 clip">{c.album ? `${c.album} · ` : ''}{mmss(c.duration)}{c.exact ? ` · ${t('issue.exact')}` : sameLength(c, tr) ? ` · ${t('review.sameLength')}` : ''}</span>
+											<span class="b t-foot t-2 clip">{#if c.version && c.version !== 'Original'}<span class="tag warn ver">{c.version}</span> {/if}{c.album ? `${c.album} · ` : ''}{mmss(c.duration)}{c.exact ? ` · ${t('issue.exact')}` : sameLength(c, tr) ? ` · ${t('review.sameLength')}` : ''}</span>
 										</span>
 										<span class="radio" class:on={pick(cur) === ci && !links[cur.id]}>{#if pick(cur) === ci && !links[cur.id]}<Glyph name="check" size={13} weight={3.2} />{/if}</span>
 									</button>
@@ -261,7 +266,7 @@
 			<div class="actions">
 				<button class="act glass lq" onclick={() => fly('skip')} aria-label={t('review.skip')}><Glyph name="x" size={26} weight={2.6} /></button>
 				<button class="act sm glass lq" onclick={undo} disabled={!canUndo} aria-label={t('common.undo')}><Glyph name="undo" size={20} weight={2.4} /></button>
-				<button class="act glass tint lq" onclick={() => fly('take')} aria-label={t('review.take')}><Glyph name="check" size={28} weight={2.8} /></button>
+				<button class="act glass tint lq" class:idle={!target(cur)} onclick={() => fly('take')} aria-label={t('review.take')}><Glyph name="check" size={28} weight={2.8} /></button>
 			</div>
 			<p class="rhint t-foot t-2">{t('review.hint')}</p>
 			</div>
@@ -451,6 +456,36 @@
 	}
 	.act:disabled {
 		color: var(--label-3);
+	}
+	/* nothing chosen yet: the check waits for a pick (tapping it says so) */
+	.act.idle {
+		opacity: 0.45;
+	}
+	.unsure {
+		margin: 0 4px 8px;
+	}
+	.ver {
+		margin-right: 2px;
+		vertical-align: 1px;
+	}
+	/* phones: the actions take less height, so more versions stay in view above them */
+	@media (max-width: 720px) {
+		.foot {
+			padding-top: 16px;
+		}
+		.act {
+			width: 60px;
+			height: 60px;
+		}
+		.act.sm {
+			width: 46px;
+			height: 46px;
+		}
+	}
+	@media (max-width: 720px) and (max-height: 800px) {
+		.rhint {
+			display: none;
+		}
 	}
 	/* actions stay in reach and sit on their own ground: nothing scrolls visibly behind them */
 	.foot {

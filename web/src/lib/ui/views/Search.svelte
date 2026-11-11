@@ -43,7 +43,9 @@
 	}
 </script>
 
-<Page title={t('tab.search')} avatar glow={BRAND}>
+<!-- phone: the search field floats at the top while you search (the keyboard never covers it);
+     results start right below it -->
+<Page title={t('tab.search')} avatar glow={BRAND} large={!ui.phone} chrome={!ui.phone} top={68}>
 	{#if !q}
 		<div class="empty">
 			<span class="ic glass"><Glyph name="search" size={30} weight={1.8} /></span>

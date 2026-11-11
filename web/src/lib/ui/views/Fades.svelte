@@ -67,7 +67,7 @@
 	</span>
 {/snippet}
 
-<Page title={t('tab.fades')} avatar glow={BRAND}>
+<Page title={t('tab.fades')} avatar inline glow={BRAND}>
 	{#snippet actions()}
 		{#if own.length > 1 && tab === 'mine'}
 			<button class="gbtn glass lq" class:tint={ordering} onclick={() => (ordering = !ordering)} aria-pressed={ordering}>

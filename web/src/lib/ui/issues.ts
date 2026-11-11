@@ -71,3 +71,6 @@ export async function researchIssue(fadeId: number, issue: Issue): Promise<Track
 }
 
 export const sameLength = (a: TrackInfo, b: TrackInfo) => !!a.duration && !!b.duration && Math.abs(a.duration - b.duration) < 3;
+
+/** may this suggestion be preselected? Older results without the flag: only exact or auto-match grade */
+export const fitting = (c: TrackInfo) => c.fits ?? (!!c.exact || (c.score ?? 0) >= 0.82);

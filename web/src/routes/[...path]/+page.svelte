@@ -6,6 +6,7 @@
 	import { page } from '$app/state';
 	import Logo from '#lib/components/Logo.svelte';
 	import { SERVICE_NAME, SERVICES } from '#lib/format.ts';
+	import { player } from '#lib/player.svelte.ts';
 	import { app } from '#lib/state.svelte.ts';
 	import type { Line, Service } from '#lib/types.ts';
 	import Account from '#lib/ui/Account.svelte';
@@ -81,6 +82,14 @@
 		} else nav.init(url.pathname);
 		ready = true;
 		return () => mq.removeEventListener('change', set);
+	});
+
+	// phone: the search tab *is* searching (field at the top); leaving it any way (✕, back gesture,
+	// a tab) puts the tab bar back
+	$effect(() => {
+		if (!ui.phone) return;
+		if (nav.tab === 'search' && !ui.searching) ui.searching = true;
+		else if (nav.tab !== 'search' && ui.searching) ui.searching = false;
 	});
 
 	// back / forward / swipe from the edge: bring tabs and stacks in line with the URL
@@ -210,6 +219,9 @@
 		dockInput?.focus();
 		ui.searching = true;
 		nav.select('search');
+		// iOS scrolls the window to reveal a field focused at the bottom while the keyboard comes up –
+		// it now floats at the top, so put the window back
+		for (const ms of [80, 360]) setTimeout(() => window.scrollY && window.scrollTo(0, 0), ms);
 	}
 	function leaveSearch() {
 		dockInput?.blur();
@@ -264,7 +276,7 @@
 			inert={ui.sheets.length > 0}
 			style:transform={ui.phone && push > 0 ? `translate3d(0, ${push * 10}px, 0) scale(${1 - push * 0.07})` : undefined}
 			style:border-radius={ui.phone && push > 0 ? `${push * 38}px` : undefined}
-			style:--chrome-bottom={ui.phone ? 'calc(var(--safe-bottom) + 110px)' : '100px'}
+			style:--chrome-bottom={`calc(${ui.phone ? 'var(--safe-bottom) + 110px' : '100px'} + ${player.track ? 68 : 0}px)`}
 		>
 			<main class="content">
 				{#each TABS as tb (tb.id)}
@@ -374,7 +386,8 @@
 				</button>
 			</aside>
 
-			<!-- phone: floating glass tab bar; search turns the dock into a field -->
+			<!-- phone: floating glass tab bar; search turns the dock into a field at the top -->
+			<span class="dock-edge" class:off={ui.searching} aria-hidden="true"></span>
 			<div class="dock" class:searching={ui.searching}>
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<nav class="tabs glass" aria-label={t('nav.tabs')} bind:this={barEl} style:--li={lens} style:--ls={lensStretch} onpointerdown={bdown} onpointermove={bmove} onpointerup={bup} onpointercancel={bup}>
@@ -387,7 +400,7 @@
 						</button>
 					{/each}
 					<button class="tb-back" onclick={leaveSearch} aria-label={t('search.back', { tab: t(backTab.label) })} tabindex={ui.searching ? 0 : -1}>
-						<Glyph name={backTab.icon} size={25} weight={2.3} />
+						<Glyph name="x" size={19} weight={2.6} />
 					</button>
 				</nav>
 				<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
@@ -561,13 +574,49 @@
 		background: var(--label-3);
 		color: var(--bg);
 	}
-	/* searching: the tab bar shrinks to the tab you came from, the field takes the room */
+	/* searching: the field moves to the top (the keyboard can't cover it, results start right
+	   below it) and the tab bar shrinks into the ✕ next to it */
+	.dock.searching {
+		--h: 48px;
+		top: calc(var(--safe-top) + 8px);
+		bottom: auto;
+		animation: dock-drop 360ms cubic-bezier(0.2, 0.9, 0.3, 1.15);
+	}
+	@keyframes dock-drop {
+		from {
+			opacity: 0;
+			transform: translateY(-16px);
+		}
+	}
 	.searching .tabs {
+		left: calc(100% - var(--m) - var(--h));
 		width: var(--h);
+		padding: 0;
 	}
 	.searching .search {
-		left: calc(var(--m) + var(--h) + 10px);
+		left: var(--m);
 		width: calc(100% - var(--m) * 2 - var(--h) - 10px);
+	}
+	/* scroll edge under the floating tab bar: content fades out instead of being cut by the dock
+	   or peeking out below it */
+	.dock-edge {
+		position: fixed;
+		z-index: 30;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		/* up to the middle of the dock: the strip below it is calm, what passes behind the glass fades */
+		height: calc(var(--safe-bottom) + 10px + 40px);
+		pointer-events: none;
+		background: linear-gradient(to top, color-mix(in srgb, var(--bg) 92%, transparent) calc(var(--safe-bottom) + 10px), transparent);
+		-webkit-backdrop-filter: blur(4px);
+		backdrop-filter: blur(4px);
+		-webkit-mask-image: linear-gradient(to top, #000 55%, transparent);
+		mask-image: linear-gradient(to top, #000 55%, transparent);
+		transition: opacity 200ms ease;
+	}
+	.dock-edge.off {
+		opacity: 0;
 	}
 	.searching .s-ic {
 		width: 46px;
@@ -653,7 +702,8 @@
 		display: none;
 	}
 	@media (min-width: 721px) {
-		.dock {
+		.dock,
+		.dock-edge {
 			display: none;
 		}
 		.sidebar {
@@ -843,6 +893,9 @@
 		.search,
 		.s-ic {
 			transition: none;
+		}
+		.dock.searching {
+			animation: none;
 		}
 	}
 </style>

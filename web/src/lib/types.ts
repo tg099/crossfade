@@ -245,6 +245,8 @@ export interface TrackInfo {
 	artwork?: string | null;
 	score?: number;
 	exact?: boolean;
+	/** a convincing match: may be preselected for a person to confirm */
+	fits?: boolean;
 	notes?: string[];
 	note?: string;
 	version?: string;

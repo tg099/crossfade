@@ -402,6 +402,7 @@ export const de = {
 	'review.skip': 'Ignorieren',
 	'review.for': 'für {service}',
 	'review.versionIn': 'Version in {service}',
+	'review.noneSure': 'Keiner der Vorschläge ist sicher derselbe Song. Wähl einen aus, füg einen Link ein oder ignorier den Song.',
 	'review.sameLength': 'gleiche Länge',
 	'review.hint': 'Nach rechts wischen übernimmt die gewählte Version, nach links wischen ignoriert den Song.',
 	'review.done': 'Alles erledigt',

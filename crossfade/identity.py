@@ -13,7 +13,7 @@ from .providers.base import Provider
 
 SEARCH_RETRY_DAYS = 7
 # results that were not the exact version are searched again when the matcher got better since
-MATCHER_CHANGED_AT = 1794148101
+MATCHER_CHANGED_AT = 1794407365
 
 
 class Identity:
@@ -159,7 +159,10 @@ class Identity:
         if t.service != "ytm" or fmt not in ("song", "video") or _is_video(t) == (fmt == "video"):
             return t, None
         want_video = fmt == "video"
-        known = [r for r in self.refs(song_id, t.service) if _is_video(r) == want_video]
+        # as "the video" only an official one: a fan upload linked to the song (lyrics video, live
+        # clip, re-upload) is that person's choice, not the song's video for every other collection
+        known = [r for r in self.refs(song_id, t.service)
+                 if (r.video_type in OFFICIAL_VIDEOS if want_video else not _is_video(r))]
         known.sort(key=lambda r: r.video_type != "MUSIC_VIDEO_TYPE_OMV")
         if known:
             return known[0], None
@@ -316,7 +319,9 @@ class Identity:
                 scored[0] = (t, matcher.Assessment(matcher.ACCEPT, matcher.ACCEPT, False,
                                                    [matcher.RENAMED] + a.notes))
 
-        cands = [dict(t.to_dict(), score=a.score, exact=a.exact, notes=a.notes)
+        # `fits`: may be preselected for a person; `version`: what kind of recording it is ("Live" …)
+        cands = [dict(t.to_dict(), score=a.score, exact=a.exact, notes=a.notes, fits=a.fits,
+                      version=matcher.version(t).label())
                  for t, a in scored[:6] if a.score >= matcher.SUGGEST]
         best, a = scored[0] if scored else (None, None)
         if a is None or a.score < matcher.SUGGEST:
@@ -409,6 +414,9 @@ def _near(a: Track, b: Track, secs: int) -> bool:
 
 def _is_video(t: Track) -> bool:
     return t.video_type in matcher.VIDEO_TYPES
+
+
+OFFICIAL_VIDEOS = ("MUSIC_VIDEO_TYPE_OMV", "MUSIC_VIDEO_TYPE_OFFICIAL_SOURCE_MUSIC")
 
 
 class Match:

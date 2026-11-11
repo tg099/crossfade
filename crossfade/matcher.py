@@ -14,6 +14,8 @@ from .models import Track
 ACCEPT = 0.82   # auto-match at or above this score
 SUGGEST = 0.50  # keep as suggestion for manual review at or above this score
 HARD_CAP = 0.66  # a different recording (live vs studio …) is at most a suggestion
+FITS = 0.70      # a suggestion this good (with the same title) is preselected for review
+FAR = 30         # seconds: two audio tracks this far apart on different albums are different recordings
 
 _FEAT = re.compile(r"\b(feat\.?|ft\.?|featuring)\s[^()\[\]]*", re.I)
 _TOPIC = re.compile(r"\s-\stopic$", re.I)
@@ -212,6 +214,13 @@ class Assessment:
     exact: bool                  # same version as far as we can tell
     notes: list[str] = field(default_factory=list)
     hard_mismatch: bool = False
+    title: float = 1.0           # how alike the titles are (0..1)
+
+    @property
+    def fits(self) -> bool:
+        """Good enough to be offered as *the* answer (preselected for a person to confirm): the same
+        title, nothing that makes it another recording. Weaker ones stay choosable, never preselected."""
+        return self.exact or (self.score >= FITS and self.title >= 0.85 and not self.hard_mismatch)
 
     @property
     def rank_key(self) -> float:
@@ -271,10 +280,16 @@ def _assess(src: Track, cand: Track) -> Assessment:
                 (only_cand and not only_src and not vs.hard and _loose(cand)):
             relabelled = True
             s -= 0.05
-    if src.album and cand.album and norm_title(src.album) == norm_title(cand.album):
+    same_album = bool(src.album and cand.album and norm_title(src.album) == norm_title(cand.album))
+    if same_album:
         s += 0.03          # same album (editions like "Deluxe" count as the same)
         if _base(src.album) == _base(cand.album):
             s += 0.01      # … the identical edition a little more
+    # same title and artist, but half a minute longer or shorter and on another album: an "Intro" of
+    # another record, an unlabelled live take or another edit – a person decides, never automatically
+    far = not video and src.duration and cand.duration and abs(src.duration - cand.duration) >= FAR
+    if far and src.album and cand.album and not same_album:
+        s = min(s, ACCEPT - 0.01)
     # clearly different title/artist, or a different recording, never auto-matches
     if t < 0.7 or a < 0.55:
         s = min(s, ACCEPT - 0.01)
@@ -289,7 +304,8 @@ def _assess(src: Track, cand: Track) -> Assessment:
         notes = [f"only in the video title: {n}" if n == label else n for n in notes]
     if cmp.exact and d < 0.8 and not video and src.duration and cand.duration:
         notes.append(f"{abs(src.duration - cand.duration)} s difference")
-    return Assessment(round(max(0.0, min(1.0, s)), 4), s, exact, notes, cmp.hard_mismatch and not relabelled)
+    return Assessment(round(max(0.0, min(1.0, s)), 4), s, exact, notes, cmp.hard_mismatch and not relabelled,
+                      round(t, 4))
 
 
 RENAMED = "different artist name"

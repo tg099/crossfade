@@ -70,10 +70,21 @@ _NOISE = re.compile(
     r"phonk|nightdrive|wave/|out now|teaser|trailer|mood video|full song)\b", re.I)
 
 
+def _pipes(t: str) -> str:
+    """ "Title | Prod. X | Channel" is the title plus credits: keep the first part. But a series upload
+    ("Letztes JBB | 8tel-Finale #2 | A vs B") names what it is in several parts: keep them all, or every
+    upload of the series reads as the same song ("Letztes JBB")."""
+    parts = [p.strip() for p in re.split(r"\s[|｜]\s", t)]
+    if len(parts) == 1:
+        return t
+    rest = [p for p in parts[1:] if p and not _NOISE.search(p) and not p.startswith("#")]
+    return " ".join([parts[0], *rest]) if len(rest) >= 2 else parts[0]
+
+
 def strip_noise(title: str) -> str:
     t = title or ""
     t = re.sub(r"[(\[【]([^)\]】]*)[)\]】]", lambda m: " " if _NOISE.search(m.group(1)) else m.group(0), t)
-    t = re.sub(r"\s[|｜]\s.*$", " ", t)                       # "Title | Prod. X | Channel"
+    t = _pipes(t)
     t = re.sub(r"\s[-–~]\s*(official|offizielles?)\b.*$", " ", t, flags=re.I)  # "Title - Official Video"
     t = re.sub(r"#\w+", " ", t)
     return re.sub(r"\s+", " ", t).strip()

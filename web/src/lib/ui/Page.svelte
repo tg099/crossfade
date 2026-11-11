@@ -2,7 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import Avatar from './Avatar.svelte';
 	import NavBar from './NavBar.svelte';
-	import { ambient } from './ui.svelte.ts';
+	import { ambient, ui } from './ui.svelte.ts';
 
 	// A page that scrolls edge to edge under floating glass. Large title (or a custom hero, its
 	// title marked with data-title) hands over to the floating title as it scrolls away.
@@ -15,6 +15,9 @@
 		backdrop,
 		avatar = false,
 		glow = [],
+		inline = false,
+		chrome = true,
+		top = 0,
 		children
 	}: {
 		title: string;
@@ -26,8 +29,20 @@
 		backdrop?: Snippet;
 		avatar?: boolean;
 		glow?: string[];
+		/** phone: the actions sit in the large title's row (few, small ones), not in a bar above it */
+		inline?: boolean;
+		/** false: no bar at all – something else floats at the top (the search field on a phone) */
+		chrome?: boolean;
+		/** with chrome off: room kept at the top for what floats there (px, below the safe area) */
+		top?: number;
 		children: Snippet;
 	} = $props();
+
+	// Phones: a bar row is only kept where it holds something (a back button, actions). Otherwise the
+	// large title starts right under the status bar, and the bar only appears once you scroll.
+	const inlineActions = $derived(ui.phone && inline && !back && !!actions && large && !hero);
+	const barless = $derived(ui.phone && !back && (!actions || inlineActions));
+	const padTop = $derived(!chrome ? `calc(var(--safe-top) + ${top}px)` : barless ? 'calc(var(--safe-top) + 6px)' : undefined);
 
 	let scroller: HTMLElement | undefined = $state();
 	let solid = $state(false);
@@ -88,13 +103,19 @@
 	<div class="backdrop" aria-hidden="true">
 		{#if backdrop}{@render backdrop()}{:else if glow.length}<span class="ambient" style:background={ambient(glow)}></span>{/if}
 	</div>
-	<NavBar {title} solid={solid || (!large && !hero)} {back} {actions} />
-	<div class="scroller" bind:this={scroller} {onscroll}>
+	{#if chrome}
+		<NavBar {title} solid={solid || (!large && !hero)} {back} actions={inlineActions && !solid ? undefined : actions} />
+	{:else}
+		<!-- nothing but a soft edge under what floats at the top, once content slides beneath it -->
+		<span class="top-edge" class:on={solid} style:height="calc(var(--safe-top) + {top + 24}px)" aria-hidden="true"></span>
+	{/if}
+	<div class="scroller" bind:this={scroller} {onscroll} style:padding-top={padTop}>
 		{#if hero}
 			{@render hero()}
 		{:else if large}
 			<header class="large">
 				<h1 class="t-large" data-title>{title}</h1>
+				{#if inlineActions}<span class="inline-actions" class:gone={solid}>{@render actions?.()}</span>{/if}
 				{#if avatar}<span class="av"><Avatar /></span>{/if}
 			</header>
 		{/if}
@@ -135,6 +156,39 @@
 	}
 	.av {
 		margin-bottom: 2px;
+	}
+	.inline-actions {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin: 0 -4px 2px auto;
+		transition: opacity 200ms ease;
+	}
+	/* the large title's row (with avatar) when there is no bar */
+	.large:has(.inline-actions) {
+		align-items: center;
+	}
+	.inline-actions.gone {
+		opacity: 0;
+		pointer-events: none;
+	}
+	.top-edge {
+		position: absolute;
+		z-index: 5;
+		top: 0;
+		left: 0;
+		right: 0;
+		pointer-events: none;
+		background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 80%, transparent), transparent);
+		-webkit-backdrop-filter: blur(10px) saturate(1.6);
+		backdrop-filter: blur(10px) saturate(1.6);
+		-webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+		mask-image: linear-gradient(to bottom, #000 55%, transparent);
+		opacity: 0;
+		transition: opacity 260ms ease;
+	}
+	.top-edge.on {
+		opacity: 1;
 	}
 	@media (min-width: 721px) {
 		/* desktop: the large title shares the row with the buttons on the right instead of
