@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 from . import history, matcher
 from .db import Database
 from .identity import Identity
-from .models import SERVICE_NAMES, ApiError, AuthError, Track
+from .models import LIKED, SERVICE_NAMES, ApiError, AuthError, Track
 from .providers.base import Provider
 from .sorting import Sorter
 
@@ -225,10 +225,14 @@ class LineSync:
     def _order(self, sid: int) -> tuple:
         """Where a song stands in the fade's sources: songs are added in that order, so a receiving
         playlist is built like its source. The first sending member (in the fade's order) that lists
-        the song decides; songs no sender lists any more come last."""
+        the song decides; songs no sender lists any more come last.
+
+        Liked songs are listed newest first by every service, but adding can only append (or, for
+        liked songs, stamp "liked now"): so they go in oldest first. A playlist then reads oldest to
+        newest like later additions do, and liked songs elsewhere show the newest on top again."""
         for rank, m in enumerate(self.members):
             if m.sends and sid in m.pos:
-                return (rank, m.pos[sid], sid)
+                return (rank, -m.pos[sid] if m.row["kind"] == LIKED else m.pos[sid], sid)
         return (len(self.members), 0, sid)
 
     # ================================================================ plan

@@ -586,3 +586,17 @@ def test_songs_are_added_in_the_order_of_the_source(env):
     assert sync(env, lid).status == "ok"
     assert [key_of(t) for t in a.cols[(PLAYLIST, "dst")].values()] == [
         "levit", "lucky", "bohem", "blind", "smell", "hello"]
+
+
+def test_liked_songs_go_in_oldest_first(env):
+    # services list liked songs newest first: the newest like must be added last, so it shows on
+    # top of liked songs elsewhere and at the end of a playlist, like songs liked later
+    y, a = P(env, YTM), P(env, APPLE)
+    ident = Identity(env[0])
+    for k in ("hello", "smell", "blind", "bohem", "lucky", "levit"):
+        ident.song_for(track(YTM, k))
+    y.put(LIKED, "", "levit", "lucky", "bohem")          # levit is the newest like
+    lid = make_line(env, [(YTM, LIKED, "", "send"), (APPLE, LIKED, "", "receive"), (APPLE, PLAYLIST, "p", "receive")])
+    assert sync(env, lid).status == "ok"
+    assert [key_of(t) for t in a.cols[(LIKED, "")].values()] == ["bohem", "lucky", "levit"]
+    assert [key_of(t) for t in a.cols[(PLAYLIST, "p")].values()] == ["bohem", "lucky", "levit"]
