@@ -101,6 +101,8 @@
 	// sort menu
 	let sortBtn: HTMLButtonElement | undefined = $state();
 	let sortOpen = $state(false);
+	let moreBtn: HTMLButtonElement | undefined = $state();
+	let moreOpen = $state(false);
 	const SORTS: [Sort, Key][] = [
 		['artist', 'lib.sort.artist'],
 		['title', 'lib.sort.title'],
@@ -145,19 +147,26 @@
 
 <svelte:window {onkeydown} />
 
+<!-- on a phone the buttons share the large title's row, which only has room for one: a "more" menu
+     with select, time travel and the collections, and "done" while selecting ("select all" is above
+     the list there) -->
 {#snippet actions()}
-	{#if c.selecting && c.filtered.length}
+	{#if c.selecting && c.filtered.length && !ui.phone}
 		<button class="gbtn glass lq" onclick={toggleAll}>{allSelected ? t('lib.selectNone') : t('lib.selectAllShort')}</button>
 	{/if}
-	{#if c.data?.songs.length}
+	{#if c.data?.songs.length && (!ui.phone || c.selecting)}
 		<button class="gbtn glass lq" onclick={() => (c.selecting ? endSelect() : (c.selecting = true))}>{c.selecting ? t('common.done') : t('lib.select')}</button>
 	{/if}
-	<button class="gbtn round glass lq" onclick={() => ui.timeTravel()} aria-label={t('tt.title')} title={t('tt.title')}><Glyph name="history" size={20} weight={2.1} /></button>
-	<button class="gbtn round glass lq" onclick={() => (c.sourcesOpen = true)} aria-label={t('lib.sources')}><Glyph name="settings" size={19} weight={2.1} /></button>
+	{#if !ui.phone}
+		<button class="gbtn round glass lq" onclick={() => ui.timeTravel()} aria-label={t('tt.title')} title={t('tt.title')}><Glyph name="history" size={20} weight={2.1} /></button>
+		<button class="gbtn round glass lq" onclick={() => (c.sourcesOpen = true)} aria-label={t('lib.sources')}><Glyph name="settings" size={19} weight={2.1} /></button>
+	{:else if !c.selecting}
+		<button class="gbtn round glass lq" bind:this={moreBtn} onclick={() => (moreOpen = true)} aria-label={t('common.more')} aria-haspopup="menu"><Glyph name="more" size={20} weight={2.1} /></button>
+	{/if}
 {/snippet}
 
 <div class="lib" bind:this={root}>
-	<Page title={t('tab.library')} {actions} glow={BRAND}>
+	<Page title={t('tab.library')} {actions} inline glow={BRAND}>
 		<div class="body">
 			{#if job}
 				<div class="card glass job" style:--p={pct}>
@@ -316,6 +325,16 @@
 	{/if}
 </div>
 
+<Menu
+	bind:open={moreOpen}
+	anchor={moreBtn}
+	label={t('common.more')}
+	items={[
+		...(c.data?.songs.length ? [{ label: t('lib.select'), run: () => (c.selecting = true) }] : []),
+		{ label: t('tt.title'), run: () => ui.timeTravel() },
+		{ label: t('lib.sources'), run: () => (c.sourcesOpen = true) }
+	]}
+/>
 <Menu bind:open={sortOpen} anchor={sortBtn} label={t('lib.sort')} items={SORTS.map(([v, k]) => ({ label: t(k), checked: c.sort === v, run: () => (c.sort = v) }))} />
 {#each c.services as svc}
 	<Menu
