@@ -39,6 +39,8 @@ viewed/revoked from the account screen. Restart after changing environment varia
 
 - “Create a relaxed but not sad playlist from my library, around an hour, on Spotify.”
 - “Sort my library into melancholic, happy, relaxed and energetic playlists.”
+- “Keep sorting my liked songs into Chill, Party and Rest, and take them out of my likes once sorted.”
+- “Label the songs my sorting fade is waiting for.”
 - “Find songs that fit my Late Night playlist and add the ones I choose.”
 - “Which of my songs are missing on TIDAL or are not in any editable playlist yet?”
 - “Show my broken fades and preview what the next sync would change.”
@@ -96,6 +98,31 @@ proposal requires a fresh playlist preview. **Forget this** allows assistant cla
 Annotations are per person, even for a song whose identity is shared with another user. They survive
 song identity merges, with personal corrections taking precedence over assistant estimates.
 
+## Sorting into playlists
+
+Lasting sorting lives in fades, so it uses the same matching across services, previews, history and
+safety limits as every sync:
+
+- A **receiving** collection can have a `rule`: `moods`, `genres`, `tags`, `languages`, `energy`
+  (`low`/`medium`/`high`) and `artists`. Every filled list has to match; within a list one entry is
+  enough. `{"rest": true}` takes every song that fits no other rule of the fade. Without a rule a
+  collection takes every song, as before.
+- A **sending** collection (e.g. liked songs, role `send`) can have `move_sorted: true`: a song leaves
+  it once it is listed in every collection whose rule it fits (or the user removed or ignored it
+  there). It never leaves before it has arrived somewhere. Songs that fit no rule stay. More songs at
+  once than the fade's deletion limit allows wait for confirmation, like held deletions.
+- Rules on labels only place labelled songs: a song without labels waits (it never lands in the
+  rest by accident). Artist rules need no labels. **Labelling does not happen by itself**: the
+  assistant labels new songs when asked. `sorting_queue` lists exactly the songs a fade's rules are
+  waiting for; after `annotate_songs`, `prepare_sync` sorts them (or the fade's schedule does).
+- Rules and labels are personal: each person's rules use their own labels.
+- Songs are never removed from a playlist because a rule or label changed later.
+
+Rules are part of `prepare_fade` / `prepare_fade_update` members and of the fade editor in Crossfade
+(**Fades → + → Sort your likes**, or any receiving collection's rule line). Changing rules applies
+directly; switching `move_sorted` on removes songs from the source, so it waits for the user's
+approval like other deletions. The `sort_into_playlists` prompt walks an assistant through the setup.
+
 ## Previews, approval and progress
 
 Every change is prepared first: a `prepare_*` tool validates it and returns an immutable preview.
@@ -106,12 +133,14 @@ A proposal is not an executed change.
 2. **Only deletions wait for you in Crossfade.** That covers removing songs, removing duplicates,
    deleting or merging playlists, deleting a fade, resetting a collection exactly to an earlier state
    (`restore` in `exact` mode), carrying out held deletions (`prepare_sync` with `allow_deletions`),
-   and switching a fade's deletion sync on or raising its deletion safety limit. Everything else —
+   switching a fade's deletion sync on or raising its deletion safety limit, and letting a collection
+   give up sorted songs (`move_sorted`). Everything else —
    playlists, adding songs, creating and changing fades, pausing/resuming, syncing, matching songs,
    swapping versions, changing a collection's direction, restoring missing songs — the assistant
    carries out itself. New fades start with deletion sync off unless the assistant switches it on.
-3. A deletion proposal returns an `approve_url`. Open it (or **Account → AI assistants → Actions**,
-   or the card on the home page) to see the preview and **Allow deletion** or **Discard** it.
+3. A deletion proposal shows up as a card at the top of Crossfade's **home page**, with what it would
+   delete, the preview, **Allow deletion** and **Discard**. It also returns an `approve_url` that
+   opens exactly that card.
    If you set up notifications with the event *something needs my confirmation*, Crossfade also
    sends you a message with that link. MCP can never approve its own deletions.
 4. The assistant polls `get_action` until the worker reports a final state and explains any failures.
@@ -137,7 +166,7 @@ held-deletion limits.
 | Overview | `status` (incl. deletions waiting for approval), `activity`, `list_collections` |
 | Library | `search_library`, `get_song`, `prepare_add_songs`, `prepare_song_removal`, `refresh_library`, `library_progress`, `stop_library_job` |
 | Labels/playlists | `list_labels`, `annotate_songs`, `clear_annotations`, `prepare_playlist` |
-| Fades | `list_fades`, `get_fade`, `fade_songs`, `fade_stats`, `fade_changes`, `prepare_fade`, `prepare_fade_update`, `prepare_fade_pause`, `prepare_collection_role`, `prepare_fade_deletion` |
+| Fades | `list_fades`, `get_fade`, `fade_songs`, `fade_stats`, `fade_changes`, `sorting_queue`, `prepare_fade`, `prepare_fade_update`, `prepare_fade_pause`, `prepare_collection_role`, `prepare_fade_deletion` |
 | Sync | `preview_sync`, `get_sync_plan`, `sync_progress`, `stop_sync`, `prepare_sync` |
 | Matching | `list_issues`, `issue_candidates`, `prepare_issue_resolution` (accept, ignore or unignore), `version_audit`, `version_candidates`, `prepare_version_replacement` |
 | Cleanup | `cleanup_suggestions`, `prepare_dedupe`, `prepare_playlist_cleanup` |
@@ -148,7 +177,7 @@ held-deletion limits.
 `prepare_add_songs` adds library songs to any editable collection (liked songs, library, playlist)
 or to a new playlist; songs already there are not added twice.
 
-There is also a `mood_playlist` prompt guiding the assistant through the workflow. Tool schemas
+There are also a `mood_playlist` and a `sort_into_playlists` prompt guiding the assistant through those workflows. Tool schemas
 describe their parameters and limits. Library results are paginated (maximum 250 per page); follow
 `next_offset`. `missing_on` compares services, `absent_from` compares a playlist/collection and
 `unassigned` finds songs outside your editable playlists. These filters can be combined. Annotation
@@ -164,8 +193,8 @@ the music involved so you can review them later. Applying anything but a deletio
 client's own user-authorization flow; deletion approval in the browser is enforced independently of
 the assistant.
 
-Saved rules and automatically maintained mood playlists, automatic external enrichment, measured BPM
-or valence, and reordering an existing remote playlist are not part of this version.
+Automatic labelling without an assistant, automatic external enrichment, measured BPM or valence, and
+reordering an existing remote playlist are not part of this version.
 
 ## Development and protocol check
 

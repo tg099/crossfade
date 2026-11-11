@@ -5,6 +5,7 @@
 	import Cover from './Cover.svelte';
 	import Glyph from './Glyph.svelte';
 	import HearButton from './HearButton.svelte';
+	import { changeNote } from './fade.ts';
 	import { t } from './i18n.svelte.ts';
 
 	// What a run did (or a preview would do), per collection: added, removed, still pending, and
@@ -22,7 +23,7 @@
 				<Cover src={x.artwork} seed={x.id} size={36} track={x} />
 				<span class="grow">
 					<span class="b clip">{x.title}</span>
-					<span class="b t-foot t-2 clip">{x.artist}{x.note ? ` · ${x.note}` : ''}</span>
+					<span class="b t-foot t-2 clip">{x.artist}{x.note ? ` · ${changeNote(x.note)}` : ''}</span>
 				</span>
 				<HearButton track={x} size={32} />
 			</li>

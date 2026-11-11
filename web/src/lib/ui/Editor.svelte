@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	import type { Kind, Role, Service } from '#lib/types.ts';
+	import type { Kind, Role, Service, SortRule } from '#lib/types.ts';
 	export interface DraftStop {
 		uid: number;
 		service: Service;
@@ -9,6 +9,10 @@
 		role: Role;
 		follow: boolean; // send-only: still apply deletions made elsewhere
 		create: boolean;
+		/** receiving: only the songs that fit (sorting into playlists); null = every song */
+		rule: SortRule | null;
+		/** sending: let go of songs once they are sorted (an inbox like liked songs) */
+		move: boolean;
 	}
 	interface Draft {
 		name: string;
@@ -21,6 +25,8 @@
 		guardPct: number;
 		paused: boolean;
 		versionPolicy: 'closest' | 'exact';
+		/** built from the sorting template: new collections receive and get a rule */
+		sorting?: boolean;
 	}
 	// drafts survive swiping the sheet away; only "Cancel" throws them out
 	const drafts = new Map<number, Draft>();
@@ -44,7 +50,7 @@
 	import Switch from './Switch.svelte';
 	import SwipeRow from './SwipeRow.svelte';
 	import { askDeleteFade } from './ctx.ts';
-	import { COLOR_KEY, FADE_ICONS, fadeCovers, fadeIcon } from './fade.ts';
+	import { COLOR_KEY, FADE_ICONS, fadeCovers, fadeIcon, ruleText } from './fade.ts';
 	import { t, type Key } from './i18n.svelte.ts';
 	import { Spring } from './motion.ts';
 	import { Reorder } from './reorder.svelte.ts';
@@ -81,7 +87,7 @@
 			name: f.name,
 			color: f.color,
 			icon: fadeIcon(f),
-			stops: f.members.filter((m) => m.mine).map((m) => ({ uid: ++uid, service: m.service, kind: m.kind, collection_id: m.collection_id, collection_name: m.collection_name, role: m.role, follow: m.follow_deletions, create: false })),
+			stops: f.members.filter((m) => m.mine).map((m) => ({ uid: ++uid, service: m.service, kind: m.kind, collection_id: m.collection_id, collection_name: m.collection_name, role: m.role, follow: m.follow_deletions, create: false, rule: m.rule, move: m.move_sorted })),
 			interval: f.interval_minutes,
 			deletions: f.sync_deletions,
 			guardMin: f.delete_guard_min,
@@ -95,14 +101,20 @@
 		if (ui.editorTemplate === 'likes') {
 			b.name = t('start.likes');
 			b.icon = 'heart';
-			b.stops = connected.map((s) => ({ uid: ++uid, service: s, kind: 'liked', collection_id: '', collection_name: t(LIKED[s]), role: 'both', follow: false, create: false }));
+			b.stops = connected.map((s) => ({ uid: ++uid, service: s, kind: 'liked', collection_id: '', collection_name: t(LIKED[s]), role: 'both', follow: false, create: false, rule: null, move: false }));
 		} else if (ui.editorTemplate === 'copy' && connected.length >= 2) {
 			b.name = t('start.copy');
 			b.icon = 'car';
 			b.stops = [
-				{ uid: ++uid, service: connected[0], kind: null, collection_id: '', collection_name: '', role: 'send', follow: false, create: false },
-				{ uid: ++uid, service: connected[1], kind: null, collection_id: '', collection_name: '', role: 'receive', follow: false, create: false }
+				{ uid: ++uid, service: connected[0], kind: null, collection_id: '', collection_name: '', role: 'send', follow: false, create: false, rule: null, move: false },
+				{ uid: ++uid, service: connected[1], kind: null, collection_id: '', collection_name: '', role: 'receive', follow: false, create: false, rule: null, move: false }
 			];
+		} else if (ui.editorTemplate === 'sort' && connected.length) {
+			// liked songs as the inbox; the playlists to sort into are added next, each with its rule
+			b.name = t('start.sort');
+			b.icon = 'star';
+			b.sorting = true;
+			b.stops = [{ uid: ++uid, service: connected[0], kind: 'liked', collection_id: '', collection_name: t(LIKED[connected[0]]), role: 'send', follow: false, create: false, rule: null, move: false }];
 		}
 		return b;
 	}
@@ -185,7 +197,17 @@
 			delete_guard_ratio: d.guardPct / 100,
 			paused: d.paused,
 			version_policy: d.versionPolicy,
-			members: d.stops.map((s) => ({ service: s.service, kind: s.kind, collection_id: s.collection_id, collection_name: s.collection_name, role: s.role, follow_deletions: s.role === 'send' && s.follow, create: s.create }))
+			members: d.stops.map((s) => ({
+				service: s.service,
+				kind: s.kind,
+				collection_id: s.collection_id,
+				collection_name: s.collection_name,
+				role: s.role,
+				follow_deletions: s.role === 'send' && s.follow,
+				create: s.create,
+				rule: s.role !== 'send' ? s.rule : null,
+				move_sorted: s.role !== 'receive' && s.move && sorts
+			}))
 		};
 		try {
 			const saved = fade ? await put<Line>(`/api/lines/${fade.id}`, body) : await post<Line>('/api/lines', body);
@@ -284,8 +306,13 @@
 		if (target) Object.assign(target, props);
 		else {
 			const id = ++uid;
-			d.stops.push({ uid: id, role: create ? 'receive' : 'both', follow: false, ...props });
+			// in a sorting fade a new playlist is somewhere to sort into: it receives, and its rule comes next
+			const into = d.sorting && c.kind === 'playlist';
+			d.stops.push({ uid: id, role: create || into ? 'receive' : 'both', follow: false, rule: null, move: false, ...props });
 			fresh = id;
+			pickOpen = false;
+			if (into) setTimeout(() => openRule(id), 380);
+			return;
 		}
 		pickOpen = false;
 	}
@@ -307,6 +334,51 @@
 		{ value: 'receive', label: t('role.receive') }
 	]);
 	const kindLabel = (k: Kind) => t(`kind.${k}`);
+
+	// ---------------------------------------------------------------- sorting into playlists
+	/** some collection of this fade only takes what fits its rule */
+	const sorts = $derived(d.stops.some((s) => s.role !== 'send' && s.rule) || !!d.sorting);
+	const ENERGY: { value: 'low' | 'medium' | 'high'; key: Key }[] = [
+		{ value: 'low', key: 'rule.energy.low' },
+		{ value: 'medium', key: 'rule.energy.medium' },
+		{ value: 'high', key: 'rule.energy.high' }
+	];
+
+	type RuleMode = 'all' | 'rule' | 'rest';
+	let ruleOpen = $state(false);
+	let ruleFor = $state<number | null>(null);
+	let ruleMode = $state<RuleMode>('all');
+	let rf = $state({ moods: '', genres: '', tags: '', artists: '', languages: '' });
+	let energy = $state<('low' | 'medium' | 'high')[]>([]);
+	type Label = { label: string; songs: number };
+	let vocab = $state<{ moods: Label[]; genres: Label[]; tags: Label[] } | null>(null);
+	const ruleStop = $derived(ruleFor !== null ? d.stops.find((x) => x.uid === ruleFor) : undefined);
+	const split = (v: string) => [...new Set(v.split(',').map((x) => x.trim()).filter(Boolean))];
+
+	function openRule(id: number) {
+		const st = d.stops.find((x) => x.uid === id);
+		if (!st) return;
+		const r = st.rule;
+		ruleFor = id;
+		ruleMode = !r ? 'all' : r.rest ? 'rest' : 'rule';
+		rf = { moods: r?.moods.join(', ') ?? '', genres: r?.genres.join(', ') ?? '', tags: r?.tags.join(', ') ?? '', artists: r?.artists.join(', ') ?? '', languages: r?.languages.join(', ') ?? '' };
+		energy = [...(r?.energy ?? [])];
+		ruleOpen = true;
+		if (!vocab) api<typeof vocab>('/api/mcp/labels').then((v) => (vocab = v)).catch(() => {});
+	}
+	const draftRule = $derived<SortRule>({ moods: split(rf.moods), genres: split(rf.genres), tags: split(rf.tags), artists: split(rf.artists), languages: split(rf.languages), energy, rest: false });
+	const ruleEmpty = $derived(ruleMode === 'rule' && !Object.values(draftRule).some((v) => Array.isArray(v) && v.length));
+	function saveRule() {
+		if (!ruleStop || ruleEmpty) return;
+		ruleStop.rule = ruleMode === 'all' ? null : ruleMode === 'rest' ? { moods: [], genres: [], tags: [], artists: [], languages: [], energy: [], rest: true } : $state.snapshot(draftRule) as SortRule;
+		ruleOpen = false;
+	}
+	/** tap a label you already use: it joins the line (or leaves it again) */
+	function toggleLabel(key: 'moods' | 'genres' | 'tags', label: string) {
+		const list = split(rf[key]);
+		rf[key] = (list.some((x) => x.toLowerCase() === label) ? list.filter((x) => x.toLowerCase() !== label) : [...list, label]).join(', ');
+	}
+	const hasLabel = (key: 'moods' | 'genres' | 'tags', label: string) => split(rf[key]).some((x) => x.toLowerCase() === label);
 </script>
 
 <Sheet bind:open={ui.editorOpen} label={fade ? t('editor.edit') : t('editor.new')} class="tinted editor" style={tintVars(d.color)} onclosed={closed}>
@@ -401,6 +473,23 @@
 												<span class="fl t-foot t-2">{t('editor.followHint')}</span>
 											</span>
 											<Switch bind:checked={s.follow} label={t('editor.followFor', { name: s.collection_name || SERVICE_NAME[s.service] })} />
+										</div>
+									{/if}
+									{#if s.kind && s.role !== 'send'}
+										<!-- what comes here: every song, or only what fits a rule (sorting into playlists) -->
+										<button class="rule" class:set={!!s.rule} onclick={() => openRule(s.uid)} aria-label={t('rule.editFor', { name: s.collection_name })}>
+											<Glyph name="filter" size={14} weight={2.3} />
+											<span class="clip">{ruleText(s.rule)}</span>
+											<Glyph name="chevronRight" size={13} weight={2.6} />
+										</button>
+									{/if}
+									{#if s.kind && s.role !== 'receive' && sorts}
+										<div class="follow move">
+											<span class="grow-text">
+												<span class="fl">{t('rule.move')}</span>
+												<span class="fl t-foot t-2">{t('rule.moveHint')}</span>
+											</span>
+											<Switch bind:checked={s.move} label={t('rule.moveFor', { name: s.collection_name || SERVICE_NAME[s.service] })} />
 										</div>
 									{/if}
 								</div>
@@ -580,6 +669,67 @@
 	</div>
 </Sheet>
 
+<!-- what a receiving collection takes: everything, what fits a rule, or what no other rule takes -->
+<Sheet bind:open={ruleOpen} label={t('rule.title')} class="tinted" style={tintVars(d.color)}>
+	{#snippet header()}
+		<SheetBar title={ruleStop?.collection_name || t('rule.title')} leading={{ label: t('common.cancel'), run: () => (ruleOpen = false) }} confirm={{ label: t('common.done'), run: saveRule, disabled: ruleEmpty }} />
+	{/snippet}
+	<div class="form">
+		<div class="section">
+			<div class="section-head"><span class="caps">{t('rule.takes')}</span></div>
+			<div class="pad">
+				<Segmented
+					bind:value={ruleMode}
+					label={t('rule.takes')}
+					options={[
+						{ value: 'all', label: t('rule.modeAll') },
+						{ value: 'rule', label: t('rule.modeRule') },
+						{ value: 'rest', label: t('rule.modeRest') }
+					]}
+				/>
+			</div>
+			<p class="section-foot">{ruleMode === 'all' ? t('rule.allHint') : ruleMode === 'rest' ? t('rule.restHint') : t('rule.ruleHint')}</p>
+		</div>
+		{#if ruleMode === 'rule'}
+			<div class="section">
+				<div class="group">
+					<label class="cell"><span class="rlbl">{t('mcp.moods')}</span><input class="in" bind:value={rf.moods} placeholder={t('mcp.moodPlaceholder')} autocomplete="off" /></label>
+					<label class="cell"><span class="rlbl">{t('mcp.genres')}</span><input class="in" bind:value={rf.genres} placeholder={t('rule.genrePh')} autocomplete="off" /></label>
+					<label class="cell"><span class="rlbl">{t('mcp.tags')}</span><input class="in" bind:value={rf.tags} autocomplete="off" /></label>
+					<label class="cell"><span class="rlbl">{t('rule.artists')}</span><input class="in" bind:value={rf.artists} placeholder={t('rule.artistsPh')} autocomplete="off" /></label>
+					<label class="cell"><span class="rlbl">{t('rule.languages')}</span><input class="in" bind:value={rf.languages} placeholder={t('rule.languagesPh')} autocomplete="off" /></label>
+					<div class="cell">
+						<span class="rlbl">{t('rule.energy')}</span>
+						<span class="chips">
+							{#each ENERGY as e (e.value)}
+								{@const on = energy.includes(e.value)}
+								<button class="cell-pill chip" class:on aria-pressed={on} onclick={() => (energy = on ? energy.filter((x) => x !== e.value) : [...energy, e.value])}>{t(e.key)}</button>
+							{/each}
+						</span>
+					</div>
+				</div>
+				<p class="section-foot" class:warn={ruleEmpty}>{ruleEmpty ? t('rule.needOne') : t('mcp.commas')}</p>
+			</div>
+			{#if vocab && (vocab.moods.length || vocab.genres.length || vocab.tags.length)}
+				{#each [['moods', 'mcp.moods'], ['genres', 'mcp.genres'], ['tags', 'mcp.tags']] as const as [key, head] (key)}
+					{#if vocab[key].length}
+						<div class="section">
+							<div class="section-head"><span class="caps">{t('rule.yours', { what: t(head) })}</span></div>
+							<div class="chips wrap">
+								{#each vocab[key].slice(0, 30) as l (l.label)}
+									{@const on = hasLabel(key, l.label)}
+									<button class="cell-pill chip" class:on aria-pressed={on} onclick={() => toggleLabel(key, l.label)}>{l.label} <span class="n">{l.songs}</span></button>
+								{/each}
+							</div>
+						</div>
+					{/if}
+				{/each}
+			{/if}
+			<p class="section-foot spaced">{t('rule.labelsHint')}</p>
+		{/if}
+	</div>
+</Sheet>
+
 <ActionSheet bind:open={confirmDiscard} title={t('editor.discardQ')} actions={[{ label: t('editor.discard'), role: 'destructive', run: discard }]} />
 
 <style>
@@ -735,7 +885,7 @@
 	.stop {
 		display: grid;
 		grid-template-columns: auto minmax(0, 1fr) auto;
-		grid-template-areas: 'mark name grip' 'mark role role' 'mark follow follow';
+		grid-template-areas: 'mark name grip' 'mark role role' 'mark follow follow' 'mark rule rule' 'mark move move';
 		align-items: start;
 		column-gap: 12px;
 		padding-top: 12px;
@@ -763,6 +913,29 @@
 		gap: 12px;
 		margin-top: 10px;
 		max-width: 360px;
+	}
+	.follow.move {
+		grid-area: move;
+	}
+	/* the rule of a receiving collection: one quiet line that opens its editor */
+	.rule {
+		grid-area: rule;
+		justify-self: start;
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		max-width: 100%;
+		margin-top: 10px;
+		padding: 5px 10px;
+		border-radius: 999px;
+		background: var(--fill-3);
+		color: var(--label-2);
+		font-size: var(--f-foot);
+		font-weight: 600;
+	}
+	.rule.set {
+		background: color-mix(in srgb, var(--tint-fill) 16%, transparent);
+		color: var(--tint);
 	}
 	.follow .grow-text {
 		flex: 1;
@@ -870,6 +1043,42 @@
 	}
 	.pane {
 		min-width: 0;
+	}
+
+	.rlbl {
+		flex: none;
+		width: 6.5em;
+	}
+	.chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+	.chips.wrap {
+		gap: 8px;
+		padding: 0 4px;
+	}
+	.chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		color: var(--label);
+		font-weight: 500;
+	}
+	.chip .n {
+		color: var(--label-2);
+		font-size: var(--f-foot);
+	}
+	.chip.on {
+		background: var(--tint-fill);
+		color: var(--on-tint);
+	}
+	.chip.on .n {
+		color: inherit;
+		opacity: 0.75;
+	}
+	.spaced {
+		margin: 0 16px;
 	}
 
 	@media (prefers-reduced-motion: reduce) {

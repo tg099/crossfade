@@ -136,13 +136,9 @@
 						{#if app.socialBadge}<span class="count" aria-hidden="true">{app.socialBadge}</span>{/if}
 						<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
 					</button>
-					<button class="cell" style:--inset="58px" onclick={() => (app.assistantWaiting.length ? ui.openAssistant() : (ui.mcpOpen = true))}>
+					<button class="cell" style:--inset="58px" onclick={() => (ui.mcpOpen = true)}>
 						<span class="tile-icon" style:background="#7c5ce6"><Glyph name="sparkle" size={19} weight={2.1} /></span>
-						<span class="grow">
-							<span class="b">{t('mcp.title')}</span>
-							{#if app.assistantWaiting.length}<span class="b t-foot tintc">{t('mcp.waitingN', { n: app.assistantWaiting.length })}</span>{/if}
-						</span>
-						{#if app.assistantWaiting.length}<span class="count" aria-hidden="true">{app.assistantWaiting.length}</span>{/if}
+						<span class="grow">{t('mcp.title')}</span>
 						<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
 					</button>
 				</div>

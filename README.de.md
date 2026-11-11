@@ -156,9 +156,15 @@ Jeder Fade merkt sich, welche Songs er kennt und wo er sie zuletzt gesehen hat.
   dein Assistent deine Mediathek durchsuchen und vergleichen, Playlists für frei beschriebene Stimmungen
   vorbereiten, Fades verwalten, offene Songs zuordnen, Dubletten aufräumen und die Zeitreise nutzen. Persönliche
   Schlüssel trennen Lesen, Synchronisieren und Verwalten. Änderungen setzt der Assistent selbst um, nur
-  Löschungen bestätigst du in Crossfade (per Link, Karte auf der Übersicht und auf Wunsch Benachrichtigung). Einordnungen
+  Löschungen bestätigst du direkt auf der Übersicht (auch per Link und auf Wunsch Benachrichtigung). Einordnungen
   zu Stimmung und Genre stammen vom verbundenen Assistenten, mit Sicherheitseinschätzung und geschützten
   persönlichen Korrekturen. [Einrichtung, Werkzeuge und Grenzen](docs/mcp.md) (Englisch).
+- **In Playlists einsortieren** (im Fade-Editor oder mit der Vorlage **Likes einsortieren**): Eine empfangende
+  Sammlung kann nur die Songs bekommen, die zu einer Regel passen – Stimmungen, Genres, Tags, Sprachen, Energie,
+  Interpreten oder „alles Übrige“. Neue Songs werden bei jedem Sync einsortiert. Eine sendende Sammlung wie deine
+  Likes kann als Eingang dienen: Ein Song verschwindet dort, sobald er in allen passenden Playlists angekommen ist
+  (viele auf einmal warten auf Bestätigung). Stimmungen und Genres kommen von deinem KI-Assistenten oder deinen
+  eigenen Tags; Songs ohne Einordnung warten, bis sie eine haben.
 - **Zeitreise:** Jedes Mal, wenn Crossfade eine Sammlung komplett liest, merkt es sich ihren Inhalt, aber nur wenn
   sich etwas geändert hat. In der Mediathek (Uhr-Symbol) oder bei einer Sammlung im Fade wählst du einen Zeitpunkt,
   siehst, was seitdem verschwunden und dazugekommen ist, und holst einzelne Songs zurück oder setzt die Sammlung

@@ -294,7 +294,9 @@ def test_destructive_actions_require_browser_approval_and_are_isolated(env, host
     assert draft["approve_url"] == f"{config.base_url}/assistant?action={draft['id']}"
     refused = call(env, "apply_action", {"action_id": draft["id"]}, error=True)
     assert "confirmation in Crossfade" in refused and draft["approve_url"] in refused
-    assert [a["id"] for a in env.client.get("/api/mcp/pending", headers=env.browser).json()["actions"]] == [draft["id"]]
+    waiting = env.client.get("/api/mcp/pending", headers=env.browser).json()["actions"]
+    assert [a["id"] for a in waiting] == [draft["id"]]
+    assert waiting[0]["brief"] == {"songs": 1, "collections": ["Likes"]}
     other = person(host, "Other")
     call(other, "get_action", {"action_id": draft["id"]}, error=True)
     assert env.client.post(f"/api/mcp/actions/{draft['id']}/apply", headers=other.browser).status_code == 404
@@ -712,3 +714,45 @@ def test_action_summary_query_count_is_independent_of_number_of_actions(env):
     assert len(actions) == 50 and len(queries) == 1
     assert all(a["state"] == "expired" and a["has_result"] is False for a in actions)
     assert [a["id"] for a in actions[:2]] == [f"summary-{env.uid}-49", f"summary-{env.uid}-48"]
+
+
+def test_sorting_fade_via_mcp_rules_queue_and_hand_off_approval(env):
+    playlist = {"service": "ytm", "kind": "playlist", "collection_name": "Chill", "role": "receive",
+                "create": True, "rule": {"moods": ["Relaxed"]}}
+    likes = {"service": "ytm", "kind": "liked", "collection_name": "Likes", "role": "send"}
+    keep = call(env, "prepare_fade", {"fade": {"name": "Sort", "interval_minutes": 0, "members": [likes, playlist]}})
+    assert not keep["requires_browser_confirmation"]
+    fade_id = call(env, "apply_action", {"action_id": keep["id"]})["result"]["id"]
+    members = call(env, "get_fade", {"fade_id": fade_id})["members"]
+    chill = next(m for m in members if m["collection_name"] == "Chill")
+    assert chill["rule"]["moods"] == ["relaxed"] and not chill["move_sorted"]
+    queue = call(env, "sorting_queue", {"fade_id": fade_id})
+    assert queue["rules"][0]["takes"] == "moods: relaxed"
+    liked = {"Get Lucky", "Blinding Lights", "Hello", "Haus am See"}
+    assert queue["total"] == 4 and {s["title"] for s in queue["songs"]} == liked
+    annotate(env, env.ids["Hello"], "relaxed")
+    assert call(env, "sorting_queue", {"fade_id": fade_id})["total"] == 3
+    # letting go of sorted songs removes them from the likes: that waits for the person
+    move = call(env, "prepare_fade_update", {"fade_id": fade_id, "changes": {"members": [
+        {**likes, "move_sorted": True}, {**playlist, "create": False, "collection_id": chill["collection_id"]}]}})
+    assert move["requires_browser_confirmation"]
+    call(env, "apply_action", {"action_id": move["id"]}, error=True)
+    r = env.client.post(f"/api/mcp/actions/{move['id']}/apply", headers=env.browser)
+    assert r.status_code == 200, r.text
+    assert next(m for m in r.json()["result"]["members"] if m["kind"] == "liked")["move_sorted"]
+    # changing a rule later is no deletion
+    rule = call(env, "prepare_fade_update", {"fade_id": fade_id, "changes": {"members": [
+        {**likes, "move_sorted": True}, {**playlist, "create": False, "collection_id": chill["collection_id"],
+                                         "rule": {"artists": ["Adele"]}}]}})
+    assert not rule["requires_browser_confirmation"]
+    # a rule on a sending-only collection or hand-off on a receiving one means nothing and is dropped
+    odd = env.client.put(f"/api/lines/{fade_id}", headers=env.browser, json={
+        "name": "Sort", "members": [{**likes, "rule": {"moods": ["x"]}},
+                                    {**playlist, "create": False, "collection_id": chill["collection_id"],
+                                     "move_sorted": True}]}).json()
+    source, target = odd["members"]
+    assert source["rule"] is None and not target["move_sorted"]
+    assert target["rule"]["moods"] == ["relaxed"]
+    bad = env.client.put(f"/api/lines/{fade_id}", headers=env.browser, json={
+        "name": "Sort", "members": [likes, {**playlist, "rule": {}}]})
+    assert bad.status_code == 422

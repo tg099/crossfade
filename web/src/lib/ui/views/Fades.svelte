@@ -5,6 +5,7 @@
 	import type { Line } from '#lib/types.ts';
 	import FadeBadge from '../FadeBadge.svelte';
 	import Glyph from '../Glyph.svelte';
+	import Menu from '../Menu.svelte';
 	import Mosaic from '../Mosaic.svelte';
 	import Page from '../Page.svelte';
 	import Segmented from '../Segmented.svelte';
@@ -37,6 +38,15 @@
 		() => own.map((f) => f.id),
 		(from, to) => app.moveLine(from, to)
 	);
+	// a new fade: from scratch, or from one of the common shapes (sorting likes into playlists …)
+	let newBtn: HTMLButtonElement | undefined = $state();
+	let newOpen = $state(false);
+	const NEW = $derived([
+		{ label: t('start.own'), run: () => ui.edit(0) },
+		{ label: t('start.likes'), run: () => ui.edit(0, 'likes') },
+		{ label: t('start.copy'), run: () => ui.edit(0, 'copy') },
+		{ label: t('start.sort'), run: () => ui.edit(0, 'sort') }
+	]);
 </script>
 
 {#snippet row(f: Line)}
@@ -65,7 +75,7 @@
 			</button>
 		{/if}
 		{#if !ordering}
-			<button class="gbtn round glass lq" onclick={() => ui.edit(0)} aria-label={t('fades.new')}><Glyph name="plus" size={22} weight={2.6} /></button>
+			<button class="gbtn round glass lq" bind:this={newBtn} onclick={() => (newOpen = true)} aria-label={t('fades.new')} aria-haspopup="menu"><Glyph name="plus" size={22} weight={2.6} /></button>
 		{/if}
 	{/snippet}
 
@@ -136,6 +146,8 @@
 		<p class="tip t-foot t-2">{ordering ? t('fades.orderHint') : tab === 'friends' ? t('fades.friendsHint') : t('fades.swipeHint')}</p>
 	{/if}
 </Page>
+
+<Menu bind:open={newOpen} anchor={newBtn} label={t('fades.new')} items={NEW} />
 
 <style>
 	.llist {

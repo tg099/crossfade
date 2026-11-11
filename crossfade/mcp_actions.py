@@ -17,7 +17,7 @@ from typing import Literal
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from . import music
+from . import music, sorting
 from . import notify as alert
 from .api import catalog, history, lines
 from .config import config
@@ -209,7 +209,8 @@ def _merged_fade(db: Database, uid: int, fade_id: int, changes: dict) -> tuple[d
     current |= {"sync_deletions": bool(line["sync_deletions"]), "paused": bool(line["paused"])}
     current["members"] = [{"service": m["service"], "kind": m["kind"], "collection_id": m["collection_id"],
                            "collection_name": m["collection_name"], "role": m["role"],
-                           "follow_deletions": bool(m["follow_deletions"])}
+                           "follow_deletions": bool(m["follow_deletions"]), "rule": m["rule"],
+                           "move_sorted": m["move_sorted"]}
                           for m in lines._members(db, fade_id, uid) if m["mine"]]
     wanted = {k: v for k, v in changes.items() if v is not None}
     try:
@@ -222,7 +223,13 @@ def _merged_fade(db: Database, uid: int, fade_id: int, changes: dict) -> tuple[d
 
 def _widens_deletions(db: Database, uid: int, line: dict | None, body: lines.LineIn) -> bool:
     """Deletions switched on, allowed to remove more at once, or reaching one of your collections
-    that so far never lost songs through this fade."""
+    that so far never lost songs through this fade – including a collection that starts letting go
+    of sorted songs (removing them from liked songs is a deletion there)."""
+    moving_before = {(m["service"], m["kind"], m["collection_id"]) for m in lines._members(db, line["id"], uid)
+                     if m["mine"] and m["move_sorted"] and m["role"] != "receive"} if line else set()
+    if any(m.move_sorted and m.role != "receive" and (m.service, m.kind, m.collection_id) not in moving_before
+           for m in body.members):
+        return True
     if not body.sync_deletions:
         return False
     if line is None or not line["sync_deletions"]:
@@ -260,8 +267,9 @@ def validate(db: Database, user: dict, operation: str, params: dict) -> tuple[st
         lines._resolve_members(db, uid, body.members, create=False)
         preview = {"fade": line["name"], "changes": {k: v for k, v in changes.items() if k != "members"}}
         if "members" in changes:
-            preview["members"] = [m.model_dump(include={"service", "kind", "collection_name", "role"})
-                                  for m in body.members]
+            preview["members"] = [{**m.model_dump(include={"service", "kind", "collection_name", "role",
+                                                           "move_sorted"}),
+                                   "takes": sorting.describe(m.rule)} for m in body.members]
         return "manage", _widens_deletions(db, uid, line, body), {
             "fade_id": line_id, **({"fade": params["fade"]} if "fade" in params else {"changes": changes})}, preview
     if operation in ("fade_delete", "fade_pause", "sync"):
@@ -409,13 +417,46 @@ def action_summaries(db: Database, uid: int, limit: int = 50, offset: int = 0,
     return rows
 
 
+def brief(operation: str, preview: dict | None) -> dict:
+    """The gist of a proposal in a few numbers and names, for a card that is read at a glance."""
+    p = preview or {}
+    out: dict = {}
+    if isinstance(p.get("fade"), str):
+        out["fade"] = p["fade"]
+    elif isinstance(p.get("name"), str) and operation == "fade_create":
+        out["fade"] = p["name"]
+    if operation == "remove_songs":
+        out["songs"] = p.get("count") or len(p.get("songs") or [])
+        out["collections"] = [s["name"] for s in p.get("sources") or []]
+    elif operation == "dedupe":
+        out["songs"] = len(p.get("groups") or []) + len(p.get("copies") or [])
+    elif operation == "playlists":
+        selection = p.get("selection") or {}
+        out["playlists"] = len(selection.get("delete") or []) + len(selection.get("merge") or [])
+        out["collections"] = [s["name"] for s in p.get("sources") or []
+                              if s["id"] in set(selection.get("delete") or []) | {m[0] for m in selection.get("merge") or []}]
+    elif operation == "restore":
+        snap = p.get("snapshot") or {}
+        out["songs"] = len(snap.get("extra") or [])
+        out["taken_at"] = snap.get("taken_at")
+    elif operation == "sync":
+        held = ((p.get("last_plan") or {}).get("plan") or {}).get("held") or []
+        out["songs"] = len(held)
+    elif operation == "fade_delete":
+        out["collections"] = [m["collection_name"] for m in p.get("members") or []]
+    return {k: v for k, v in out.items() if v not in (None, [], "")}
+
+
 def awaiting(db: Database, uid: int) -> list[dict]:
     """Deletions an active connection proposed and only the person can let happen."""
-    return db.all("""SELECT a.id, a.operation, a.created_at, t.name AS connection FROM mcp_actions a
+    rows = db.all("""SELECT a.id, a.operation, a.created_at, a.preview, t.name AS connection FROM mcp_actions a
                      JOIN mcp_tokens t ON t.id=a.token_id
                      WHERE a.user_id=? AND a.state='pending' AND a.destructive=1 AND a.expires_at>?
                        AND t.expires_at>? ORDER BY a.created_at DESC LIMIT 50""",
                   (uid, time.time(), time.time()))
+    for row in rows:
+        row["brief"] = brief(row["operation"], json.loads(row.pop("preview") or "null"))
+    return rows
 
 
 def get_action(db: Database, uid: int, action_id: str) -> dict:

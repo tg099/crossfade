@@ -83,6 +83,18 @@ export interface CollectionInfo {
 	editable: boolean;
 }
 
+/** what a receiving collection of a fade takes; every filled list must match one of its entries */
+export interface SortRule {
+	moods: string[];
+	genres: string[];
+	tags: string[];
+	artists: string[];
+	languages: string[];
+	energy: ('low' | 'medium' | 'high')[];
+	/** everything no other rule of the fade takes */
+	rest: boolean;
+}
+
 export interface Member {
 	id: number;
 	line_id: number;
@@ -97,6 +109,10 @@ export interface Member {
 	collection_name: string;
 	role: Role;
 	follow_deletions: boolean; // send-only: still applies deletions made elsewhere
+	/** receiving: only songs that fit this rule come here (sorting into playlists) */
+	rule: SortRule | null;
+	/** sending: songs leave this collection once they are sorted (an inbox like liked songs) */
+	move_sorted: boolean;
 	position: number;
 	item_count: number | null;
 	initialized: boolean;
@@ -485,4 +501,6 @@ export interface AssistantWaiting {
 	operation: string;
 	created_at: number;
 	connection: string;
+	/** the gist, for a card read at a glance */
+	brief: { fade?: string; songs?: number; playlists?: number; collections?: string[]; taken_at?: number };
 }

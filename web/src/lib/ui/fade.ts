@@ -1,6 +1,6 @@
 // How a fade is doing, in words: the status line, notes per collection, its cover.
 import { SERVICE_NAME } from '#lib/format.ts';
-import type { Line, Member } from '#lib/types.ts';
+import type { Line, Member, SortRule } from '#lib/types.ts';
 import type { GlyphName } from './Glyph.svelte';
 import { t, type Key } from './i18n.svelte.ts';
 import { ago, clock } from './ui.svelte.ts';
@@ -89,3 +89,18 @@ export const COLOR_KEY: Record<string, Key> = {
 	'#6A3FA0': 'color.violet',
 	'#8C5A2B': 'color.brown'
 };
+
+/** what a receiving collection takes, in one line: "Only: relaxed, calm · Adele" */
+export function ruleText(r: SortRule | null): string {
+	if (!r) return t('rule.all');
+	if (r.rest) return t('rule.rest');
+	const parts = [[...r.moods, ...r.genres, ...r.tags].join(', '), r.artists.join(', '), r.languages.join(', '), r.energy.map((e) => t(`rule.energy.${e}` as Key)).join(', ')];
+	return t('rule.only', { what: parts.filter(Boolean).join(' · ') });
+}
+
+/** a change's note from the sync engine, in the reader's language where we know it */
+export function changeNote(note: string | null | undefined): string {
+	if (!note) return '';
+	if (note.startsWith('sorted into ')) return t('rule.sortedInto', { names: note.slice('sorted into '.length) });
+	return note;
+}

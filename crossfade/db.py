@@ -398,6 +398,12 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX mcp_audit_user ON mcp_audit(user_id, id DESC);
     """,
+    # ---- 20: sorting inside a fade: a receiving collection only takes songs that fit its rule
+    #          (JSON, see sorting.Rule); a sending one can let go of songs once they are sorted
+    """
+    ALTER TABLE line_members ADD COLUMN rule TEXT;
+    ALTER TABLE line_members ADD COLUMN move_sorted INTEGER NOT NULL DEFAULT 0;
+    """,
 ]
 
 

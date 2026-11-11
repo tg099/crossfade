@@ -17,7 +17,7 @@
 	import Segmented from '../Segmented.svelte';
 	import SwipeRow from '../SwipeRow.svelte';
 	import { askLeaveFade, hold, runFade, stopFade, trackMenu } from '../ctx.ts';
-	import { fadeCovers, fadeIcon, fadeStatus, memberFault, toneColor } from '../fade.ts';
+	import { changeNote, fadeCovers, fadeIcon, fadeStatus, memberFault, ruleText, toneColor } from '../fade.ts';
 	import { i18n, num, t } from '../i18n.svelte.ts';
 	import { ignoreIssue, loadIssues, resolveIssue, restoreIssue, unignore } from '../issues.ts';
 	import { tintVars } from '../tint.ts';
@@ -459,6 +459,8 @@
 					<ol class="group route">
 						{#each fade.members as m, i (m.id)}
 							{@const others = (app.interchanges.get(`${m.account_id}:${m.kind}:${m.collection_id}`) ?? []).filter((o) => o.id !== fade.id)}
+							{@const sorted = m.role !== 'send' && !!m.rule}
+							{@const handsOff = m.role !== 'receive' && m.move_sorted}
 							<li class="stop" class:first={i === 0} class:last={i === fade.members.length - 1}>
 								<span class="rail" aria-hidden="true">
 									<span class="rseg up"></span>
@@ -475,9 +477,11 @@
 										<span class="t-foot t-2 clip block">
 											{memberFault(m) ?? `${SERVICE_NAME[m.service]} · ${m.initialized && m.item_count != null ? t(m.kind === 'liked' ? 'n.likes' : 'n.songs', { n: m.item_count }) : t(`kind.${m.kind}`)}`}
 										</span>
-										{#if m.unmatched || m.pending || others.length || follows(m) || !m.mine}
+										{#if m.unmatched || m.pending || others.length || follows(m) || !m.mine || sorted || handsOff}
 											<span class="m-tags">
 												{#if !m.mine}<span class="tag accent"><Glyph name="user" size={11} weight={2.6} /> {m.user_name}</span>{/if}
+												{#if sorted}<span class="tag accent rule-tag" title={ruleText(m.rule)}><Glyph name="filter" size={11} weight={2.6} /> <span class="clip">{ruleText(m.rule)}</span></span>{/if}
+												{#if handsOff}<span class="tag">{t('member.handsOff')}</span>{/if}
 												{#if follows(m)}<span class="tag">{t('member.follows')}</span>{/if}
 												{#if m.unmatched}<span class="tag warn">{t('member.unmatched', { n: m.unmatched })}</span>{/if}
 												{#if m.pending}<span class="tag">{t('member.pending', { n: m.pending })}</span>{/if}
@@ -506,6 +510,7 @@
 							</li>
 						{/each}
 					</ol>
+					{#if fade.last_summary?.unsorted}<p class="section-foot">{t('rule.waiting', { n: fade.last_summary.unsorted })}</p>{/if}
 					{#if !fade.mine}<p class="section-foot">{t('share.guestHint', { name: owner })}</p>{/if}
 				</section>
 
@@ -633,7 +638,7 @@
 												{#if c.service}<ServiceMark service={c.service} size={13} title={false} />{/if}
 												{c.collection_name ?? t('history.removedCollection')}{c.message ? ` · ${c.message}` : ''}
 											</p>
-											{#if c.note}<p class="t-foot note">{c.note}</p>{/if}
+											{#if c.note}<p class="t-foot note">{changeNote(c.note)}</p>{/if}
 										</div>
 										<span class="t-foot t-2">{time(c.ts)}</span>
 									</li>
@@ -1077,6 +1082,10 @@
 		flex-wrap: wrap;
 		gap: 4px;
 		margin-top: 5px;
+	}
+	.rule-tag {
+		max-width: 100%;
+		min-width: 0;
 	}
 	.empty {
 		display: grid;

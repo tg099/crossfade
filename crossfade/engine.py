@@ -14,6 +14,10 @@ One run:
      send-only members that follow deletions
   5. safety: empty lists and too many removals stop the run / hold removals back
 
+Sorting (sorting.py): a receiver with a rule only gets the songs of L' that fit it; a sender set to
+`move_sorted` lets go of a song once it is listed in every collection whose rule it fits. Those
+hand-offs count towards the deletion safety limit like removals.
+
 The very first run therefore merges everything (no removals), one-way lines only copy from the
 senders, and deletions are only ever derived from songs that were actually seen before.
 """
@@ -29,6 +33,7 @@ from .db import Database
 from .identity import Identity
 from .models import SERVICE_NAMES, ApiError, AuthError, Track
 from .providers.base import Provider
+from .sorting import Sorter
 
 Progress = Callable[[str, int, int], None]
 Live = Callable[[str, dict], None]   # (kind, data): results as they happen – start | plan | issue | change
@@ -63,6 +68,7 @@ class MemberState:
     added_ok: set[int] = field(default_factory=set)
     seen_after_add: set[int] = field(default_factory=set)     # added this run and already listed
     add_notes: dict[int, str] = field(default_factory=dict)     # song -> "different version: …"
+    remove_notes: dict[int, str] = field(default_factory=dict)  # song -> "sorted into …"
     removed_ok: set[int] = field(default_factory=set)
     vanishing: dict[int, float] = field(default_factory=dict)  # song -> missing since (not confirmed yet)
     error: str | None = None
@@ -78,6 +84,11 @@ class MemberState:
     @property
     def receives(self) -> bool:
         return self.row["role"] in ("both", "receive")
+
+    @property
+    def hands_off(self) -> bool:
+        """Lets go of songs once they are sorted into the fade's rule collections."""
+        return self.sends and bool(self.row.get("move_sorted"))
 
     @property
     def takes_removals(self) -> bool:
@@ -111,9 +122,13 @@ class LineSync:
         self.line = db.one("SELECT * FROM lines WHERE id=?", (line_id,))
         if not self.line:
             raise ValueError("Fade not found")
-        rows = db.all("""SELECT m.*, a.service, a.yt_format FROM line_members m JOIN accounts a ON a.id=m.account_id
-                         WHERE m.line_id=? ORDER BY m.position, m.id""", (line_id,))
+        rows = db.all("""SELECT m.*, a.service, a.yt_format, a.user_id FROM line_members m
+                         JOIN accounts a ON a.id=m.account_id WHERE m.line_id=? ORDER BY m.position, m.id""",
+                      (line_id,))
         self.members = [MemberState(r, providers[r["account_id"]]) for r in rows]
+        self.sorter = Sorter(db, rows)
+        self.unsorted: set[int] = set()     # songs a rule can't place yet: they need labels first
+        self.moving: dict[int, set[int]] = {}   # member -> songs it lets go of, now that they are sorted
         self.progress = progress or (lambda *a: None)
         self.should_stop = should_stop or (lambda: False)
         self.L: set[int] = set()            # line set before this run
@@ -274,6 +289,10 @@ class LineSync:
             self.removed = {}
 
         self.new_L = (L - set(self.removed)) | self.added
+        if self.sorter.active:
+            self.sorter.load(self.new_L)
+        ignored = {(r["member_id"], r["song_id"]) for r in self.db.all(
+            "SELECT member_id, song_id FROM issues WHERE line_id=? AND kind='ignored'", (line["id"],))}
 
         # -- what each receiver needs (and what each member following deletions loses)
         for m in self.members:
@@ -286,6 +305,12 @@ class LineSync:
             for sid in self.new_L:
                 if sid in m.current or sid in self.held or sid in m.vanishing:
                     continue
+                if self.sorter.has_rule(m.id):
+                    fit = self.sorter.fits(m.id, sid)
+                    if fit is None:
+                        self.unsorted.add(sid)
+                    if fit is not True:
+                        continue
                 k = m.known.get(sid)
                 if sid in m.excluded_now or (k and k["excluded"]):
                     continue
@@ -299,6 +324,18 @@ class LineSync:
                     # every few runs without seeing it: add it once more
                 m.to_add[sid] = None  # type: ignore[assignment]  # resolved below
 
+        # -- sorted songs leave their inbox (e.g. liked songs); many at once wait like removals do
+        self._plan_moves(ignored)
+        moving = sum(len(v) for v in self.moving.values())
+        if moving > limit and not allow_deletions:
+            for m in self.members:
+                for sid in self.moving.get(m.id, ()):
+                    m.to_remove.pop(sid, None)
+                    m.remove_notes.pop(sid, None)
+                    self.held.add(sid)
+            self.moving = {}
+            needs_confirm = True
+
         # -- known right away: removals, held removals, songs still on their way
         for sid in self.held:
             self.live("plan", {"group": "held", "track": self._track_info(None, sid)})
@@ -310,8 +347,6 @@ class LineSync:
 
         # -- find the songs on the receivers' services
         unmatched: list[dict] = []
-        ignored = {(r["member_id"], r["song_id"]) for r in self.db.all(
-            "SELECT member_id, song_id FROM issues WHERE line_id=? AND kind='ignored'", (line["id"],))}
         total = sum(len(m.to_add) for m in self.members)
         i = 0
         deferred: set[tuple[int, int]] = set()    # missed once, waiting for the other services' results
@@ -427,7 +462,7 @@ class LineSync:
                             failures += 1
                         ch = (m.id, sid, action, t.label(), int(ok),
                               None if ok else (m.error or "failed"), time.time(),
-                              m.add_notes.get(sid) if action == "add" else None)
+                              (m.add_notes if action == "add" else m.remove_notes).get(sid))
                         changes.append(ch)
                         self.live("change", {
                             "run_id": self.run_id, "member_id": m.id, "song_id": sid, "action": action,
@@ -453,6 +488,35 @@ class LineSync:
         else:
             res.status = "ok"
         return res
+
+    def _plan_moves(self, ignored: set[tuple[int, int]]) -> None:
+        """A song leaves a hand-off sender once it is listed in some collection whose rule it fits
+        and every other such collection has it too or won't get it (the user removed or ignored it
+        there, or the service never shows it). Never before it has arrived anywhere: nothing is lost."""
+        targets = [m for m in self.members if self.sorter.has_rule(m.id)]
+        for src in self.members:
+            if not src.hands_off or not targets:
+                continue
+            for sid, track in src.current.items():
+                if sid in src.to_remove or sid in self.removed or sid in self.held:
+                    continue
+                fitting = [m for m in targets if m is not src and self.sorter.fits(m.id, sid) is True]
+                arrived = [m for m in fitting if sid in m.current]
+                if not arrived:
+                    continue
+
+                if all(self._settled(m, sid, ignored) for m in fitting):
+                    src.to_remove[sid] = track
+                    src.remove_notes[sid] = "sorted into " + ", ".join(m.row["collection_name"] for m in arrived)
+                    self.moving.setdefault(src.id, set()).add(sid)
+
+    @staticmethod
+    def _settled(m: MemberState, sid: int, ignored: set[tuple[int, int]]) -> bool:
+        """The song is listed at this member, or won't ever be (removed there by the user, ignored,
+        never showing up on the service)."""
+        k = m.known.get(sid)
+        return (sid in m.current or (m.id, sid) in ignored or sid in m.excluded_now
+                or sid in m.gave_up or bool(k and k["excluded"]))
 
     def _origin(self, sid: int) -> Track | None:
         """The track a song came from (a sending member that has it) – its version is the one to find.
@@ -509,6 +573,9 @@ class LineSync:
                 for sid in final_L:
                     k = m.known.get(sid)
                     if sid in m.removed_ok:
+                        # sorted out of a collection that also receives: it must not come back there
+                        if m.receives and sid in self.moving.get(m.id, ()):
+                            rows.append((m.id, sid, None, 0, 1, 0, None))
                         continue
                     if sid in m.current:
                         rows.append((m.id, sid, m.current[sid].id, 1, 0, 0, None))
@@ -595,7 +662,7 @@ class LineSync:
             "member_id": m.id, "service": m.service, "name": m.row["collection_name"], "role": m.row["role"],
             "follow_deletions": bool(m.row.get("follow_deletions")), "count": len(m.current),
             "add": [t(tr, sid, m.add_notes.get(sid)) for sid, tr in m.to_add.items()],
-            "remove": [t(tr, sid) for sid, tr in m.to_remove.items()],
+            "remove": [t(tr, sid, m.remove_notes.get(sid)) for sid, tr in m.to_remove.items()],
             "pending": [t(None, sid) for sid in m.pending],
         } for m in self.members]
         summary = {
@@ -605,6 +672,8 @@ class LineSync:
             "new_songs": len(self.added), "removed_songs": len(self.removed), "held": len(self.held),
             "unmatched": len(unmatched), "pending": sum(len(m["pending"]) for m in members),
             "approximate": sum(len(m.add_notes) for m in self.members),
+            "sorted_out": sum(len(v) for v in self.moving.values()),
+            "unsorted": len(self.unsorted),
         }
         return {"summary": summary, "members": members, "held": [t(None, sid) for sid in self.held],
                 "unmatched": [{"member_id": u["member_id"], "song_id": u["song_id"], **u["track"]} for u in unmatched]}

@@ -72,9 +72,12 @@
 			ui.openAccount(focus && SERVICES.includes(focus) ? focus : back && SERVICES.includes(back) ? back : null);
 			goto('/', { replaceState: true }).then(() => nav.init('/'));
 		} else if (url.pathname.startsWith('/assistant')) {
-			// a notification or an assistant links to a proposal that waits for you
-			ui.openAssistant(url.searchParams.get('action'));
-			goto('/', { replaceState: true }).then(() => nav.init('/'));
+			// a notification or an assistant links to a deletion that waits for you: it is on the home page
+			const action = url.searchParams.get('action');
+			goto('/', { replaceState: true }).then(() => {
+				nav.init('/');
+				ui.showApprovals(action);
+			});
 		} else nav.init(url.pathname);
 		ready = true;
 		return () => mq.removeEventListener('change', set);
@@ -313,7 +316,8 @@
 				<nav>
 					<button class="side-item" aria-current={sidebarActive('home') ? 'page' : undefined} onclick={() => nav.select('home')}>
 						<Glyph name="home" size={20} />
-						{t('tab.home')}
+						<span class="grow">{t('tab.home')}</span>
+						{#if app.assistantWaiting.length}<span class="sdot red" title={t('mcp.waitingN', { n: app.assistantWaiting.length })}></span>{/if}
 					</button>
 					<p class="side-head">{t('tab.library')}</p>
 					<button class="side-item" aria-current={sidebarActive('library') ? 'page' : undefined} onclick={() => nav.select('library')}>
@@ -366,8 +370,7 @@
 				<button class="side-me" onclick={() => ui.openAccount()}>
 					<span class="avatar uav" style:--uh={userHue(String(app.user?.id))}>{app.user?.display_name.charAt(0).toUpperCase()}</span>
 					<span class="grow"><span class="b">{app.user?.display_name}</span><span class="b t-foot t-2">{t('account.sidebarServices', { n: services })}</span></span>
-					{#if app.trouble}<span class="sdot red" title={t('account.openTrouble')}></span>
-					{:else if app.assistantWaiting.length}<span class="sdot orange" title={t('mcp.waitingN', { n: app.assistantWaiting.length })}></span>{/if}
+					{#if app.trouble}<span class="sdot red" title={t('account.openTrouble')}></span>{/if}
 				</button>
 			</aside>
 
@@ -378,6 +381,7 @@
 					<span class="lens" class:held={lensHeld} class:gone={tabIndex < 0} aria-hidden="true"></span>
 					{#each BAR_TABS as tb}
 						<button class="tb" aria-current={nav.tab === tb.id ? 'page' : undefined} onclick={() => tabClick(tb.id)} tabindex={ui.searching ? -1 : 0}>
+							{#if tb.id === 'home' && app.assistantWaiting.length && nav.tab !== 'home'}<span class="tb-dot" aria-label={t('mcp.waitingN', { n: app.assistantWaiting.length })}></span>{/if}
 							<Glyph name={tb.icon} size={25} weight={nav.tab === tb.id ? 2.3 : 1.9} />
 							<span>{t(tb.label)}</span>
 						</button>
@@ -612,6 +616,17 @@
 	}
 	.tb[aria-current='page'] {
 		font-weight: 700;
+	}
+	/* something waits on the home page (an assistant's deletion) */
+	.tb-dot {
+		position: absolute;
+		top: 9px;
+		left: calc(50% + 9px);
+		width: 9px;
+		height: 9px;
+		border-radius: 50%;
+		background: var(--red);
+		box-shadow: 0 0 0 2px var(--glass-strong);
 	}
 	.tb-back {
 		position: absolute;

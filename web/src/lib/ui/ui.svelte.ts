@@ -46,7 +46,7 @@ export interface Ctx {
 	preview: CtxPreview;
 	items: CtxItem[];
 }
-export type Template = 'likes' | 'copy' | null;
+export type Template = 'likes' | 'copy' | 'sort' | null;
 
 class UI {
 	phone = $state(false);
@@ -66,8 +66,8 @@ class UI {
 	appsOpen = $state(false);
 	notifyOpen = $state(false);
 	mcpOpen = $state(false);
-	/** a proposal of an assistant to show right away (from the home page or a notification link) */
-	mcpFocus = $state<string | null>(null);
+	/** an assistant's deletion to bring into view on the home page (from a notification link) */
+	approvalFocus = $state<string | null>(null);
 	healthOpen = $state(false);
 	backupOpen = $state(false);
 	historyOpen = $state(false);
@@ -180,10 +180,11 @@ class UI {
 		this.serviceFocus = s;
 		this.serviceOpen = true;
 	}
-	/** the assistant sheet, at one proposal (null: at the list of what waits for you) */
-	openAssistant(action: string | null = null) {
-		this.mcpFocus = action ?? '';
-		this.mcpOpen = true;
+	/** what an AI assistant wants to delete is decided on the home page: go there (at one of them) */
+	showApprovals(action: string | null = null) {
+		this.closeAll();
+		this.approvalFocus = action;
+		nav.select('home');
 	}
 	/** everything that floats over the app goes away (signed out, session ended) */
 	closeAll() {

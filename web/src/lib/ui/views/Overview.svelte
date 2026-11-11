@@ -4,6 +4,7 @@
 	import { SERVICE_NAME } from '#lib/format.ts';
 	import { app } from '#lib/state.svelte.ts';
 	import { updates } from '#lib/updates.svelte.ts';
+	import AssistantApprovals from '../AssistantApprovals.svelte';
 	import Avatar from '../Avatar.svelte';
 	import Cover from '../Cover.svelte';
 	import FadeBadge from '../FadeBadge.svelte';
@@ -23,7 +24,7 @@
 	const hello = $derived(t(hour < 11 ? 'home.morning' : hour < 18 ? 'home.day' : 'home.evening', { name: first }));
 	const today = $derived(new Date().toLocaleDateString(i18n.locale, { weekday: 'long', day: 'numeric', month: 'long' }));
 
-	type Att = { key: string; text: string; sub: string; tone: 'red' | 'orange' | 'tint' | 'friend' | 'assistant'; icon: 'key' | 'note' | 'trash' | 'users' | 'sparkle'; run: () => void; fade?: { icon: string; color: string } };
+	type Att = { key: string; text: string; sub: string; tone: 'red' | 'orange' | 'tint' | 'friend'; icon: 'key' | 'note' | 'trash' | 'users' | 'sparkle'; run: () => void; fade?: { icon: string; color: string } };
 	// what needs a human, most important first
 	const attention = $derived.by(() => {
 		const out: Att[] = [];
@@ -38,10 +39,6 @@
 			for (const inv of f.invites)
 				if (inv.request) out.push({ key: `q${inv.id}`, text: t('share.wants', { name: inv.user.display_name }), sub: f.name, tone: 'friend', icon: 'users', run: () => nav.openFade(f.id), fade: f });
 		}
-		// an AI assistant wants to delete something: only you can let it
-		const asked = app.assistantWaiting;
-		if (asked.length)
-			out.push({ key: 'mcp', text: t('home.assistant', { name: asked[0].connection }), sub: t('mcp.waitingN', { n: asked.length }), tone: 'assistant', icon: 'sparkle', run: () => ui.openAssistant(asked.length === 1 ? asked[0].id : null) });
 		// friends: an invitation into their fade (not yet answered), or someone asking to be friends
 		for (const inv of app.friends.invites.filter((i) => !i.request))
 			out.push({ key: `v${inv.id}`, text: t('friends.invitedBy', { name: inv.from.display_name }), sub: inv.fade.name, tone: 'tint', icon: 'users', run: () => ui.join(inv), fade: inv.fade });
@@ -56,7 +53,7 @@
 			out.push({ key: 'upd', text: t('update.available', { version: (updates.state?.latest ?? '').toUpperCase() }), sub: t('update.whatsNew'), tone: 'tint', icon: 'sparkle', run: () => updates.open() });
 		return out;
 	});
-	const TONE_BG: Record<Att['tone'], string> = { red: 'var(--red)', orange: 'var(--orange)', tint: 'var(--tint-fill)', friend: '#30b0c7', assistant: '#7c5ce6' };
+	const TONE_BG: Record<Att['tone'], string> = { red: 'var(--red)', orange: 'var(--orange)', tint: 'var(--tint-fill)', friend: '#30b0c7' };
 	// one honest sentence about right now: what is syncing, or how fresh everything is
 	const status = $derived.by(() => {
 		const parts: string[] = [];
@@ -68,7 +65,7 @@
 			const last = Math.max(0, ...active.map((f) => f.last_run_at ?? 0));
 			if (last) parts.push(t('home.lastSync', { ago: ago(last) }));
 		}
-		if (!attention.length) parts.push(t('home.allGood'));
+		if (!attention.length && !app.assistantWaiting.length) parts.push(t('home.allGood'));
 		return parts.join(' · ');
 	});
 	const fresh = $derived(app.activity?.items ?? []);
@@ -149,6 +146,13 @@
 			</button>
 		</li>
 		<li>
+			<button class="tpl glass lq" onclick={() => ui.edit(0, 'sort')}>
+				<span class="tile-icon" style:background="#E4A100"><Glyph name="filter" size={18} weight={2.3} /></span>
+				<span class="b">{t('start.sort')}</span>
+				<span class="t-foot t-2">{t('start.sortText')}</span>
+			</button>
+		</li>
+		<li>
 			<button class="tpl glass lq" onclick={() => ui.edit(0)}>
 				<span class="tile-icon" style:background="#8E8E93"><Glyph name="plus" size={18} weight={2.6} /></span>
 				<span class="b">{t('start.own')}</span>
@@ -198,6 +202,9 @@
 			{/if}
 		</header>
 	{/snippet}
+
+	<!-- an AI assistant waits for a yes to delete something: first thing on the page -->
+	<AssistantApprovals />
 
 	{#if showIntro}
 		<section class="section" aria-labelledby="intro-h">

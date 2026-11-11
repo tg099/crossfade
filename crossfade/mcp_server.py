@@ -46,7 +46,11 @@ server = MCPServer(
     "music you know. Never infer mood or language just from a title, invent audio analysis, or invent song ids. "
     "Keep unknown metadata unknown. Supply evidence and confidence; user corrections take precedence. "
     "Genre, mood, energy and other assistant annotations are estimates, not verified facts. "
-    "Do not promise automatic playlist upkeep: saved rules are not implemented.",
+    "Lasting sorting is built into fades: a receiving collection with a rule (moods, genres, tags, artists, "
+    "languages, energy, or rest) only gets the songs that fit, on every sync; a sending collection such as liked "
+    "songs can let go of songs once they are sorted (move_sorted, a deletion the user confirms). Rules on labels "
+    "only sort labelled songs: label what sorting_queue lists, then sync. Labelling does not happen by itself; "
+    "say so instead of promising it.",
 )
 
 
@@ -240,6 +244,14 @@ def fade_stats(ctx: Context, fade_id: int) -> dict[str, Any]:
     return lines.stats(fade_id, _user(ctx), get_db())
 
 
+@tool(title="Songs waiting to be sorted")
+def sorting_queue(ctx: Context, fade_id: int, limit: Limit = 100, offset: Offset = 0) -> dict[str, Any]:
+    """Songs your rule collections in a fade can't place yet because they lack labels, with each rule.
+    Label the songs you know with annotate_songs (reuse the rules' exact labels where they fit), then
+    prepare_sync or wait for the schedule. Page with next_offset."""
+    return lines.sorting_queue(fade_id, limit, offset, _user(ctx), get_db())
+
+
 @tool(title="Fade history")
 def fade_changes(ctx: Context, fade_id: int, limit: Limit = 100, before: int | None = None) -> dict[str, Any]:
     """Recent additions/removals in a visible fade; page using the oldest change id as before."""
@@ -249,16 +261,19 @@ def fade_changes(ctx: Context, fade_id: int, limit: Limit = 100, before: int | N
 @tool("manage", title="Prepare new fade", readonly=False)
 def prepare_fade(ctx: Context, fade: actions.FadeIn) -> dict[str, Any]:
     """Prepare creating a fade from your collections: roles, schedule (interval_minutes, 0 = manual)
-    and deletion settings. A playlist with create=true is made on apply. Applies without approval unless
-    sync_deletions is on; then the user confirms it in Crossfade."""
+    and deletion settings. A playlist with create=true is made on apply. To sort songs into playlists, give
+    receiving members a rule (e.g. {"moods": ["relaxed"]}, {"artists": ["Adele"]}, {"rest": true}) and the
+    sending inbox (liked songs, role send) move_sorted=true if sorted songs should leave it. Applies without
+    approval unless sync_deletions or move_sorted is on; then the user confirms it in Crossfade."""
     return actions.prepare(get_db(), _user(ctx), "fade_create", {"fade": fade.model_dump()})
 
 
 @tool("manage", title="Prepare fade change", readonly=False)
 def prepare_fade_update(ctx: Context, fade_id: int, changes: actions.FadeChange) -> dict[str, Any]:
     """Prepare changing an owned fade. Only pass what changes (e.g. name, interval_minutes, paused);
-    members replaces your own collections in the given order. Switching sync_deletions on or raising
-    delete_guard_min/ratio needs the user's approval in Crossfade; everything else applies directly."""
+    members replaces your own collections in the given order, with their rule and move_sorted. Switching
+    sync_deletions or move_sorted on, or raising delete_guard_min/ratio, needs the user's approval in
+    Crossfade; everything else (including rules) applies directly."""
     return actions.prepare(get_db(), _user(ctx), "fade_update",
                            {"fade_id": fade_id, "changes": changes.model_dump(exclude_none=True)})
 
@@ -466,6 +481,20 @@ def mood_playlist(mood: str, service: str = "", duration_minutes: str = "60") ->
             "features. For free-form moods, pass explicit song selections with reasons to prepare_playlist. "
             "Respect corrections and exclusions, apply it (the user asked for it), then poll get_action and "
             "report missing songs or errors honestly.")
+
+
+@server.prompt()
+def sort_into_playlists(source: str = "liked songs", keep_in_source: str = "yes") -> str:
+    """Set up lasting sorting of a collection (e.g. liked songs) into playlists, inside a fade."""
+    return (f"Sort my {source} into playlists. Keep sorted songs in the source: {keep_in_source}. "
+            "Inspect status, list_collections, list_fades and list_labels. Propose playlists with clear rules "
+            "(moods, genres, tags, artists, languages, energy, or one rest playlist) and ask me to confirm them. "
+            "Then prepare_fade (or prepare_fade_update) with the source as a send-only member "
+            "(move_sorted=true only if I don't want to keep them there) and every playlist as a receive-only "
+            "member with its rule; use create=true for new playlists. Apply it; if it waits for my approval, "
+            "give me the approve_url. Then go through sorting_queue, label the songs you know with "
+            "annotate_songs (with evidence and confidence, never guessing from titles), and prepare_sync. "
+            "Tell me which songs you could not classify.")
 
 
 class MCPGate:

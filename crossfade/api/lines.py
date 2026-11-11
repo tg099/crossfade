@@ -9,7 +9,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
-from .. import matcher
+from .. import matcher, sorting
 from .. import notify as alert
 from ..db import Database
 from ..identity import Identity
@@ -69,6 +69,11 @@ def _members(db: Database, line_id: int, viewer: int | None = None) -> list[dict
         r["account_connected"] = bool(r["account_connected"])
         r["initialized"] = bool(r["initialized"])
         r["follow_deletions"] = bool(r["follow_deletions"])
+        r["move_sorted"] = bool(r["move_sorted"])
+        try:
+            r["rule"] = sorting.parse(r["rule"]).model_dump() if r["rule"] else None
+        except ValueError:
+            r["rule"] = None
         r["covers"] = [c["artwork"] for c in db.all(
             """SELECT DISTINCT sr.artwork FROM member_items mi
                JOIN song_refs sr ON sr.ref_id=mi.ref_id AND sr.service=? AND sr.artwork IS NOT NULL
@@ -244,6 +249,10 @@ class MemberIn(BaseModel):
     role: Literal["both", "send", "receive"] = "both"
     follow_deletions: bool = False   # send-only: still apply deletions made elsewhere
     create: bool = False          # create a new playlist with collection_name
+    rule: sorting.Rule | None = Field(None, description="Receiving collections only: take just the songs that fit "
+                                      "(sorting into playlists). Leave out to take every song.")
+    move_sorted: bool = Field(False, description="Sending collections only: remove a song here once it is sorted "
+                              "into every rule collection it fits (an inbox like liked songs).")
 
 
 class LineIn(BaseModel):
@@ -282,7 +291,7 @@ def _resolve_members(db: Database, user_id: int, members: list[MemberIn], create
         if m.kind == PLAYLIST and m.create and not create:
             out.append({"account_id": acc["id"], "kind": m.kind, "collection_id": "",
                         "collection_name": m.collection_name.strip(), "role": m.role,
-                        "follow_deletions": int(m.follow_deletions and m.role == "send")})
+                        "follow_deletions": int(m.follow_deletions and m.role == "send"), **_sorting(m)})
             continue
         if m.kind == PLAYLIST and m.create:
             try:
@@ -299,8 +308,15 @@ def _resolve_members(db: Database, user_id: int, members: list[MemberIn], create
         out.append({"account_id": acc["id"], "kind": m.kind, "collection_id": m.collection_id,
                     "collection_name": m.collection_name.strip(), "role": m.role,
                     # only meaningful for a member that does not receive anyway
-                    "follow_deletions": int(m.follow_deletions and m.role == "send")})
+                    "follow_deletions": int(m.follow_deletions and m.role == "send"), **_sorting(m)})
     return out
+
+
+def _sorting(m: MemberIn) -> dict:
+    """A rule only steers what a collection receives; letting go of sorted songs only applies to
+    one that sends."""
+    return {"rule": m.rule.model_dump_json() if m.rule and m.role != "send" else None,
+            "move_sorted": int(m.move_sorted and m.role != "receive")}
 
 
 @router.post("")
@@ -317,9 +333,9 @@ def create_line(body: LineIn, user: dict = Depends(current_user), db: Database =
                          now, now)).lastrowid
         for i, m in enumerate(members):
             c.execute("""INSERT INTO line_members(line_id,account_id,kind,collection_id,collection_name,role,
-                         follow_deletions,position) VALUES(?,?,?,?,?,?,?,?)""",
+                         follow_deletions,position,rule,move_sorted) VALUES(?,?,?,?,?,?,?,?,?,?)""",
                       (lid, m["account_id"], m["kind"], m["collection_id"], m["collection_name"], m["role"],
-                       m["follow_deletions"], i))
+                       m["follow_deletions"], i, m["rule"], m["move_sorted"]))
     return get_line(lid, user, db)
 
 
@@ -346,13 +362,15 @@ def update_line(line_id: int, body: LineIn, user: dict = Depends(current_user), 
             old = existing.get((m["account_id"], m["kind"], m["collection_id"]))
             if old:   # keep its sync state
                 keep_ids.add(old["id"])
-                c.execute("UPDATE line_members SET role=?, follow_deletions=?, position=?, collection_name=? WHERE id=?",
-                          (m["role"], m["follow_deletions"], i, m["collection_name"], old["id"]))
+                c.execute("UPDATE line_members SET role=?, follow_deletions=?, position=?, collection_name=?, "
+                          "rule=?, move_sorted=? WHERE id=?",
+                          (m["role"], m["follow_deletions"], i, m["collection_name"], m["rule"], m["move_sorted"],
+                           old["id"]))
             else:
                 c.execute("""INSERT INTO line_members(line_id,account_id,kind,collection_id,collection_name,role,
-                             follow_deletions,position) VALUES(?,?,?,?,?,?,?,?)""",
+                             follow_deletions,position,rule,move_sorted) VALUES(?,?,?,?,?,?,?,?,?,?)""",
                           (line_id, m["account_id"], m["kind"], m["collection_id"], m["collection_name"], m["role"],
-                           m["follow_deletions"], i))
+                           m["follow_deletions"], i, m["rule"], m["move_sorted"]))
         for old in existing.values():
             if old["id"] not in keep_ids:
                 c.execute("DELETE FROM line_members WHERE id=?", (old["id"],))
@@ -459,6 +477,41 @@ def changes(line_id: int, limit: int = 200, before: int | None = None, user: dic
     sql += " ORDER BY c.id DESC LIMIT ?"
     args.append(_clamp(limit, 500))
     return db.all(sql, args)
+
+
+@router.get("/{line_id}/sorting")
+def sorting_queue(line_id: int, limit: int = 100, offset: int = 0, user: dict = Depends(current_user),
+                  db: Database = Depends(db_dep)):
+    """Songs your rule collections in this fade can't place yet because they lack labels, plus the
+    rules. Covers what the fade knows and what its sending collections listed at their last read."""
+    _visible_or_404(db, line_id, user["id"])
+    rows = db.all("""SELECT m.*, a.user_id FROM line_members m JOIN accounts a ON a.id=m.account_id
+                     WHERE m.line_id=? ORDER BY m.position, m.id""", (line_id,))
+    own = [r for r in rows if r["user_id"] == user["id"]]
+    sorter = sorting.Sorter(db, own)          # your labels steer your own collections only
+    rules = []
+    for r in own:
+        if sorter.has_rule(r["id"]):
+            rule = sorter.rules.get(r["id"], (None, 0))[0]
+            rules.append({"member_id": r["id"], "collection_name": r["collection_name"],
+                          "rule": rule.model_dump() if rule else None, "takes": sorting.describe(rule)})
+    if not rules:
+        return {"rules": [], "songs": [], "total": 0, "next_offset": None}
+    songs = {r["song_id"] for r in db.all("SELECT song_id FROM line_items WHERE line_id=?", (line_id,))}
+    for r in rows:                            # new songs in the senders since the fade's last sync
+        if r["role"] in ("both", "send"):
+            songs |= {x["song_id"] for x in db.all(
+                """SELECT ci.song_id FROM catalog_items ci JOIN catalog_sources cs ON cs.id=ci.source_id
+                   WHERE cs.account_id=? AND cs.kind=? AND cs.collection_id=?""",
+                (r["account_id"], r["kind"], r["collection_id"] or ""))}
+    waiting = sorted(sorter.waiting(sorted(songs)))
+    offset, limit = max(offset, 0), _clamp(limit, 250)
+    page = waiting[offset:offset + limit]
+    found = {r["id"]: r for r in db.all(
+        f"SELECT id, title, artist, album, duration FROM songs WHERE id IN ({','.join('?' * len(page))})", page)
+    } if page else {}
+    return {"rules": rules, "songs": [found[s] for s in page if s in found], "total": len(waiting),
+            "next_offset": offset + len(page) if offset + len(page) < len(waiting) else None}
 
 
 @router.get("/{line_id}/stats")

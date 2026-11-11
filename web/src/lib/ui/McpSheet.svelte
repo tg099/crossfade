@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { tick, untrack } from 'svelte';
+	import { untrack } from 'svelte';
 	import { api, del, post, put } from '#lib/api.ts';
 	import { app } from '#lib/state.svelte.ts';
 	import Glyph from './Glyph.svelte';
@@ -9,7 +9,6 @@
 	import SheetBar from './SheetBar.svelte';
 	import Switch from './Switch.svelte';
 	import { i18n, t, type Key } from './i18n.svelte.ts';
-	import { reducedMotion } from './motion.ts';
 	import { ago, copyText, ui } from './ui.svelte.ts';
 
 	// AI assistants (MCP): personal access keys, what assistants proposed (only deletions wait for
@@ -31,8 +30,6 @@
 	let page = $state<Page>({ kind: 'list' });
 	let busy = $state(false);
 	let error = $state('');
-	/** the proposal unfolded right away (opened from the home page or a notification) */
-	let focus = $state<string | null>(null);
 	// a new access
 	let name = $state('');
 	let sync = $state(true);
@@ -72,25 +69,6 @@
 		app.assistantTick;
 		untrack(() => load().catch((e) => (data ? undefined : ui.fail(e))));
 	});
-	// opened at what waits for you: straight to the proposals
-	$effect(() => {
-		const f = ui.mcpFocus;
-		if (f === null || !ui.mcpOpen) return;
-		untrack(() => {
-			tab = 'actions';
-			page = { kind: 'list' };
-			focus = f || app.assistantWaiting[0]?.id || null;
-			ui.mcpFocus = null;
-		});
-	});
-	// bring the proposal you came for into view, once
-	let shownFocus: string | null = null;
-	$effect(() => {
-		const f = focus;
-		if (!f || !data || tab !== 'actions' || shownFocus === f) return;
-		shownFocus = f;
-		tick().then(() => document.getElementById(`mcp-${f}`)?.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' }));
-	});
 	// the activity list has no live events of its own: refresh it while it is on screen
 	$effect(() => {
 		if (!ui.mcpOpen || tab !== 'audit') return;
@@ -103,8 +81,6 @@
 	function closed() {
 		page = { kind: 'list' };
 		error = '';
-		focus = null;
-		shownFocus = null;
 		filter = null;
 		query = '';
 		songs = null;
@@ -173,10 +149,6 @@
 			busy = false;
 			await Promise.all([load().catch(() => {}), app.loadAssistant()]);
 		}
-	}
-	/** deleting is the one thing that waits for you: say yes once more, like every deletion */
-	function allow(a: Action) {
-		ui.ask = { title: t('mcp.allowQ', { action: operation(a.operation) }), message: t('mcp.allowMsg'), label: t('mcp.allow'), run: () => apply(a) };
 	}
 	async function discard(a: Action) {
 		busy = true;
@@ -260,24 +232,20 @@
 	const AUDIT_TONE: Record<string, string> = { ok: 'good', denied: 'warn', error: 'bad' };
 </script>
 
-{#snippet actionCard(a: Action, deletes: boolean)}
-	<div class="section" id={`mcp-${a.id}`}>
+{#snippet actionCard(a: Action)}
+	<div class="section">
 		<div class="group">
 			<div class="cell">
-				<span class="tile-icon" style:background={deletes ? 'var(--red)' : '#7c5ce6'}><Glyph name={deletes ? 'trash' : 'sparkle'} size={17} weight={2.2} /></span>
+				<span class="tile-icon" style:background={a.destructive ? 'var(--red)' : '#7c5ce6'}><Glyph name={a.destructive ? 'trash' : 'sparkle'} size={17} weight={2.2} /></span>
 				<span class="grow">
 					<span class="b">{operation(a.operation)}</span>
 					<span class="b t-foot t-2 clip">{[a.connection ? t('mcp.by', { name: a.connection }) : '', ago(a.created_at)].filter(Boolean).join(' · ')}</span>
 				</span>
-				{#if !deletes}<span class="tag {stateTone(a.state)}">{stateLabel(a.state)}</span>{/if}
+				<span class="tag {stateTone(a.state)}">{stateLabel(a.state)}</span>
 			</div>
-			<McpActionDetails action={a} preview={focus === a.id} />
+			<McpActionDetails action={a} />
 			{#if a.state === 'pending'}
-				{#if deletes}
-					<button class="cell center" disabled={busy} onclick={() => allow(a)}><span class="grow danger strong">{t('mcp.allow')}</span></button>
-				{:else}
-					<button class="cell center" disabled={busy} onclick={() => apply(a)}><span class="grow tintc">{t('mcp.apply')}</span></button>
-				{/if}
+				<button class="cell center" disabled={busy} onclick={() => apply(a)}><span class="grow tintc">{t('mcp.apply')}</span></button>
 				<button class="cell center" disabled={busy} onclick={() => discard(a)}><span class="grow t-2">{t('mcp.discard')}</span></button>
 			{/if}
 		</div>
@@ -401,7 +369,7 @@
 					label={t('mcp.title')}
 					options={[
 						{ value: 'connections', label: t('mcp.connections') },
-						{ value: 'actions', label: waiting.length ? `${t('mcp.actions')} (${waiting.length})` : t('mcp.actions') },
+						{ value: 'actions', label: t('mcp.actions') },
 						{ value: 'tags', label: t('mcp.tags') },
 						{ value: 'audit', label: t('mcp.audit') }
 					]}
@@ -445,13 +413,22 @@
 				</div>
 			{:else if tab === 'actions'}
 				{#if waiting.length}
-					<div class="section-head pushed"><span class="caps">{t('mcp.waiting')}</span></div>
-					<p class="section-foot top">{t('mcp.waitingHint')}</p>
-					{#each waiting as a (a.id)}{@render actionCard(a, true)}{/each}
+					<div class="section">
+						<div class="group">
+							<button class="cell" style:--inset="58px" onclick={() => ui.showApprovals()}>
+								<span class="tile-icon" style:background="var(--red)"><Glyph name="trash" size={17} weight={2.2} /></span>
+								<span class="grow">
+									<span class="b">{t('mcp.waitingN', { n: waiting.length })}</span>
+									<span class="b t-foot t-2">{t('mcp.onHome')}</span>
+								</span>
+								<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
+							</button>
+						</div>
+					</div>
 				{/if}
 				{#if recent.length}
 					<div class="section-head pushed"><span class="caps">{t('mcp.recent')}</span></div>
-					{#each recent as a (a.id)}{@render actionCard(a, false)}{/each}
+					{#each recent as a (a.id)}{@render actionCard(a)}{/each}
 				{:else if !waiting.length}
 					<p class="section-foot spaced">{t('mcp.noActions')}</p>
 				{/if}
@@ -547,9 +524,6 @@
 	.tile-icon.add {
 		background: var(--fill);
 		color: var(--tint);
-	}
-	.strong {
-		font-weight: 600;
 	}
 	.chips {
 		display: flex;
