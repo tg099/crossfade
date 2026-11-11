@@ -57,6 +57,7 @@ class MemberState:
     row: dict
     provider: Provider
     current: dict[int, Track] = field(default_factory=dict)   # song_id -> track as listed now
+    pos: dict[int, int] = field(default_factory=dict)         # song_id -> first place in the collection
     extra: dict[int, list[Track]] = field(default_factory=dict)  # further entries of the same song (video + song)
     copies: dict[str, int] = field(default_factory=dict)       # ref -> how often the collection lists it
     known: dict[int, dict] = field(default_factory=dict)      # song_id -> member_items row
@@ -152,8 +153,9 @@ class LineSync:
             self.progress(f"Reading {m.label()} …", i - 1, len(self.members))
             self.active_account = m.row["account_id"]
             tracks = m.provider.read(m.row["kind"], m.row["collection_id"])
-            for t in tracks:
+            for n, t in enumerate(tracks):
                 sid = self.ident.song_for(t)
+                m.pos.setdefault(sid, n)
                 m.copies[t.id] = t.handle.get("copies", 1)
                 if m.current.setdefault(sid, t) is not t:
                     m.extra.setdefault(sid, []).append(t)
@@ -199,6 +201,9 @@ class LineSync:
                 m.extra.setdefault(new, []).append(m.current[old])
             if old in m.extra:
                 m.extra.setdefault(new, []).extend(m.extra.pop(old))
+            if old in m.pos:
+                p = m.pos.pop(old)
+                m.pos[new] = min(p, m.pos.get(new, p))
             for d in (m.current, m.known, m.to_add, m.to_remove, m.vanishing):
                 if old in d:
                     v = d.pop(old)
@@ -216,6 +221,15 @@ class LineSync:
                 s.add(new)
         if old in self.removed:
             self.removed.setdefault(new, self.removed.pop(old))
+
+    def _order(self, sid: int) -> tuple:
+        """Where a song stands in the fade's sources: songs are added in that order, so a receiving
+        playlist is built like its source. The first sending member (in the fade's order) that lists
+        the song decides; songs no sender lists any more come last."""
+        for rank, m in enumerate(self.members):
+            if m.sends and sid in m.pos:
+                return (rank, m.pos[sid], sid)
+        return (len(self.members), 0, sid)
 
     # ================================================================ plan
     def run(self, apply: bool, allow_deletions: bool = False) -> RunResult:
@@ -304,7 +318,7 @@ class LineSync:
                         m.to_remove[sid] = m.current[sid]
             if not m.receives:
                 continue
-            for sid in self.new_L:
+            for sid in sorted(self.new_L, key=self._order):
                 if sid in m.current or sid in self.held or sid in m.vanishing:
                     continue
                 if self.sorter.has_rule(m.id):
@@ -433,6 +447,8 @@ class LineSync:
         for m in self.members:
             for action, items in (("remove", m.to_remove), ("add", m.to_add)):
                 pending_items = list(items.items())
+                if action == "add":       # keep the sources' order (merges during the search can shuffle it)
+                    pending_items.sort(key=lambda it: self._order(it[0]))
                 verb, prep = ("Removing", "from") if action == "remove" else ("Adding", "to")
                 fn = m.provider.remove if action == "remove" else m.provider.add
                 ok_set = m.removed_ok if action == "remove" else m.added_ok

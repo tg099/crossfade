@@ -7,6 +7,7 @@ import pytest
 
 from crossfade.db import Database
 from crossfade.engine import LineSync
+from crossfade.identity import Identity
 from crossfade.models import APPLE, LIKED, PLAYLIST, SPOTIFY, YTM, Collection, Track
 
 # (key, title, artist, seconds, isrc)
@@ -568,3 +569,20 @@ def test_results_are_reported_live_while_running(env, monkeypatch):
 
 def key_of_info(d: dict) -> str:
     return d["id"].split("_", 1)[1]
+
+
+def test_songs_are_added_in_the_order_of_the_source(env):
+    y, a = P(env, YTM), P(env, APPLE)
+    ident = Identity(env[0])     # song ids in another order than the playlist's
+    for k in ("hello", "smell", "blind", "bohem", "lucky", "levit"):
+        ident.song_for(track(YTM, k))
+    y.put(PLAYLIST, "src", "levit", "lucky", "bohem", "blind")
+    lid = make_line(env, [(YTM, PLAYLIST, "src", "send"), (APPLE, PLAYLIST, "dst", "receive")])
+    r = sync(env, lid)
+    assert r.status == "ok", r.message
+    assert [key_of(t) for t in a.cols[(PLAYLIST, "dst")].values()] == ["levit", "lucky", "bohem", "blind"]
+    # songs added later at the source land behind the others, in their order
+    y.put(PLAYLIST, "src", "smell", "hello")
+    assert sync(env, lid).status == "ok"
+    assert [key_of(t) for t in a.cols[(PLAYLIST, "dst")].values()] == [
+        "levit", "lucky", "bohem", "blind", "smell", "hello"]
