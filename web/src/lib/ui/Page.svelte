@@ -42,7 +42,8 @@
 	// large title starts right under the status bar, and the bar only appears once you scroll.
 	const inlineActions = $derived(ui.phone && inline && !back && !!actions && large && !hero);
 	const barless = $derived(ui.phone && !back && (!actions || inlineActions));
-	const padTop = $derived(!chrome ? `calc(var(--safe-top) + ${top}px)` : barless ? 'calc(var(--safe-top) + 6px)' : undefined);
+	// in a browser tab there is no status bar inset (the browser's own bar sits above): keep a little air
+	const padTop = $derived(!chrome ? `calc(var(--safe-top) + ${top}px)` : barless ? 'max(calc(var(--safe-top) + 6px), 16px)' : undefined);
 
 	let scroller: HTMLElement | undefined = $state();
 	let solid = $state(false);

@@ -48,11 +48,14 @@
 		position: absolute;
 		/* runs on under the floating sidebar: no hard edge where the page starts */
 		inset: 0 0 -28px calc(-1 * var(--side));
-		background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 78%, transparent), transparent);
+		/* calm behind the title row (big bold text scrolling under it must not read through the title),
+		   fading out only below the bar */
+		background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 88%, transparent),
+			color-mix(in srgb, var(--bg) 74%, transparent) calc(100% - 28px), transparent);
 		-webkit-backdrop-filter: blur(10px) saturate(1.6);
 		backdrop-filter: blur(10px) saturate(1.6);
-		-webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent);
-		mask-image: linear-gradient(to bottom, #000 45%, transparent);
+		-webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
+		mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
 		opacity: 0;
 		transition: opacity 260ms ease;
 	}

@@ -12,28 +12,44 @@ from dataclasses import dataclass, field
 
 # label (shown in the UI) -> regex on normalised "title + album" text
 HARD: dict[str, str] = {
-    "Live": r"\blive\b|\bunplugged\b|\bconcert\b|\blive (at|in|from|aus)\b",
+    # sessions ("Spotify Sessions", "Live Lounge", "Tiny Desk") are recorded again, in a studio or on stage
+    "Live": r"\blive\b|\bunplugged\b|\bconcert\b|\blive (at|in|from|aus)\b|\bsessions?\b|\brecorded at\b"
+            r"|\bspotify singles?\b|\btiny desk\b",
     "Acoustic": r"\bacoustic\b|\bakustik\b|\bstripped\b",
     # any named mix is another mix of the recording – except the plain radio/album/stereo/mono mix
-    "Remix": r"\bremix\b|\brmx\b|\brework\b|\bflip\b"
+    "Remix": r"\bremix(ed)?\b|\brmx\b|\brework(ed)?\b|\bflip\b|\bbootleg\b|\bmash ?up\b|\bvip\b"
              r"|\b(?!radio |album |single |stereo |mono |original |main |clean |explicit |dj |continuous )\w{3,} mix\b",
     # a cut out of a DJ set ("[Mixed]") – blended into the neighbouring tracks, not a remix
     "DJ-Mix": r"\bmixed\b|\bdj mix\b|\bcontinuous mix\b|\bmix cut\b",
     "Instrumental": r"\binstrumental\b",
     "Karaoke": r"\bkaraoke\b|\boriginally performed by\b|\bin the style of\b|\bmade famous by\b|\btribute\b",
     "A cappella": r"\ba ?cappella\b|\bacapella\b",
-    "Sped up / Slowed": r"\bsped up\b|\bspeed up\b|\bslowed\b|\breverb\b|\bnightcore\b|\b8d\b",
+    "Sped up / Slowed": r"\bsped ?up\b|\bspeed ?up\b|\bsped\b|\bslowed\b|\breverb\b|\bnightcore\b|\bdaycore\b"
+                        r"|\bpitched( up| down)?\b",
+    # uploads that alter the song itself: louder bass, "8D" panning, chipmunk voices
+    "Fan edit": r"\bbass ?boost(ed)?\b|\b(8|16) ?d\b|\bchipmunks?\b",
     "Demo": r"\bdemo\b|\bearly version\b|\bwork ?tape\b",
-    "Re-recording": r"\btaylor s version\b|\bre ?recorded\b|\bre ?record\b|\bnew version\b|\b20\d\d version\b",
+    "Re-recording": r"\btaylor s version\b|\bre ?recorded\b|\bre ?record\b|\bnew version\b|\b20\d\d version\b"
+                    r"|\bre ?imagined\b|\brevisited\b|\bredux\b|\bfrom the vault\b",
     "Orchestral": r"\borchestral\b|\bsymphonic\b|\bwith .* orchestra\b|\bpiano version\b|\blullaby\b",
     "Cover": r"\bcover\b",
+    # another track of the record that carries the song's name: "(Intro)", "(Skit)", "(Reprise)"
+    "Intro / Skit": r"\b(intro|interlude|outro|skit|snippet)\b(?! edit| mix)|\breprise\b",
+    "Medley": r"\bmedley\b|\bmegamix\b",
+    "Commentary": r"\bcommentary\b|\bvoice ?memo\b|\binterview\b|\btrack by track\b",
     # genre / language re-arrangements: "(Reggae)", "(Piano Version)", "(Spanish Version)" …
     "Other arrangement": r"\b(reggae|jazz|lo ?fi|bossa( nova)?|swing|chill|trap|techno|house|edm|dance|rock|metal|punk|"
                       r"country|gospel|christmas|xmas|spanish|espanol|english|deutsche?|german|french|francais|"
-                      r"italian|italiano|portuguese|japanese|korean|latin|kids|baby)\b( version| mix| edit)?"
+                      r"italian|italiano|portuguese|japanese|korean|latin|kids|baby|"
+                      r"hardstyle|hard ?techno|hardcore|funk|jersey( club)?|drill|amapiano|afro|dnb|"
+                      r"drum (and|n) bass|dubstep|trance|synthwave|ambient|dub|8 ?bit|chiptune|cumbia|reggaeton|"
+                      r"schlager|choir|music box)\b( version| mix| edit| remix)?"
+                      r"|\bversion (francaise|anglaise|espanola|espanol|italiana|italienne|allemande|deutsch|portugues)\b"
+                      r"|\ben (espanol|francais|ingles|anglais|aleman)\b"
                       r"|\b(?!radio |album |single |lp |long |short |extended |original |explicit |clean |mono |stereo "
                       r"|edit |remastered |remaster |taylor s |new |demo |live |acoustic |instrumental |karaoke |orchestral "
-                      r"|piano |early |full )\w{3,} version\b",
+                      r"|piano |early |full |deluxe |censored |uncensored |dirty |edited |studio |video |special "
+                      r"|bonus |main )\w{3,} version\b",
 }
 SOFT: dict[str, str] = {
     "Radio Edit": r"\bradio edit\b|\bradio version\b|\bradio mix\b|\bsingle edit\b|\bedit\b",
@@ -42,8 +58,11 @@ SOFT: dict[str, str] = {
     "Mono": r"\bmono\b",
     "Album version": r"\balbum version\b|\blp version\b",
     "Deluxe": r"\bdeluxe\b|\bexpanded\b|\banniversary\b|\bbonus track\b",
-    "Clean": r"\bclean\b|\bcensored\b|\bradio friendly\b",
+    "Clean": r"\bclean\b|\bcensored\b|\bedited\b|\bradio friendly\b",
 }
+# "Pt. 2", "Part II", "Teil 3": another song of the same name, wherever it stands in the title
+_PART_RX = re.compile(r"\b(?:pt|part|teil)\s*(\d{1,2}|i{1,3}|iv|v|vi{1,3}|ix|x)\b")
+_ROMAN = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7, "viii": 8, "ix": 9, "x": 10}
 COMPILATION = (r"\bgreatest hits\b|\bbest of\b|\bthe very best\b|\bhits 20\d\d\b|\bbravo hits\b|\bnow that s what\b"
                r"|\bthe collection\b|\bessentials\b|\banthology\b|\bthe hits\b|\bkuschelrock\b|\bchartboxx\b|\b\d+ hits\b"
                r"|\bnumber ones\b|\bplatinum collection\b|\bgold\b(?! digger)")
@@ -70,6 +89,16 @@ _NOISE = re.compile(
     r"phonk|nightdrive|wave/|out now|teaser|trailer|mood video|full song)\b", re.I)
 
 
+def _marks(text: str) -> str:
+    """What of an upload's label is about the recording: "(Official Live Video)" -> " (Live) ",
+    "(8D Audio)" -> " (8D) ", "(Official Video)" -> " " – the version must not vanish with the noise."""
+    rest = re.sub(r"\s+", " ", _NOISE.sub(" ", text)).strip(" -–~|,.:")
+    q = _norm(rest)
+    if q and any(rx.search(q) for rx in (*_HARD_RX.values(), *_SOFT_RX.values())):
+        return f" ({rest}) "
+    return " "
+
+
 def _pipes(t: str) -> str:
     """ "Title | Prod. X | Channel" is the title plus credits: keep the first part. But a series upload
     ("Letztes JBB | 8tel-Finale #2 | A vs B") names what it is in several parts: keep them all, or every
@@ -78,14 +107,18 @@ def _pipes(t: str) -> str:
     if len(parts) == 1:
         return t
     rest = [p for p in parts[1:] if p and not _NOISE.search(p) and not p.startswith("#")]
-    return " ".join([parts[0], *rest]) if len(rest) >= 2 else parts[0]
+    if len(rest) >= 2:
+        return " ".join([parts[0], *rest])
+    # "Song | Live at Wembley", "Song | Sped Up": the credits go, what they say about the version stays
+    return parts[0] + "".join(_marks(p) for p in parts[1:] if p and not p.startswith("#"))
 
 
 def strip_noise(title: str) -> str:
     t = title or ""
-    t = re.sub(r"[(\[【]([^)\]】]*)[)\]】]", lambda m: " " if _NOISE.search(m.group(1)) else m.group(0), t)
+    t = re.sub(r"[(\[【]([^)\]】]*)[)\]】]", lambda m: _marks(m.group(1)) if _NOISE.search(m.group(1)) else m.group(0), t)
     t = _pipes(t)
-    t = re.sub(r"\s[-–~]\s*(official|offizielles?)\b.*$", " ", t, flags=re.I)  # "Title - Official Video"
+    # "Title - Official Video", "Title - Official Live Video"
+    t = re.sub(r"\s[-–~]\s*((official|offizielles?)\b.*)$", lambda m: _marks(m.group(1)), t, flags=re.I)
     t = re.sub(r"#\w+", " ", t)
     return re.sub(r"\s+", " ", t).strip()
 
@@ -134,6 +167,10 @@ def version_of(title: str, album: str = "", explicit: bool | None = None,
     # covers/karaoke often put it into the main title ("Lose Yourself (By Eminem)")
     if re.search(r"\boriginally performed by\b|\bmade famous by\b|\bin the style of\b", whole):
         v.hard.add("Karaoke")
+    # a part number names another song, also outside brackets ("Bad Habits, Pt. 2")
+    if m := _PART_RX.search(whole):
+        n = m.group(1)
+        v.hard.add(f"Part {_ROMAN.get(n) or int(n)}")
     for k, rx in _SOFT_RX.items():
         if rx.search(q):
             v.soft.add(k)

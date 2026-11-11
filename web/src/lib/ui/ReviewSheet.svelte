@@ -244,7 +244,7 @@
 									<HearButton track={c} />
 									<button class="cand-pick" role="radio" aria-checked={pick(cur) === ci && !links[cur.id]} onclick={() => ((choice[cur.id] = ci), (links[cur.id] = ''))}>
 										<span class="grow">
-											<span class="b clip">{c.title}</span>
+											<span class="b ctitle">{c.title}</span>
 											<span class="b t-foot t-2 clip">{#if c.version && c.version !== 'Original'}<span class="tag warn ver">{c.version}</span> {/if}{c.album ? `${c.album} · ` : ''}{mmss(c.duration)}{c.exact ? ` · ${t('issue.exact')}` : sameLength(c, tr) ? ` · ${t('review.sameLength')}` : ''}</span>
 										</span>
 										<span class="radio" class:on={pick(cur) === ci && !links[cur.id]}>{#if pick(cur) === ci && !links[cur.id]}<Glyph name="check" size={13} weight={3.2} />{/if}</span>
@@ -395,6 +395,15 @@
 	}
 	.b {
 		display: block;
+	}
+	/* versions often differ only at the end ("… (Instrumental)"): two lines before it is cut */
+	.ctitle {
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+		overflow-wrap: anywhere;
 	}
 	.radio {
 		display: grid;

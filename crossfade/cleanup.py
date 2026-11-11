@@ -18,7 +18,7 @@ from .models import LIKED, PLAYLIST, SERVICE_NAMES, YTM, ApiError, AuthError, Tr
 from .providers.base import CopiesLost
 
 VIDEO_TYPES = matcher.VIDEO_TYPES
-UNUSUAL = ("Karaoke", "Cover", "Sped up / Slowed")       # version tags that are rarely liked on purpose
+UNUSUAL = ("Karaoke", "Cover", "Sped up / Slowed", "Fan edit")   # version tags that are rarely liked on purpose
 DURATION_TOLERANCE = 4          # seconds; more apart is "check", not "likely"
 SIMILAR = 0.8                   # playlists sharing this much are "almost the same"
 MIN_PLAYLIST = 4                # smaller playlists are not compared

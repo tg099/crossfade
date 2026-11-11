@@ -70,3 +70,52 @@ def test_known_fan_upload_is_not_used_as_the_songs_video(tmp_path, monkeypatch):
     db.run("INSERT INTO yt_counterparts(video_id,counterpart,checked_at) VALUES('atv2','',?)", (time.time(),))
     track, _ = ident.in_format(sid2, audio2, Provider(), "video")
     assert track.id == "atv2"
+
+
+def test_odd_uploads_and_other_tracks_of_the_name_never_match_on_their_own():
+    """Seen as automatic matches before: an unrecognised label read as "the same version"."""
+    src = Track(SPOTIFY, "s1", "Daylight", "David Kushner", album="Daylight", duration=212)
+    odd = {
+        "Daylight (Spedup)": 160, "Daylight (Bass Boosted)": 212, "Daylight (8D Audio)": 212,
+        "Daylight (Hardstyle)": 160, "Daylight (Version française)": 212, "Daylight (Pt. 2)": 212,
+        "Daylight (Intro)": 60, "Daylight (Skit)": 50, "Daylight (Reprise)": 120, "Daylight (Mashup)": 212,
+        "Daylight (VIP)": 212, "Daylight (Re-Imagined)": 212, "Daylight (Spotify Sessions)": 212,
+        "Daylight (Commentary)": 30, "Daylight (Medley)": 300, "Daylight (Official Live Video)": 230,
+    }
+    for title, secs in odd.items():
+        a = matcher.assess(src, Track(APPLE, "a", title, "David Kushner", album="Daylight - Single", duration=secs))
+        assert a.score < matcher.ACCEPT and not a.exact and not a.fits, title
+    # the plain song, a feature or the album version still match at once
+    for title in ("Daylight", "Daylight (feat. Sofia Carson)"):
+        assert matcher.assess(src, Track(APPLE, "a", title, "David Kushner", album="Daylight - Single",
+                                         duration=212)).exact, title
+
+
+def test_a_version_named_in_an_uploads_label_is_kept():
+    assert versions.strip_noise("Song (Official Live Video)") == "Song (Live)"
+    assert versions.strip_noise("Song - Official Live Video") == "Song (Live)"
+    assert versions.strip_noise("Song | Live at Wembley") == "Song (Live at Wembley)"
+    assert versions.strip_noise("Song (Official Video)") == "Song"
+    assert versions.strip_noise("Big Dawgs | Prod. Kalmi") == "Big Dawgs"
+    assert versions.version_of("Song (8D Audio)").hard == {"Fan edit"}
+
+
+def test_part_numbers_are_other_songs_wherever_they_stand():
+    assert versions.version_of("Bad Habits, Pt. 2").hard == {"Part 2"}
+    assert versions.version_of("Song (Part II)").hard == versions.version_of("Song Pt. 2").hard
+    assert versions.version_of("Part Time Lover").hard == set()
+    one = Track(SPOTIFY, "s1", "Bad Habits, Pt. 2", "Ed Sheeran", duration=200)
+    assert matcher.assess(one, Track(APPLE, "a1", "Bad Habits (Pt. 2)", "Ed Sheeran", duration=200)).exact
+    assert matcher.assess(one, Track(APPLE, "a2", "Bad Habits", "Ed Sheeran", duration=200)).hard_mismatch
+
+
+def test_plain_edition_names_are_no_other_arrangement():
+    for title in ("Song (Super Deluxe Version)", "Song (Studio Version)", "Song (Edited Version)"):
+        assert versions.version_of(title).hard == set(), title
+
+
+def test_another_artists_song_of_that_name_is_never_preselected():
+    src = Track(SPOTIFY, "s1", "Daylight", "David Kushner", album="Daylight", duration=212)
+    cover = Track(APPLE, "a1", "Daylight", "Some Singer", album="Covers Vol. 1", duration=215)
+    a = matcher.assess(src, cover)
+    assert a.score >= matcher.SUGGEST and not a.fits

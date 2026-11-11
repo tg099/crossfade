@@ -5,6 +5,7 @@
 	import { seedColors, trackColors } from './artcolor.ts';
 	import { t } from './i18n.svelte.ts';
 	import { Spring } from './motion.ts';
+	import { ui } from './ui.svelte.ts';
 
 	// Shown only while a sample plays: what you're listening in to, a ring that runs out, stop.
 	// Not a player: no queue, nothing keeps playing. YouTube previews need the visible embed.
@@ -53,7 +54,9 @@
 <svelte:window onmessage={player.onMessage} onkeydown={key} />
 
 {#if shown}
-	<div class="hearing-wrap" style:--p={p}>
+	<!-- over: a sheet is open (versions are compared in one): float above it instead of hiding
+	     behind it – at the top on a phone, where the sheet's choices and buttons stay free -->
+	<div class="hearing-wrap" class:over={ui.sheets.length > 0} style:--p={p}>
 		{#if yt}
 			<div class="video glass strong">
 				{#key yt}
@@ -66,7 +69,7 @@
 				<Cover src={shown.artwork} seed={shown.id} size={36} radius={0.5} track={shown} />
 			</span>
 			<span class="txt">
-				<span class="lbl">{player.status === 'error' ? (player.error ?? t('hear.failed')) : t('hear.label')}</span>
+				<span class="lbl" class:err={player.status === 'error'}>{player.status === 'error' ? (player.error ?? t('hear.failed')) : t('hear.label')}</span>
 				<span class="clip ttl">{shown.title} · {shown.artist}</span>
 			</span>
 			{#if player.status === 'paused'}
@@ -104,9 +107,9 @@
 		display: flex;
 		align-items: center;
 		gap: 10px;
-		height: 56px;
-		padding: 0 8px 0 10px;
-		border-radius: 999px;
+		min-height: 56px;
+		padding: 6px 8px 6px 10px;
+		border-radius: 28px;
 		background: color-mix(in srgb, var(--glass-strong) 84%, var(--c1, transparent) 16%);
 	}
 	/* the remaining time as a ring around the cover */
@@ -135,6 +138,18 @@
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
 	}
+	/* a sentence, not a label: calm case, at most two lines */
+	.lbl.err {
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+		text-transform: none;
+		letter-spacing: 0;
+		font-weight: 600;
+		color: var(--red-text);
+	}
 	.ttl {
 		font-size: var(--f-sub);
 		font-weight: 600;
@@ -150,15 +165,36 @@
 		box-shadow: var(--ctl-shadow);
 		color: var(--label);
 	}
+	.hearing-wrap.over {
+		z-index: 300;
+		top: calc(var(--safe-top) + 8px);
+		bottom: auto;
+		transform: translate(-50%, calc((var(--p) - 1) * 24px)) scale(calc(0.9 + var(--p) * 0.1));
+	}
 	@media (min-width: 721px) {
 		.hearing-wrap {
 			left: calc(var(--side) + (100vw - var(--side)) / 2);
 			bottom: 18px;
 		}
+		/* beside the centred sheet, in the corner */
+		.hearing-wrap.over {
+			top: auto;
+			left: auto;
+			right: 20px;
+			bottom: 20px;
+			width: min(100vw - 40px, 360px);
+			transform: translate(0, calc((1 - var(--p)) * 24px)) scale(calc(0.9 + var(--p) * 0.1));
+		}
 	}
 	@media (prefers-reduced-motion: reduce) {
-		.hearing-wrap {
+		.hearing-wrap,
+		.hearing-wrap.over {
 			transform: translate(-50%, 0);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) and (min-width: 721px) {
+		.hearing-wrap.over {
+			transform: none;
 		}
 	}
 </style>

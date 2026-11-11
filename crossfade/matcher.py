@@ -215,12 +215,16 @@ class Assessment:
     notes: list[str] = field(default_factory=list)
     hard_mismatch: bool = False
     title: float = 1.0           # how alike the titles are (0..1)
+    artist: float = 1.0          # how alike the artists are (0..1)
+    far: bool = False            # the lengths differ by half a minute or more (audio on both sides)
 
     @property
     def fits(self) -> bool:
         """Good enough to be offered as *the* answer (preselected for a person to confirm): the same
-        title, nothing that makes it another recording. Weaker ones stay choosable, never preselected."""
-        return self.exact or (self.score >= FITS and self.title >= 0.85 and not self.hard_mismatch)
+        title by the same artist at about the same length, nothing that makes it another recording.
+        Weaker ones stay choosable, never preselected (a cover by someone else, a 30 s snippet)."""
+        return self.exact or (self.score >= FITS and self.title >= 0.85 and self.artist >= 0.7
+                              and not self.far and not self.hard_mismatch)
 
     @property
     def rank_key(self) -> float:
@@ -305,7 +309,7 @@ def _assess(src: Track, cand: Track) -> Assessment:
     if cmp.exact and d < 0.8 and not video and src.duration and cand.duration:
         notes.append(f"{abs(src.duration - cand.duration)} s difference")
     return Assessment(round(max(0.0, min(1.0, s)), 4), s, exact, notes, cmp.hard_mismatch and not relabelled,
-                      round(t, 4))
+                      round(t, 4), round(a, 4), bool(far))
 
 
 RENAMED = "different artist name"
