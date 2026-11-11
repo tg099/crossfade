@@ -331,7 +331,7 @@ def create_line(body: LineIn, user: dict = Depends(current_user), db: Database =
                            delete_guard_ratio,delete_confirm,paused,position,version_policy,created_at,updated_at)
                            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                         (user["id"], body.name.strip(), body.color, body.icon, int(body.sync_deletions), body.interval_minutes,
-                         body.delete_guard_min, int(body.delete_confirm), body.delete_guard_ratio, int(body.paused), pos, body.version_policy,
+                         body.delete_guard_min, body.delete_guard_ratio, int(body.delete_confirm), int(body.paused), pos, body.version_policy,
                          now, now)).lastrowid
         for i, m in enumerate(members):
             c.execute("""INSERT INTO line_members(line_id,account_id,kind,collection_id,collection_name,role,

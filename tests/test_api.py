@@ -454,3 +454,14 @@ def test_versions_only_for_songs_of_the_fade(admin):
         r = admin.post(f"/api/lines/{lid}/songs/999999/{path}", json={"member_id": mid, "target": "x"}, headers=H)
         assert r.status_code == 404, (path, r.text)
     assert admin.delete(f"/api/lines/{lid}", headers=H).status_code == 200
+
+
+def test_new_fade_keeps_its_deletion_settings(admin):
+    """Each deletion setting lands in its own column when a fade is created."""
+    body = {"name": "Guard", "delete_confirm": False, "delete_guard_min": 7, "delete_guard_ratio": 0.3,
+            "members": [{"service": "ytm", "kind": "liked", "collection_name": "Likes", "role": "both"}]}
+    r = admin.post("/api/lines", json=body, headers=H)
+    assert r.status_code == 200, r.text
+    row = get_db().one("SELECT delete_confirm, delete_guard_min, delete_guard_ratio FROM lines WHERE id=?",
+                       (r.json()["id"],))
+    assert (row["delete_confirm"], row["delete_guard_min"], row["delete_guard_ratio"]) == (0, 7, 0.3)
