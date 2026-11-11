@@ -66,6 +66,8 @@ class UI {
 	appsOpen = $state(false);
 	notifyOpen = $state(false);
 	mcpOpen = $state(false);
+	/** a proposal of an assistant to show right away (from the home page or a notification link) */
+	mcpFocus = $state<string | null>(null);
 	healthOpen = $state(false);
 	backupOpen = $state(false);
 	historyOpen = $state(false);
@@ -177,6 +179,20 @@ class UI {
 	openService(s: Service) {
 		this.serviceFocus = s;
 		this.serviceOpen = true;
+	}
+	/** the assistant sheet, at one proposal (null: at the list of what waits for you) */
+	openAssistant(action: string | null = null) {
+		this.mcpFocus = action ?? '';
+		this.mcpOpen = true;
+	}
+	/** everything that floats over the app goes away (signed out, session ended) */
+	closeAll() {
+		this.accountOpen = this.serviceOpen = this.usersOpen = this.userOpen = this.appsOpen = false;
+		this.notifyOpen = this.mcpOpen = this.healthOpen = this.backupOpen = this.historyOpen = false;
+		this.passwordOpen = this.friendsOpen = this.joinOpen = this.editorOpen = this.planOpen = false;
+		this.reviewOpen = this.songOpen = false;
+		this.ctx = null;
+		this.ask = null;
 	}
 }
 export const ui = new UI();

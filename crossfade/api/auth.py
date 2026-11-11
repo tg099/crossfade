@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from ..config import config
 from ..db import Database
+from ..mcp_access import revoke as revoke_mcp
 from ..security import hash_password, new_token, token_hash, verify_password
 from .deps import SESSION_COOKIE, current_user, db_dep, public_user
 
@@ -196,5 +197,5 @@ def change_password(body: PasswordBody, request: Request, user: dict = Depends(c
     # sign out other sessions
     db.run("DELETE FROM sessions WHERE user_id=? AND token_hash<>?",
            (user["id"], token_hash(request.cookies.get(SESSION_COOKIE, ""))))
-    db.run("DELETE FROM mcp_tokens WHERE user_id=?", (user["id"],))
+    revoke_mcp(db, user["id"])
     return {"ok": True}

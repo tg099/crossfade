@@ -42,6 +42,7 @@
 
 <AuthPage title={t('auth.welcome')} intro={t('auth.welcomeText')}>
 	<form class="form" onsubmit={submit}>
+		{#if app.expired && !error}<p class="t-sub t-2 note" role="status">{t('auth.expired')}</p>{/if}
 		<Field label={t('users.username')} bind:value={username} autocomplete="username" />
 		<Field label={t('auth.password')} type="password" bind:value={password} autocomplete="current-password" />
 		{#if error}<p class="err" role="alert">{error}</p>{/if}

@@ -122,6 +122,27 @@ TEXTS: dict[str, dict[str, tuple]] = {
         "en": ("Crossfade {latest} is out", "You're running {current}. See what's new in the release notes."),
         "de": ("Crossfade {latest} ist da", "Du nutzt gerade {current}. Was neu ist, steht in den Release Notes."),
     },
+    "assistant_confirm": {
+        "en": ("{connection} is waiting for you",
+               lambda v: f"Your assistant wants to {ASSISTANT_DELETES['en'].get(v['op'], 'delete something')}. "
+                         "Confirm or cancel it in Crossfade."),
+        "de": ("{connection} wartet auf dich",
+               lambda v: f"Dein Assistent möchte {ASSISTANT_DELETES['de'].get(v['op'], 'etwas löschen')}. "
+                         "Bestätige oder verwirf das in Crossfade."),
+    },
+}
+
+# what an assistant's proposal would delete, for the approval notification
+ASSISTANT_DELETES: dict[str, dict[str, str]] = {
+    "en": {"fade_delete": "delete a fade", "remove_songs": "remove songs", "dedupe": "remove duplicates",
+           "playlists": "delete or merge playlists", "restore": "reset a collection to an earlier state",
+           "sync": "carry out held deletions", "fade_create": "create a fade that syncs deletions",
+           "fade_update": "let a fade delete more"},
+    "de": {"fade_delete": "einen Fade löschen", "remove_songs": "Songs entfernen", "dedupe": "Duplikate entfernen",
+           "playlists": "Playlists löschen oder zusammenführen",
+           "restore": "eine Sammlung auf einen früheren Stand zurücksetzen",
+           "sync": "zurückgehaltene Löschungen ausführen", "fade_create": "einen Fade mit Löschabgleich anlegen",
+           "fade_update": "einem Fade mehr Löschungen erlauben"},
 }
 
 
@@ -418,6 +439,12 @@ def run_finished(db: Database, line_id: int, status: str, message: str | None, t
                 resolve(db, uid, f"issues:{line_id}")
             else:
                 remember(db, uid, f"issues:{line_id}", str(n))
+
+
+def assistant_waiting(db: Database, user_id: int, action_id: str, operation: str, connection: str) -> None:
+    """An assistant prepared something that deletes: only the person can let it happen."""
+    emit(db, user_id, "confirm", f"mcp:{action_id}", "assistant_confirm", path=f"/assistant?action={action_id}",
+         urgent=True, repeat=True, connection=connection, op=operation)
 
 
 def social(db: Database, user_id: int, msg: str, path: str = "/", **v) -> None:

@@ -50,17 +50,18 @@
 
 	let h = $state<Health | null>(null);
 	let timer: ReturnType<typeof setInterval> | null = null;
-	async function load() {
+	async function load(quiet = false) {
 		try {
 			h = await api<Health>('/api/admin/health');
 		} catch (e) {
-			ui.fail(e);
+			// the refresh in the background stays quiet: one failed request is no news every 30 s
+			if (!quiet) ui.fail(e);
 		}
 	}
 	$effect(() => {
 		if (!ui.healthOpen) return;
 		load();
-		timer = setInterval(load, 30_000);
+		timer = setInterval(() => load(true), 30_000);
 		return () => {
 			if (timer) clearInterval(timer);
 		};

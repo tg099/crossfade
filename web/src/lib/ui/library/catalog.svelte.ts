@@ -25,7 +25,8 @@ export const artistsOf = (a: string) =>
 export const kindRank = (s: CatalogSource) => ({ liked: 0, library: 1, playlist: 2 })[s.kind];
 
 class CatalogState {
-	data = $state<Catalog | null>(null);
+	/** replaced as a whole on every load, never edited in place: no deep proxies over thousands of songs */
+	data = $state.raw<Catalog | null>(null);
 	error = $state('');
 	loading = $state(false);
 	#lastFinished = 0;
@@ -118,16 +119,30 @@ class CatalogState {
 		}
 	}
 
-	presence(s: CatalogSong): Map<Service, number> {
-		const m = new Map<Service, number>();
-		for (const [src] of s.in) {
-			const svc = this.sourceById.get(src)?.service;
-			if (svc) m.set(svc, (m.get(svc) ?? 0) + 1);
+	/** per song: on which services it is (and how often), and whether one service holds several
+	    versions of it. Built once per load: filtering runs on every keystroke over the whole library. */
+	facts = $derived.by(() => {
+		const presence = new Map<number, Map<Service, number>>();
+		const versions = new Set<number>();
+		const sources = this.sourceById;
+		for (const s of this.data?.songs ?? []) {
+			const m = new Map<Service, number>();
+			const refs = new Map<Service, Set<string>>();
+			for (const [src, ref] of s.in) {
+				const svc = sources.get(src)?.service;
+				if (!svc) continue;
+				m.set(svc, (m.get(svc) ?? 0) + 1);
+				const seen = refs.get(svc) ?? refs.set(svc, new Set()).get(svc)!;
+				seen.add(ref);
+				if (seen.size > 1) versions.add(s.id);
+			}
+			presence.set(s.id, m);
 		}
-		return m;
-	}
-	refsOn(s: CatalogSong, svc: Service): Set<string> {
-		return new Set(s.in.filter(([src]) => this.sourceById.get(src)?.service === svc).map(([, r]) => r));
+		return { presence, versions };
+	});
+
+	presence(s: CatalogSong): Map<Service, number> {
+		return this.facts.presence.get(s.id) ?? new Map();
 	}
 	/** something you can listen into: the first copy of the song on any service */
 	track(s: CatalogSong): TrackInfo {
@@ -144,8 +159,9 @@ class CatalogState {
 		if (hits && !hits.scores.has(s.id)) return false;
 		const pres = this.presence(s);
 		for (const svc of this.services) {
-			if (this.avail[svc] === 'has' && !pres.has(svc)) return false;
-			if (this.avail[svc] === 'missing' && pres.has(svc)) return false;
+			const want = this.avail[svc];
+			if (want === 'has' && !pres.has(svc)) return false;
+			if (want === 'missing' && pres.has(svc)) return false;
 		}
 		const p = this.picked;
 		if (skip !== 'artist' && p.artist.length) {
@@ -163,7 +179,7 @@ class CatalogState {
 			if (sp === 'explicit' && !s.x) return false;
 			if (sp === 'noline' && this.linesOfSong.has(s.id)) return false;
 			if (sp === 'single' && pres.size !== 1) return false;
-			if (sp === 'versions' && !this.services.some((svc) => this.refsOn(s, svc).size > 1)) return false;
+			if (sp === 'versions' && !this.facts.versions.has(s.id)) return false;
 		}
 		return true;
 	}

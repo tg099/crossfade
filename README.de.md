@@ -155,7 +155,8 @@ Jeder Fade merkt sich, welche Songs er kennt und wo er sie zuletzt gesehen hat.
 - **KI-Assistenten und Stimmungs-Playlists** (**Konto → KI-Assistenten**): Über den eingebauten MCP-Server kann
   dein Assistent deine Mediathek durchsuchen und vergleichen, Playlists für frei beschriebene Stimmungen
   vorbereiten, Fades verwalten, offene Songs zuordnen, Dubletten aufräumen und die Zeitreise nutzen. Persönliche
-  Schlüssel trennen Lesen, Synchronisieren und Verwalten; Löschungen bestätigst du in Crossfade. Einordnungen
+  Schlüssel trennen Lesen, Synchronisieren und Verwalten. Änderungen setzt der Assistent selbst um, nur
+  Löschungen bestätigst du in Crossfade (per Link, Karte auf der Übersicht und auf Wunsch Benachrichtigung). Einordnungen
   zu Stimmung und Genre stammen vom verbundenen Assistenten, mit Sicherheitseinschätzung und geschützten
   persönlichen Korrekturen. [Einrichtung, Werkzeuge und Grenzen](docs/mcp.md) (Englisch).
 - **Zeitreise:** Jedes Mal, wenn Crossfade eine Sammlung komplett liest, merkt es sich ihren Inhalt, aber nur wenn

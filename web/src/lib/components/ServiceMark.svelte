@@ -35,7 +35,7 @@
 		<circle cx="10" cy="10" r="5.4" fill="none" stroke="#fff" stroke-width="1.5" />
 		<circle cx="10" cy="10" r="1.5" fill="#fff" />
 	{:else}
-		<rect width="20" height="20" rx="6" fill="var(--grout)" />
+		<rect width="20" height="20" rx="6" fill="var(--fill)" />
 	{/if}
 </svg>
 

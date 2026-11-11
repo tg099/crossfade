@@ -71,6 +71,10 @@
 			const back = (ok || err?.split('-')[0]) as Service | null;
 			ui.openAccount(focus && SERVICES.includes(focus) ? focus : back && SERVICES.includes(back) ? back : null);
 			goto('/', { replaceState: true }).then(() => nav.init('/'));
+		} else if (url.pathname.startsWith('/assistant')) {
+			// a notification or an assistant links to a proposal that waits for you
+			ui.openAssistant(url.searchParams.get('action'));
+			goto('/', { replaceState: true }).then(() => nav.init('/'));
 		} else nav.init(url.pathname);
 		ready = true;
 		return () => mq.removeEventListener('change', set);
@@ -362,7 +366,8 @@
 				<button class="side-me" onclick={() => ui.openAccount()}>
 					<span class="avatar uav" style:--uh={userHue(String(app.user?.id))}>{app.user?.display_name.charAt(0).toUpperCase()}</span>
 					<span class="grow"><span class="b">{app.user?.display_name}</span><span class="b t-foot t-2">{t('account.sidebarServices', { n: services })}</span></span>
-					{#if app.trouble}<span class="sdot red" title={t('account.openTrouble')}></span>{/if}
+					{#if app.trouble}<span class="sdot red" title={t('account.openTrouble')}></span>
+					{:else if app.assistantWaiting.length}<span class="sdot orange" title={t('mcp.waitingN', { n: app.assistantWaiting.length })}></span>{/if}
 				</button>
 			</aside>
 

@@ -32,21 +32,56 @@
 	let scroller: HTMLElement | undefined = $state();
 	let solid = $state(false);
 
-	function onscroll() {
-		if (!scroller) return;
-		const t = scroller.querySelector<HTMLElement>('[data-title]');
-		const top = scroller.getBoundingClientRect().top;
-		const bar = parseFloat(getComputedStyle(scroller).paddingTop) || 0;
-		if (!t) {
-			solid = scroller.scrollTop > 2;
+	// Scroll events fire far more often than frames are drawn: measure at most once per frame, and
+	// keep what only changes with the layout (bar height, where the title starts) between frames.
+	let frame = 0;
+	let measured: { title: HTMLElement | null; bar: number; titleTop: number; titleH: number } | null = null;
+	function measure(el: HTMLElement) {
+		const title = el.querySelector<HTMLElement>('[data-title]');
+		const bar = parseFloat(getComputedStyle(el).paddingTop) || 0;
+		if (!title) return { title, bar, titleTop: 0, titleH: 0 };
+		const r = title.getBoundingClientRect();
+		return { title, bar, titleTop: r.top - el.getBoundingClientRect().top + el.scrollTop, titleH: r.height };
+	}
+	function update() {
+		frame = 0;
+		const el = scroller;
+		if (!el) return;
+		const y = el.scrollTop;
+		if (y <= 2) {
+			solid = false;
+			return;
+		}
+		if (!measured || (measured.title && !measured.title.isConnected)) measured = measure(el);
+		if (!measured.title) {
+			solid = true;
 			return;
 		}
 		// the title may start inside the bar (desktop: it shares the row with the buttons); it counts
 		// as gone once it has scrolled past where it started, not as soon as it is under the bar
-		const r = t.getBoundingClientRect();
-		const startTop = r.top - top + scroller.scrollTop;
-		solid = scroller.scrollTop > 2 && r.bottom < top + Math.min(bar, Math.max(startTop, 0)) + 4;
+		const bottom = measured.titleTop + measured.titleH - y;
+		solid = bottom < Math.min(measured.bar, Math.max(measured.titleTop, 0)) + 4;
 	}
+	function onscroll() {
+		if (!frame) frame = requestAnimationFrame(update);
+	}
+	$effect(() => {
+		const el = scroller;
+		if (!el) return;
+		// the layout changed (window size, Dynamic Type, the hero's content): measure again
+		const ro = new ResizeObserver(() => {
+			measured = null;
+			onscroll();
+		});
+		ro.observe(el);
+		const first = el.firstElementChild;
+		if (first) ro.observe(first);
+		return () => {
+			ro.disconnect();
+			cancelAnimationFrame(frame);
+			frame = 0;
+		};
+	});
 </script>
 
 <div class="pg">

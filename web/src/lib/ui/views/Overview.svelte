@@ -23,7 +23,7 @@
 	const hello = $derived(t(hour < 11 ? 'home.morning' : hour < 18 ? 'home.day' : 'home.evening', { name: first }));
 	const today = $derived(new Date().toLocaleDateString(i18n.locale, { weekday: 'long', day: 'numeric', month: 'long' }));
 
-	type Att = { key: string; text: string; sub: string; tone: 'red' | 'orange' | 'tint' | 'friend'; icon: 'key' | 'note' | 'trash' | 'users' | 'sparkle'; run: () => void; fade?: { icon: string; color: string } };
+	type Att = { key: string; text: string; sub: string; tone: 'red' | 'orange' | 'tint' | 'friend' | 'assistant'; icon: 'key' | 'note' | 'trash' | 'users' | 'sparkle'; run: () => void; fade?: { icon: string; color: string } };
 	// what needs a human, most important first
 	const attention = $derived.by(() => {
 		const out: Att[] = [];
@@ -38,6 +38,10 @@
 			for (const inv of f.invites)
 				if (inv.request) out.push({ key: `q${inv.id}`, text: t('share.wants', { name: inv.user.display_name }), sub: f.name, tone: 'friend', icon: 'users', run: () => nav.openFade(f.id), fade: f });
 		}
+		// an AI assistant wants to delete something: only you can let it
+		const asked = app.assistantWaiting;
+		if (asked.length)
+			out.push({ key: 'mcp', text: t('home.assistant', { name: asked[0].connection }), sub: t('mcp.waitingN', { n: asked.length }), tone: 'assistant', icon: 'sparkle', run: () => ui.openAssistant(asked.length === 1 ? asked[0].id : null) });
 		// friends: an invitation into their fade (not yet answered), or someone asking to be friends
 		for (const inv of app.friends.invites.filter((i) => !i.request))
 			out.push({ key: `v${inv.id}`, text: t('friends.invitedBy', { name: inv.from.display_name }), sub: inv.fade.name, tone: 'tint', icon: 'users', run: () => ui.join(inv), fade: inv.fade });
@@ -52,7 +56,7 @@
 			out.push({ key: 'upd', text: t('update.available', { version: (updates.state?.latest ?? '').toUpperCase() }), sub: t('update.whatsNew'), tone: 'tint', icon: 'sparkle', run: () => updates.open() });
 		return out;
 	});
-	const TONE_BG: Record<Att['tone'], string> = { red: 'var(--red)', orange: 'var(--orange)', tint: 'var(--tint-fill)', friend: '#30b0c7' };
+	const TONE_BG: Record<Att['tone'], string> = { red: 'var(--red)', orange: 'var(--orange)', tint: 'var(--tint-fill)', friend: '#30b0c7', assistant: '#7c5ce6' };
 	// one honest sentence about right now: what is syncing, or how fresh everything is
 	const status = $derived.by(() => {
 		const parts: string[] = [];
@@ -154,6 +158,31 @@
 	</ul>
 {/snippet}
 
+{#snippet attentionList()}
+	{#if attention.length}
+		<section class="section" aria-label={t('home.attention')}>
+			<ul class="att">
+				{#each attention as a (a.key)}
+					<li>
+						<button class="att-card glass lq tinted" style={a.fade ? tintVars(a.fade.color) : ''} onclick={a.run}>
+							<span class="tile-icon" style:background={TONE_BG[a.tone]}>
+								<Glyph name={a.icon} size={18} weight={2.3} />
+							</span>
+							<span class="grow">
+								<span class="block att-t">{a.text}</span>
+								{#if a.sub}
+									<span class="t-foot t-2 block att-f">{#if a.fade}<FadeBadge icon={fadeIcon(a.fade)} color={a.fade.color} size={16} />{/if} {a.sub}</span>
+								{/if}
+							</span>
+							<span class="chev"><Glyph name="chevronRight" size={18} weight={2.6} /></span>
+						</button>
+					</li>
+				{/each}
+			</ul>
+		</section>
+	{/if}
+{/snippet}
+
 <Page title={t('tab.home')} large={false} glow={BRAND}>
 	{#snippet hero()}
 		<header class="hello">
@@ -229,53 +258,11 @@
 
 
 	{#if !app.lines.length}
-	{#if attention.length}
-		<section class="section" aria-label={t('home.attention')}>
-			<ul class="att">
-				{#each attention as a (a.key)}
-					<li>
-						<button class="att-card glass lq tinted" style={a.fade ? tintVars(a.fade.color) : ''} onclick={a.run}>
-							<span class="tile-icon" style:background={TONE_BG[a.tone]}>
-								<Glyph name={a.icon} size={18} weight={2.3} />
-							</span>
-							<span class="grow">
-								<span class="block att-t">{a.text}</span>
-								{#if a.sub}
-									<span class="t-foot t-2 block att-f">{#if a.fade}<FadeBadge icon={fadeIcon(a.fade)} color={a.fade.color} size={16} />{/if} {a.sub}</span>
-								{/if}
-							</span>
-							<span class="chev"><Glyph name="chevronRight" size={18} weight={2.6} /></span>
-						</button>
-					</li>
-				{/each}
-			</ul>
-		</section>
-	{/if}
+		{@render attentionList()}
 	{:else}
 		<div class="dash">
 			<div class="main">
-		{#if attention.length}
-			<section class="section" aria-label={t('home.attention')}>
-				<ul class="att">
-					{#each attention as a (a.key)}
-						<li>
-							<button class="att-card glass lq tinted" style={a.fade ? tintVars(a.fade.color) : ''} onclick={a.run}>
-								<span class="tile-icon" style:background={TONE_BG[a.tone]}>
-									<Glyph name={a.icon} size={18} weight={2.3} />
-								</span>
-								<span class="grow">
-									<span class="block att-t">{a.text}</span>
-									{#if a.sub}
-										<span class="t-foot t-2 block att-f">{#if a.fade}<FadeBadge icon={fadeIcon(a.fade)} color={a.fade.color} size={16} />{/if} {a.sub}</span>
-									{/if}
-								</span>
-								<span class="chev"><Glyph name="chevronRight" size={18} weight={2.6} /></span>
-							</button>
-						</li>
-					{/each}
-				</ul>
-			</section>
-		{/if}
+		{@render attentionList()}
 			<section class="section" aria-labelledby="fades-h">
 				<div class="section-head">
 					<h2 id="fades-h">{t('home.yourFades')}</h2>

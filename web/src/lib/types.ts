@@ -478,3 +478,11 @@ export interface Cleanup {
 	dismissed: number;
 	undo: { at: number; action: string; n: number } | null;
 }
+
+/** a deletion an AI assistant proposed; only the person can let it happen */
+export interface AssistantWaiting {
+	id: string;
+	operation: string;
+	created_at: number;
+	connection: string;
+}

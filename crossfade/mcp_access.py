@@ -10,6 +10,7 @@ from .db import Database
 from .security import new_token, token_hash
 
 SCOPES = {"read", "sync", "manage"}
+AUDIT_KEEP = 500
 
 
 def issue_token(db: Database, user_id: int, name: str, scopes: list[str], days: int) -> dict:
@@ -24,6 +25,14 @@ def issue_token(db: Database, user_id: int, name: str, scopes: list[str], days: 
     tid = db.run("INSERT INTO mcp_tokens(user_id,name,token_hash,scopes,created_at,expires_at) VALUES(?,?,?,?,?,?)",
                  (user_id, name, token_hash(token), json.dumps(permissions), now, now + days * 86400))
     return {"id": tid, "token": token, "name": name, "scopes": permissions, "expires_at": now + days * 86400}
+
+
+def revoke(db: Database, user_id: int, token_id: int | None = None) -> None:
+    """Remove one connection (or all of a user's) and cancel what they proposed but nobody ran yet."""
+    which, args = ("token_id=? AND ", (token_id, user_id)) if token_id is not None else ("", (user_id,))
+    with db.tx() as c:
+        c.execute(f"UPDATE mcp_actions SET state='cancelled' WHERE {which}user_id=? AND state='pending'", args)
+        c.execute(f"DELETE FROM mcp_tokens WHERE {which.replace('token_id', 'id')}user_id=?", args)
 
 
 def authenticate(db: Database, authorization: str) -> dict:
@@ -47,8 +56,14 @@ def require_scope(principal: dict, scope: str) -> None:
 
 
 def audit(db: Database, principal: dict, tool: str, status: str) -> None:
-    db.run("INSERT INTO mcp_audit(user_id,connection,tool,status,created_at) VALUES(?,?,?,?,?)",
-           (principal["id"], principal["connection"], tool, status, time.time()))
-    db.run("DELETE FROM mcp_audit WHERE user_id=? AND id NOT IN "
-           "(SELECT id FROM mcp_audit WHERE user_id=? ORDER BY id DESC LIMIT 500)",
-           (principal["id"], principal["id"]))
+    record(db, principal["id"], principal["connection"], tool, status)
+
+
+def record(db: Database, user_id: int, connection: str, tool: str, status: str) -> None:
+    entry = db.run("INSERT INTO mcp_audit(user_id,connection,tool,status,created_at) VALUES(?,?,?,?,?)",
+                   (user_id, connection, tool, status, time.time()))
+    # Trimming on every call would rescan the user's log each time; every 50th entry is plenty.
+    if entry % 50 == 0:
+        db.run("DELETE FROM mcp_audit WHERE user_id=? AND id NOT IN "
+               "(SELECT id FROM mcp_audit WHERE user_id=? ORDER BY id DESC LIMIT ?)",
+               (user_id, user_id, AUDIT_KEEP))

@@ -155,7 +155,8 @@ Each fade remembers which songs it knows and where it last saw them.
 - **AI assistants and mood playlists** (**Account → AI assistants**): a built-in MCP server lets your
   assistant search and compare your library, prepare playlists for freely described moods, manage fades,
   resolve matches, tidy duplicates and use time travel. Personal tokens have read/sync/manage permissions;
-  destructive actions need confirmation in Crossfade. Mood/genre estimates come from the connected assistant,
+  the assistant carries out changes itself, only deletions wait for your confirmation in Crossfade (with a
+  link, a home-page card and an optional notification). Mood/genre estimates come from the connected assistant,
   with confidence and protected personal corrections. [Setup, tools and limitations](docs/mcp.md).
 - **Time travel:** every time Crossfade reads a whole collection it remembers its content, only when something
   changed. In the library (clock icon) or on a collection in a fade you pick a point in time, see what is gone and

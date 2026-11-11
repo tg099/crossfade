@@ -515,7 +515,7 @@
 		align-items: center;
 		gap: 4px 10px;
 		padding: 10px 12px 10px 16px;
-		border-top: 0.5px solid var(--separator);
+		border-top: 0.5px solid var(--sep);
 	}
 	.foot .note {
 		flex: 1 0 100%;

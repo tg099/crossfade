@@ -1,6 +1,6 @@
 // Data of the signed-in user: fades, services, catalog jobs, live events from the server.
-import { api, put } from './api.ts';
-import type { Activity, Board, CatalogFinished, CatalogJob, Friends, Job, Line, Member, ServiceInfo, User } from './types.ts';
+import { api, put, session } from './api.ts';
+import type { Activity, AssistantWaiting, Board, CatalogFinished, CatalogJob, Friends, Job, Line, Member, ServiceInfo, User } from './types.ts';
 import { num, t, type Key } from './ui/i18n.svelte.ts';
 import { ui } from './ui/ui.svelte.ts';
 import { updates } from './updates.svelte.ts';
@@ -35,9 +35,14 @@ class AppState {
 	catalogFinished = $state<CatalogFinished | null>(null);
 	/** friends, requests and invitations into their fades */
 	friends = $state<Friends>({ friends: [], incoming: [], outgoing: [], invites: [] });
-	/** what waits for an answer from you */
 	// what waits for you: friend requests, and invites you haven't answered (a sent join request waits for the owner)
 	socialBadge = $derived(this.friends.incoming.length + this.friends.invites.filter((i) => !i.request).length);
+	/** deletions an AI assistant proposed that only you can let happen */
+	assistantWaiting = $state<AssistantWaiting[]>([]);
+	/** bumped whenever an assistant's proposal changes, so an open assistant sheet reloads */
+	assistantTick = $state(0);
+	/** the session ended while the app was open: the sign-in page says so */
+	expired = $state(false);
 
 	#events: EventSource | null = null;
 
@@ -57,6 +62,15 @@ class AppState {
 	connected = $derived(this.services.filter((s) => s.connected));
 	trouble = $derived(this.services.some((s) => s.connected && s.status === 'error'));
 
+	constructor() {
+		session.lost = () => {
+			if (!this.user) return;
+			ui.closeAll();
+			this.signedOut();
+			this.expired = true;
+		};
+	}
+
 	async boot() {
 		try {
 			const s = await api<{ setup_needed: boolean; user: User | null }>('/api/auth/state');
@@ -71,7 +85,8 @@ class AppState {
 		this.user = user;
 		ui.applyPrefs(user.theme, user.lang);
 		if (user.must_change_password) return; // nothing else until the start password is replaced
-		await Promise.all([this.loadLines(), this.loadServices(), this.loadActivity(), this.loadFriends(), this.loadBoard()]);
+		this.expired = false;
+		await Promise.all([this.loadLines(), this.loadServices(), this.loadActivity(), this.loadFriends(), this.loadBoard(), this.loadAssistant()]);
 		if (user.is_admin) updates.load();
 		this.connectEvents();
 	}
@@ -83,6 +98,8 @@ class AppState {
 		this.activity = null;
 		this.board = null;
 		this.friends = { friends: [], incoming: [], outgoing: [], invites: [] };
+		this.assistantWaiting = [];
+		this.catalogJob = null;
 		this.linesLoaded = false;
 		this.#events?.close();
 		this.#events = null;
@@ -108,6 +125,14 @@ class AppState {
 	async loadBoard() {
 		try {
 			this.board = await api<Board>('/api/friends/board');
+		} catch {
+			// not essential
+		}
+	}
+
+	async loadAssistant() {
+		try {
+			this.assistantWaiting = (await api<{ actions: AssistantWaiting[] }>('/api/mcp/pending')).actions;
 		} catch {
 			// not essential
 		}
@@ -174,10 +199,18 @@ class AppState {
 	connectEvents() {
 		if (this.#events || typeof EventSource === 'undefined') return;
 		const es = new EventSource('/api/events');
-		// after a server restart (e.g. a nightly update) running jobs are gone: refresh the state
+		// after a server restart (e.g. a nightly update) or a dropped connection, events were missed:
+		// refresh everything they would have told us
 		let opened = false;
 		es.onopen = () => {
-			if (opened) this.loadLines();
+			if (opened) {
+				this.loadLines();
+				this.loadServices().catch(() => {});
+				this.loadFriends();
+				this.loadActivity();
+				this.loadAssistant();
+				this.assistantTick++;
+			}
 			opened = true;
 		};
 		es.onmessage = (msg) => {
@@ -188,6 +221,11 @@ class AppState {
 				return;
 			}
 			if (ev.type === 'catalog') return this.#onCatalog(ev);
+			// an assistant proposed, ran or finished something
+			if (ev.type === 'mcp') {
+				this.assistantTick++;
+				return void this.loadAssistant();
+			}
 			// an admin restored a backup: everything shown here may be gone
 			if (ev.type === 'restored') return location.reload();
 			// a friend asked, answered, joined or left: refresh what we show of them
@@ -217,10 +255,16 @@ class AppState {
 			}
 		};
 		es.onerror = () => {
-			// EventSource reconnects by itself; if the session expired, re-check.
+			// EventSource reconnects by itself unless the server refused it (e.g. the session ended):
+			// then ask again in a moment – a 401 from that check signs out cleanly
 			if (es.readyState === EventSource.CLOSED) {
 				this.#events = null;
-				setTimeout(() => this.user && this.connectEvents(), 5000);
+				setTimeout(() => {
+					if (!this.user) return;
+					this.loadServices()
+						.then(() => this.user && this.connectEvents())
+						.catch(() => setTimeout(() => this.user && this.connectEvents(), 15000));
+				}, 5000);
 			}
 		};
 		this.#events = es;

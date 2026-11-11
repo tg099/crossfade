@@ -137,6 +137,18 @@ def test_real_protocol_and_structured_tools(env):
     assert any(p["name"] == "mood_playlist" for p in prompts)
 
 
+def test_tool_hints_tell_clients_what_only_reads_and_what_may_delete(env):
+    tools = {t["name"]: t for t in rpc(env, "tools/list").json()["result"]["tools"]}
+    assert {"prepare_add_songs", "prepare_fade_update", "prepare_collection_role", "fade_songs", "fade_stats",
+            "activity", "list_labels", "clear_annotations"} <= set(tools)
+    assert all(t.get("title") for t in tools.values())
+    hints = {name: t["annotations"] for name, t in tools.items()}
+    assert hints["search_library"]["readOnlyHint"] and not hints["search_library"]["openWorldHint"]
+    # proposals change nothing, and apply_action can't delete (deletions need the browser)
+    assert not hints["prepare_song_removal"]["destructiveHint"] and not hints["apply_action"]["destructiveHint"]
+    assert hints["clear_annotations"]["destructiveHint"] and hints["apply_action"]["openWorldHint"]
+
+
 def test_cookies_never_authenticate_mcp_and_headers_never_authenticate_browser(env):
     assert env.client.post("/mcp", json={}, headers=env.browser).status_code == 401
     assert env.client.post("/mcp?token=" + env.token["token"], json={}).status_code == 401
@@ -279,7 +291,10 @@ def test_destructive_actions_require_browser_approval_and_are_isolated(env, host
     sid = env.ids["Hello"]
     draft = call(env, "prepare_song_removal", {"selection": {"song_ids": [sid], "source_ids": [source]}})
     assert draft["requires_browser_confirmation"]
-    assert "Confirm" in call(env, "apply_action", {"action_id": draft["id"]}, error=True)
+    assert draft["approve_url"] == f"{config.base_url}/assistant?action={draft['id']}"
+    refused = call(env, "apply_action", {"action_id": draft["id"]}, error=True)
+    assert "confirmation in Crossfade" in refused and draft["approve_url"] in refused
+    assert [a["id"] for a in env.client.get("/api/mcp/pending", headers=env.browser).json()["actions"]] == [draft["id"]]
     other = person(host, "Other")
     call(other, "get_action", {"action_id": draft["id"]}, error=True)
     assert env.client.post(f"/api/mcp/actions/{draft['id']}/apply", headers=other.browser).status_code == 404
@@ -359,12 +374,36 @@ def test_annotation_validation_and_tool_argument_limits(env):
                                                   "evidence": "   "}]}, error=True)
 
 
-def test_resuming_deletion_enabled_fade_requires_approval(env):
+def test_only_deletions_wait_for_the_person(env):
+    """Resuming, plain syncs and version swaps run without the browser; held deletions and exact
+    restores wait for it."""
     principal = authenticate(env.db, "Bearer " + env.token["token"])
     fade = env.db.run("INSERT INTO lines(user_id,name,color,created_at,updated_at,paused) VALUES(?,?,?,0,0,1)",
                       (env.uid, "Test fade", "#0072CE"))
-    action = mcp_actions.prepare(env.db, principal, "fade_pause", {"fade_id": fade, "paused": False})
-    assert action["requires_browser_confirmation"]
+    assert not mcp_actions.prepare(env.db, principal, "fade_pause", {"fade_id": fade, "paused": False})[
+        "requires_browser_confirmation"]
+    assert not mcp_actions.prepare(env.db, principal, "sync", {"fade_id": fade})["requires_browser_confirmation"]
+    held = mcp_actions.prepare(env.db, principal, "sync", {"fade_id": fade, "allow_deletions": True})
+    assert held["requires_browser_confirmation"] and held["approve_url"]
+    snap = history.capture(env.db, env.aid, LIKED, "", ["ytm_hello"], "scan") or env.db.val(
+        "SELECT id FROM snapshots WHERE account_id=? ORDER BY id DESC LIMIT 1", (env.aid,))
+    assert not mcp_actions.prepare(env.db, principal, "restore", {"snapshot_id": snap, "mode": "missing"})[
+        "requires_browser_confirmation"]
+    assert mcp_actions.prepare(env.db, principal, "restore", {"snapshot_id": snap, "mode": "exact"})[
+        "requires_browser_confirmation"]
+
+
+def test_deletion_approvals_notify_the_person(env, monkeypatch):
+    sent = []
+    monkeypatch.setattr("crossfade.notify._dispatch", lambda db, uid, msg, sync=False: sent.append((uid, msg)))
+    source = env.db.val("SELECT id FROM catalog_sources WHERE account_id=?", (env.aid,))
+    draft = call(env, "prepare_song_removal", {"selection": {"song_ids": [env.ids["Hello"]], "source_ids": [source]}})
+    assert len(sent) == 1 and sent[0][0] == env.uid
+    assert sent[0][1]["event"] == "confirm" and sent[0][1]["url"] == draft["approve_url"]
+    assert "remove songs" in sent[0][1]["message"]
+    call(env, "prepare_add_songs", {"request": {"song_ids": [env.ids["Hello"]], "account_id": env.aid,
+                                                "new_playlist": "Quiet"}})
+    assert len(sent) == 1   # adding never asks
 
 
 def test_disabling_mcp_does_not_disable_web_account_management(env, monkeypatch):
@@ -388,11 +427,101 @@ def test_changed_fade_settings_cannot_bypass_deletion_approval(env):
     principal = authenticate(env.db, "Bearer " + env.token["token"])
     fade = env.db.run("INSERT INTO lines(user_id,name,color,created_at,updated_at,sync_deletions) "
                       "VALUES(?,?,?,0,0,0)", (env.uid, "Test fade", "#0072CE"))
-    action = mcp_actions.prepare(env.db, principal, "sync", {"fade_id": fade})
+    env.db.run("INSERT INTO line_members(line_id,account_id,kind,collection_id,collection_name,role,position) "
+               "VALUES(?,?,'liked','','Likes','both',0)", (fade, env.aid))
+    action = mcp_actions.prepare(env.db, principal, "fade_update", {"fade_id": fade, "changes": {"delete_guard_min": 50}})
     assert not action["requires_browser_confirmation"]
     env.db.run("UPDATE lines SET sync_deletions=1 WHERE id=?", (fade,))
-    assert "changed" in call(env, "apply_action", {"action_id": action["id"]}, error=True)
-    assert env.host.worker.job(fade) is None
+    refused = call(env, "apply_action", {"action_id": action["id"]}, error=True)
+    assert "now deletes" in refused and "/assistant?action=" in refused
+    assert env.db.val("SELECT delete_guard_min FROM lines WHERE id=?", (fade,)) == 5
+    detail = call(env, "get_action", {"action_id": action["id"]})
+    assert detail["state"] == "pending" and detail["requires_browser_confirmation"]
+    r = env.client.post(f"/api/mcp/actions/{action['id']}/apply", headers=env.browser)
+    assert r.status_code == 200, r.text
+    assert env.db.val("SELECT delete_guard_min FROM lines WHERE id=?", (fade,)) == 50
+
+
+def test_fade_changes_keep_what_is_left_out_and_only_deletions_need_approval(env):
+    principal = authenticate(env.db, "Bearer " + env.token["token"])
+    fade = env.db.run("INSERT INTO lines(user_id,name,color,created_at,updated_at,sync_deletions,interval_minutes) "
+                      "VALUES(?,?,?,0,0,0,180)", (env.uid, "Keep me", "#C4007A"))
+    env.db.run("INSERT INTO line_members(line_id,account_id,kind,collection_id,collection_name,role,position) "
+               "VALUES(?,?,'liked','','Likes','send',0)", (fade, env.aid))
+    renamed = call(env, "prepare_fade_update", {"fade_id": fade, "changes": {"name": "Renamed"}})
+    assert not renamed["requires_browser_confirmation"] and renamed["preview"]["changes"] == {"name": "Renamed"}
+    assert call(env, "apply_action", {"action_id": renamed["id"]})["state"] == "ok"
+    row = env.db.one("SELECT * FROM lines WHERE id=?", (fade,))
+    assert (row["name"], row["color"], row["interval_minutes"]) == ("Renamed", "#C4007A", 180)
+    assert env.db.val("SELECT role FROM line_members WHERE line_id=?", (fade,)) == "send"
+    switch_on = call(env, "prepare_fade_update", {"fade_id": fade, "changes": {"sync_deletions": True}})
+    assert switch_on["requires_browser_confirmation"]
+    call(env, "apply_action", {"action_id": switch_on["id"]}, error=True)
+    env.db.run("UPDATE lines SET sync_deletions=1 WHERE id=?", (fade,))
+    calmer = mcp_actions.prepare(env.db, principal, "fade_update",
+                                 {"fade_id": fade, "changes": {"delete_guard_ratio": 0.1}})
+    assert not calmer["requires_browser_confirmation"]
+    follow = call(env, "prepare_fade_update", {"fade_id": fade, "changes": {"members": [
+        {"service": "ytm", "kind": "liked", "collection_name": "Likes", "role": "send", "follow_deletions": True}]}})
+    assert follow["requires_browser_confirmation"]
+    bad = call(env, "prepare_fade_update", {"fade_id": fade, "changes": {"color": "red"}}, error=True)
+    assert "color" in bad
+
+
+def test_direction_issue_restore_and_reads_for_fades(env, host):
+    fade = env.db.run("INSERT INTO lines(user_id,name,color,created_at,updated_at) VALUES(?,?,?,0,0)",
+                      (env.uid, "Roles", "#0072CE"))
+    member = env.db.run("INSERT INTO line_members(line_id,account_id,kind,collection_id,collection_name,role,position) "
+                        "VALUES(?,?,'liked','','Likes','both',0)", (fade, env.aid))
+    role = call(env, "prepare_collection_role", {"fade_id": fade, "member_id": member, "role": "receive"})
+    assert not role["requires_browser_confirmation"]
+    assert call(env, "apply_action", {"action_id": role["id"]})["state"] == "ok"
+    assert env.db.val("SELECT role FROM line_members WHERE id=?", (member,)) == "receive"
+    issue = env.db.run("INSERT INTO issues(line_id,member_id,song_id,kind,data,created_at) VALUES(?,?,?,'ignored','{}',0)",
+                       (fade, member, env.ids["Hello"]))
+    back = call(env, "prepare_issue_resolution", {"fade_id": fade, "issue_id": issue, "unignore": True})
+    call(env, "apply_action", {"action_id": back["id"]})
+    assert not env.db.val("SELECT 1 FROM issues WHERE id=?", (issue,))
+    env.db.run("INSERT INTO line_items(line_id,song_id,added_at) VALUES(?,?,0)", (fade, env.ids["Hello"]))
+    songs = call(env, "fade_songs", {"fade_id": fade})
+    assert songs["total"] == 1 and songs["items"][0]["at"][0]["state"] == "missing"
+    assert call(env, "fade_stats", {"fade_id": fade})["songs"] == 1
+    assert "week" in call(env, "activity")
+    other = person(host, "Stranger")
+    call(other, "fade_songs", {"fade_id": fade}, error=True)
+    call(other, "prepare_collection_role", {"fade_id": fade, "member_id": member, "role": "send"}, error=True)
+
+
+def test_add_songs_to_any_editable_collection(env):
+    source = env.db.val("SELECT id FROM catalog_sources WHERE account_id=? AND kind='liked'", (env.aid,))
+    draft = call(env, "prepare_add_songs", {"request": {"song_ids": [env.ids["Hello"]], "source_id": source}})
+    assert not draft["requires_browser_confirmation"] and draft["preview"]["count"] == 1
+    call(env, "apply_action", {"action_id": draft["id"]})
+    assert wait_action(env, draft["id"])["state"] in ("ok", "partial")
+    call(env, "prepare_add_songs", {"request": {"song_ids": [env.ids["Hello"]]}}, error=True)
+    call(env, "prepare_add_songs", {"request": {"song_ids": [999999], "source_id": source}}, error=True)
+
+
+def test_labels_vocabulary_and_forgetting_estimates(env):
+    hello, blind = env.ids["Hello"], env.ids["Blinding Lights"]
+    annotate(env, hello, "melancholic", genres=["pop"])
+    annotate(env, blind, "energetic", genres=["pop"])
+    assert {"label": "pop", "songs": 2, "corrected": 0} in call(env, "list_labels")["genres"]
+    # a correction replaces the whole estimate: here without a genre
+    env.client.put(f"/api/mcp/annotations/{blind}", json={"song_id": blind, "moods": ["euphoric"], "confidence": 1,
+                   "evidence": "Mine"}, headers=env.browser)
+    labels = call(env, "list_labels")
+    assert {"label": "pop", "songs": 1, "corrected": 0} in labels["genres"]
+    assert labels["annotated"] == 2 and labels["corrected"] == 1
+    assert labels["unclassified"] == env.db.val("SELECT COUNT(DISTINCT song_id) FROM catalog_items ci "
+                                                "JOIN catalog_sources cs ON cs.id=ci.source_id WHERE cs.account_id=?",
+                                                (env.aid,)) - 2
+    assert call(env, "clear_annotations", {"song_ids": [hello, blind]})["cleared"] == 1
+    assert env.db.val("SELECT origin FROM music_annotations WHERE user_id=? AND song_id=?", (env.uid, blind)) == "user"
+    assert env.client.get("/api/mcp/labels", headers=env.browser).json()["moods"] == [
+        {"label": "euphoric", "songs": 1, "corrected": 1}]
+    tagged = env.client.get("/api/mcp/songs?mood=euphoric", headers=env.browser).json()
+    assert [s["id"] for s in tagged["songs"]] == [blind]
 
 
 def test_restore_rejects_a_changed_snapshot_preview(env):
@@ -418,8 +547,8 @@ def test_fade_lifecycle_uses_existing_application_checks(env):
     definition = {"name": "MCP Fade", "paused": True, "interval_minutes": 0, "sync_deletions": False,
                   "members": [{"service": "ytm", "kind": "liked", "collection_name": "Likes", "role": "send"}]}
     draft = call(env, "prepare_fade", {"fade": definition})
-    call(env, "apply_action", {"action_id": draft["id"]}, error=True)
-    created = env.client.post(f"/api/mcp/actions/{draft['id']}/apply", headers=env.browser).json()
+    assert not draft["requires_browser_confirmation"]
+    created = call(env, "apply_action", {"action_id": draft["id"]})
     assert created["state"] == "ok", created
     fade_id = created["result"]["id"]
     assert call(env, "get_fade", {"fade_id": fade_id})["name"] == "MCP Fade"
@@ -429,10 +558,11 @@ def test_fade_lifecycle_uses_existing_application_checks(env):
     assert call(env, "fade_changes", {"fade_id": fade_id})["changes"] == []
     pause = call(env, "prepare_fade_pause", {"fade_id": fade_id, "paused": False})
     assert call(env, "apply_action", {"action_id": pause["id"]})["result"]["paused"] is False
-    updated = call(env, "prepare_fade", {"fade_id": fade_id, "fade": {**definition, "name": "Updated"}})
-    r = env.client.post(f"/api/mcp/actions/{updated['id']}/apply", headers=env.browser)
-    assert r.json()["result"]["name"] == "Updated", r.text
+    updated = call(env, "prepare_fade_update", {"fade_id": fade_id, "changes": {"name": "Updated"}})
+    assert call(env, "apply_action", {"action_id": updated["id"]})["result"]["name"] == "Updated"
     deleted = call(env, "prepare_fade_deletion", {"fade_id": fade_id})
+    assert deleted["requires_browser_confirmation"]
+    call(env, "apply_action", {"action_id": deleted["id"]}, error=True)
     assert env.client.post(f"/api/mcp/actions/{deleted['id']}/apply", headers=env.browser).json()["state"] == "ok"
     call(env, "get_fade", {"fade_id": fade_id}, error=True)
 

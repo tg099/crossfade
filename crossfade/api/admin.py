@@ -18,6 +18,7 @@ from .. import backup, updates
 from .. import notify as alert
 from ..config import config
 from ..db import Database
+from ..mcp_access import revoke as revoke_mcp
 from ..models import APPLE, SERVICE_NAMES, SERVICES
 from ..providers import APP_KEYS, app_credential, app_credential_source, set_app_credential
 from ..security import hash_password, token_hash
@@ -108,7 +109,7 @@ def reset_password(user_id: int, admin: dict = Depends(admin_user), db: Database
     password = _start_password()
     db.run("UPDATE users SET password_hash=?, must_change_password=1 WHERE id=?", (hash_password(password), user_id))
     db.run("DELETE FROM sessions WHERE user_id=?", (user_id,))   # signed out everywhere
-    db.run("DELETE FROM mcp_tokens WHERE user_id=?", (user_id,))
+    revoke_mcp(db, user_id)
     return {"password": password}
 
 

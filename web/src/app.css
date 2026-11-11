@@ -736,6 +736,10 @@ a.cell:active {
 	background: color-mix(in srgb, #5e5ce6 16%, transparent);
 	color: color-mix(in srgb, #5e5ce6 70%, var(--label));
 }
+.tag.bad {
+	background: color-mix(in srgb, var(--red) 14%, transparent);
+	color: var(--red-text);
+}
 
 /* ------------------------------------------------------------ inline input capsule (filter, search in a sheet) */
 .field {

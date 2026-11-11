@@ -101,6 +101,33 @@ def save_annotations(db: Database, user_id: int, entries: list[Annotation], orig
     return {"saved": saved, "protected_corrections": protected}
 
 
+def labels(db: Database, user_id: int) -> dict:
+    """The person's vocabulary: every mood, genre and tag in use, with how many songs carry it.
+    Reusing these exact labels keeps playlists reproducible instead of inventing synonyms."""
+    out: dict = {}
+    for key in ("moods", "genres", "tags"):
+        out[key] = db.all(f"""SELECT j.value AS label, COUNT(*) AS songs, SUM(ma.origin='user') AS corrected
+                              FROM music_annotations ma, json_each(ma.data, '$.{key}') j
+                              WHERE ma.user_id=? GROUP BY j.value ORDER BY songs DESC, j.value LIMIT 300""",
+                          (user_id,))
+    counts = db.one("SELECT COUNT(*) AS annotated, COALESCE(SUM(origin='user'), 0) AS corrected "
+                    "FROM music_annotations WHERE user_id=?", (user_id,))
+    return {**out, **counts,
+            "unclassified": library(db, user_id, unclassified=True, limit=1)["total"],
+            "note": "Labels are lower-case and matched exactly. Corrected songs were labelled by the person."}
+
+
+def clear_annotations(db: Database, user_id: int, song_ids: list[int]) -> dict:
+    """Forget the assistant's estimates for these songs. Personal corrections always stay."""
+    ids = list(dict.fromkeys(song_ids))
+    cleared = 0
+    for start in range(0, len(ids), SONG_BATCH_SIZE):
+        part = ids[start:start + SONG_BATCH_SIZE]
+        cleared += db.run("DELETE FROM music_annotations WHERE user_id=? AND origin<>'user' AND song_id IN ("
+                          + ",".join("?" * len(part)) + ")", [user_id, *part])
+    return {"cleared": cleared}
+
+
 def library(db: Database, user_id: int, query: str = "", source_id: int | None = None,
             missing_on: str | None = None, absent_from: int | None = None, mood: str = "", genre: str = "",
             tag: str = "", unassigned: bool = False, unclassified: bool = False,

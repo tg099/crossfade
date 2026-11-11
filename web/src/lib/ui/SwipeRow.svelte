@@ -9,7 +9,7 @@
 </script>
 
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import { onDestroy, type Snippet } from 'svelte';
 	import { t } from './i18n.svelte.ts';
 	import { gesture, project, rubberband, Spring, tick10, VelocityTracker } from './motion.ts';
 
@@ -41,14 +41,26 @@
 		spring.to(-openW, { response: 0.34, velocity, damping: Math.abs(velocity) > 600 ? 0.85 : 1 });
 		if (closeOpen && closeOpen !== close) closeOpen();
 		closeOpen = close;
-		// like iOS: touching anywhere else puts the row back
-		const outside = (ev: PointerEvent) => {
+		// like iOS: touching anywhere else puts the row back (one listener, however often it opens)
+		unlisten();
+		outside = (ev: PointerEvent) => {
 			if (root?.contains(ev.target as Node)) return;
-			document.removeEventListener('pointerdown', outside, true);
+			unlisten();
 			if (closeOpen === close) close();
 		};
 		document.addEventListener('pointerdown', outside, true);
 	}
+	let outside: ((ev: PointerEvent) => void) | null = null;
+	function unlisten() {
+		if (outside) document.removeEventListener('pointerdown', outside, true);
+		outside = null;
+	}
+	// a row that goes away while open (list reloaded, sheet closed) leaves nothing behind
+	onDestroy(() => {
+		unlisten();
+		spring.stop();
+		if (closeOpen === close) closeOpen = null;
+	});
 	/** a tap or a scroll interrupted the row mid-flight: let it finish where it was heading */
 	function settle() {
 		if (x !== 0 && x !== -openW) (x < -openW / 2 ? open : close)();

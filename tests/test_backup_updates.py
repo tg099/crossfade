@@ -60,7 +60,7 @@ def test_notifications_follow_the_users_language(sent):  # noqa: F811
 
 def test_every_text_exists_in_both_languages():
     v = {"service": "Spotify", "detail": "x", "days": 3, "fade": "Gym", "n": 2, "name": "Anna", "username": "anna",
-         "latest": "1.5.0", "current": "1.4.0"}
+         "latest": "1.5.0", "current": "1.4.0", "connection": "Claude", "op": "remove_songs"}
     for key, langs in notify.TEXTS.items():
         assert set(langs) == set(notify.LANGS), key
         for lang in notify.LANGS:
@@ -69,6 +69,9 @@ def test_every_text_exists_in_both_languages():
     assert notify.text("de", "issues", fade="Gym", n=1)[0] == "Gym: 1 Song zum Prüfen"
     assert notify.text("de", "expiring", service="TIDAL", days=1)[0] == "TIDAL-Anmeldung läuft morgen ab"
     assert notify.text("en", "auth", service="TIDAL", detail="")[1].endswith("are paused.")
+    assert notify.text("de", "assistant_confirm", connection="Claude", op="fade_delete") == (
+        "Claude wartet auf dich", "Dein Assistent möchte einen Fade löschen. Bestätige oder verwirf das in Crossfade.")
+    assert set(notify.ASSISTANT_DELETES["de"]) == set(notify.ASSISTANT_DELETES["en"])
 
 
 # ---------------------------------------------------------------------- first steps

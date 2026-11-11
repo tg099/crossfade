@@ -23,9 +23,13 @@ action_context: ContextVar[str | None] = ContextVar("mcp_action", default=None)
 
 
 def _finish_action(db: Database, action_id: str | None, status: str, result: dict, message: str | None) -> None:
-    if action_id:
-        db.run("UPDATE mcp_actions SET state=?,result=?,error=? WHERE id=? AND state IN ('executing','queued')",
-               (status, json.dumps(result), message, action_id))
+    if not action_id:
+        return
+    db.run("UPDATE mcp_actions SET state=?,result=?,error=? WHERE id=? AND state IN ('executing','queued')",
+           (status, json.dumps(result), message, action_id))
+    owner = db.val("SELECT user_id FROM mcp_actions WHERE id=?", (action_id,))
+    if owner:
+        get_worker().bus.publish(owner, {"type": "mcp"})
 
 
 class EventBus:
