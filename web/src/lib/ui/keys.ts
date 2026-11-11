@@ -7,5 +7,8 @@ export const isApple = /mac|iphone|ipad|ipod/i.test(platform);
 /** the shortcut for the developer tools of the browser */
 export const devtoolsKeys = isApple ? '⌥⌘I' : 'F12';
 
+/** a shortcut with Command (Apple) or Ctrl: `mod('K', ctrlName)` -> "⌘K" or "Ctrl+K" ("Strg+K" in German) */
+export const mod = (key: string, ctrl: string) => (isApple ? `⌘${key}` : `${ctrl}+${key}`);
+
 /** moving a row with the keyboard (Option/Alt + arrow keys) */
 export const moveKeys = isApple ? '⌥↑/⌥↓' : 'Alt+↑/Alt+↓';

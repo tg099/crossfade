@@ -28,6 +28,16 @@
 		}
 	});
 
+	// Windows (and Linux, or a Mac set to always show scroll bars): scroll bars that take room. Mark
+	// the page so app.css can draw them thin and quiet instead of grey slabs on the glass.
+	$effect(() => {
+		const probe = document.createElement('div');
+		probe.style.cssText = 'position:absolute;top:-999px;width:100px;height:100px;overflow:scroll';
+		document.body.append(probe);
+		if (probe.offsetWidth - probe.clientWidth > 0) document.documentElement.dataset.scrollbars = 'classic';
+		probe.remove();
+	});
+
 	// iOS only shows :active (press feedback) when a touch listener exists
 	$effect(() => {
 		const noop = () => {};

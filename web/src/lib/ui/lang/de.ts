@@ -631,6 +631,7 @@ export const de = {
 
 	// search
 	'search.placeholder': 'Songs, Interpreten, Fades',
+	'keys.ctrl': 'Strg',
 	'search.empty': 'Such in deiner Musik aus allen verbundenen Diensten.',
 	'search.none': 'Nichts gefunden für „{q}“.',
 	'search.back': 'Suche verlassen, zurück zu {tab}',

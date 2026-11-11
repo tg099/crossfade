@@ -316,6 +316,16 @@ select {
 	letter-spacing: inherit;
 	color: inherit;
 }
+/* scroll bars that take room (Windows): thin, and only as present as needed */
+:root[data-scrollbars='classic'] * {
+	scrollbar-width: thin;
+	scrollbar-color: var(--fill-2) transparent;
+}
+
+/* a value or placeholder too long for its field ends in "…" instead of being cut off */
+input {
+	text-overflow: ellipsis;
+}
 ul,
 ol {
 	margin: 0;

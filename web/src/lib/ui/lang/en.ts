@@ -633,6 +633,7 @@ export const en: Record<keyof typeof de, string | ((v: V) => string)> = {
 
 	// search
 	'search.placeholder': 'Songs, artists, fades',
+	'keys.ctrl': 'Ctrl',
 	'search.empty': 'Searches your music across all connected services.',
 	'search.none': 'Nothing found for “{q}”.',
 	'search.back': 'Leave search, back to {tab}',

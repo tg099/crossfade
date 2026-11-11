@@ -20,7 +20,7 @@
 	import Hearing from '#lib/ui/Hearing.svelte';
 	import HistorySheet from '#lib/ui/HistorySheet.svelte';
 	import JoinSheet from '#lib/ui/JoinSheet.svelte';
-	import { moveKeys } from '#lib/ui/keys.ts';
+	import { mod, moveKeys } from '#lib/ui/keys.ts';
 	import PasswordSheet from '#lib/ui/PasswordSheet.svelte';
 	import PlanSheet from '#lib/ui/PlanSheet.svelte';
 	import ReviewSheet from '#lib/ui/ReviewSheet.svelte';
@@ -322,8 +322,8 @@
 				<div class="brand"><Logo size={30} /> Crossfade</div>
 				<label class="side-search" class:on={nav.tab === 'search'}>
 					<Glyph name="search" size={16} weight={2.2} />
-					<input bind:this={sideInput} bind:value={ui.query} onfocus={sideFocus} onkeydown={searchKey} placeholder={t('search.placeholder')} type="search" autocomplete="off" />
-					<kbd>⌘K</kbd>
+					<input bind:this={sideInput} bind:value={ui.query} onfocus={sideFocus} onkeydown={searchKey} placeholder={t('tab.search')} aria-label={t('search.placeholder')} type="search" autocomplete="off" />
+					<kbd>{mod('K', t('keys.ctrl'))}</kbd>
 				</label>
 				<nav>
 					<button class="side-item" aria-current={sidebarActive('home') ? 'page' : undefined} onclick={() => nav.select('home')}>
@@ -761,6 +761,8 @@
 			font: inherit;
 		}
 		kbd {
+			flex: none;
+			white-space: nowrap;
 			padding: 1px 6px;
 			border-radius: 6px;
 			background: var(--fill-3);
