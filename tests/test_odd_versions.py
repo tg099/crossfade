@@ -119,3 +119,13 @@ def test_another_artists_song_of_that_name_is_never_preselected():
     cover = Track(APPLE, "a1", "Daylight", "Some Singer", album="Covers Vol. 1", duration=215)
     a = matcher.assess(src, cover)
     assert a.score >= matcher.SUGGEST and not a.fits
+
+
+def test_same_recording_on_several_releases_takes_the_sources_release():
+    """One ISRC on a single, the album and a compilation: each has its own cover."""
+    src = Track(SPOTIFY, "s1", "immerjung", "Sampagne", album="immerjung", duration=128, isrc="DEUM72500001")
+    single = Track(APPLE, "a1", "immerjung", "Sampagne", album="immerjung - Single", duration=128, isrc="DEUM72500001")
+    album = Track(APPLE, "a2", "immerjung", "Sampagne", album="immerjung", duration=128, isrc="DEUM72500001")
+    hits = Track(APPLE, "a3", "immerjung", "Sampagne", album="Deutschrap Hits 2025", duration=128,
+                 isrc="DEUM72500001", album_type="compilation")
+    assert [t.id for t, _ in matcher.rank(src, [hits, single, album])] == ["a2", "a1", "a3"]

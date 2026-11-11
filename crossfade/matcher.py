@@ -245,9 +245,20 @@ def assess(src: Track, cand: Track) -> Assessment:
     return best  # type: ignore[return-value]
 
 
+def _release_fit(src: Track, cand: Track) -> float:
+    fit = 0.0
+    if src.album and cand.album and norm_title(src.album) == norm_title(cand.album):
+        fit += 0.03 + (0.01 if _base(src.album) == _base(cand.album) else 0)
+    if version(cand).compilation and not version(src).compilation:
+        fit -= 0.03
+    return fit
+
+
 def _assess(src: Track, cand: Track) -> Assessment:
     if src.isrc and cand.isrc and src.isrc.upper() == cand.isrc.upper():
-        return Assessment(1.0, 1.1, True, ["gleiche ISRC"])
+        # one recording, often on several releases (single, album, compilation – each with its own
+        # cover): the release the source is on ranks first, a compilation last
+        return Assessment(1.0, 1.1 + _release_fit(src, cand), True, ["gleiche ISRC"])
     t = _titles_sim(src.title, cand.title)
     a = _artist_sim(src.artist, cand.artist)
     vs, vc = version(src), version(cand)
