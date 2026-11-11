@@ -1,6 +1,8 @@
 """Line engine tests with in-memory fake services. Run: .venv/bin/python -m pytest -q"""
 from __future__ import annotations
 
+import json
+import time
 from pathlib import Path
 
 import pytest
@@ -600,3 +602,44 @@ def test_liked_songs_go_in_oldest_first(env):
     assert sync(env, lid).status == "ok"
     assert [key_of(t) for t in a.cols[(LIKED, "")].values()] == ["bohem", "lucky", "levit"]
     assert [key_of(t) for t in a.cols[(PLAYLIST, "p")].values()] == ["bohem", "lucky", "levit"]
+
+
+def test_removal_at_a_sender_waits_and_is_reported(env, monkeypatch):
+    """Unliking at a send-only source shows as waiting until it is confirmed, then goes everywhere."""
+    clock = [1000.0]
+    monkeypatch.setattr("crossfade.engine.GONE_CONFIRM", 600)
+    monkeypatch.setattr("crossfade.engine._now", lambda: clock[0])
+    y, a = P(env, YTM), P(env, APPLE)
+    y.put(LIKED, "", "hello", "lucky")
+    lid = make_line(env, [(YTM, LIKED, "", "send"), (APPLE, LIKED, "", "receive")])
+    sync(env, lid)
+    y.drop(LIKED, "", "lucky")
+    clock[0] += 60
+    r = sync(env, lid)
+    assert a.keys() == ["hello", "lucky"]
+    assert r.summary["vanishing"] == 1 and r.summary["recheck_at"] == 1060 + 600 + 5
+    clock[0] = r.summary["recheck_at"]
+    r = sync(env, lid)
+    assert a.keys() == ["hello"]
+    assert r.summary["vanishing"] == 0 and "recheck_at" not in r.summary
+
+
+def test_scheduler_rechecks_a_waiting_removal_whatever_the_interval(env, monkeypatch):
+    from crossfade import worker as workers
+    db = env[0]
+    db.run("UPDATE accounts SET credentials='x'")
+    lid = make_line(env, [(YTM, LIKED, "", "send"), (APPLE, LIKED, "", "receive")])
+    db.run("UPDATE lines SET interval_minutes=0, last_run_at=?, last_summary=? WHERE id=?",
+           (time.time(), json.dumps({"vanishing": 1, "recheck_at": time.time() + 300}), lid))
+    w = workers.Worker(db)
+    started = []
+    monkeypatch.setattr(w, "start", lambda line_id, trigger="manual", **kw: started.append((line_id, trigger)))
+    for name in ("_check_accounts", "_housekeeping"):
+        monkeypatch.setattr(w, name, lambda: None)
+    monkeypatch.setattr(workers.health, "flush", lambda db: None)
+    w._tick()
+    assert started == []                                  # not yet
+    db.run("UPDATE lines SET last_summary=? WHERE id=?", (json.dumps({"vanishing": 1, "recheck_at": time.time() - 1}), lid))
+    w._tick()
+    assert started == [(lid, "schedule")]
+    w.pool.shutdown(wait=False)

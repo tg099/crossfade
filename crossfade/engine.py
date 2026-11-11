@@ -687,6 +687,9 @@ class LineSync:
             "remove": [t(tr, sid, m.remove_notes.get(sid)) for sid, tr in m.to_remove.items()],
             "pending": [t(None, sid) for sid in m.pending],
         } for m in self.members]
+        # removed at a sender but not confirmed yet (GONE_CONFIRM): goes everywhere on a later run
+        waiting = {sid: since for m in self.members if m.sends and self.line["sync_deletions"]
+                   for sid, since in m.vanishing.items()}
         summary = {
             "songs": len(self.new_L | self.held),
             "add": sum(len(m["add"]) for m in members),
@@ -696,6 +699,9 @@ class LineSync:
             "approximate": sum(len(m.add_notes) for m in self.members),
             "sorted_out": sum(len(v) for v in self.moving.values()),
             "unsorted": len(self.unsorted),
+            "vanishing": len(waiting),
         }
+        if waiting:     # the scheduler runs the fade again then, whatever its interval
+            summary["recheck_at"] = min(waiting.values()) + GONE_CONFIRM + 5
         return {"summary": summary, "members": members, "held": [t(None, sid) for sid in self.held],
                 "unmatched": [{"member_id": u["member_id"], "song_id": u["song_id"], **u["track"]} for u in unmatched]}

@@ -401,12 +401,14 @@ class Worker:
         now = time.time()
         due = self.db.all("""
             SELECT l.id FROM lines l
-            WHERE l.paused=0 AND l.interval_minutes>0
-              AND (l.last_run_at IS NULL OR l.last_run_at + l.interval_minutes*60 <= ?)
+            WHERE l.paused=0
+              AND ((l.interval_minutes>0 AND (l.last_run_at IS NULL OR l.last_run_at + l.interval_minutes*60 <= ?))
+                   -- a removal waiting to be confirmed: look again as soon as it can be
+                   OR json_extract(l.last_summary, '$.recheck_at') <= ?)
               AND (SELECT COUNT(*) FROM line_members m WHERE m.line_id=l.id) >= 2
               AND NOT EXISTS (SELECT 1 FROM line_members m JOIN accounts a ON a.id=m.account_id
                               WHERE m.line_id=l.id AND (a.status='error' OR a.credentials IS NULL))
-            ORDER BY l.last_run_at IS NOT NULL, l.last_run_at""", (now,))
+            ORDER BY l.last_run_at IS NOT NULL, l.last_run_at""", (now, now))
         for row in due:
             self.start(row["id"], trigger="schedule")
 

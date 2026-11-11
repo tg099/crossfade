@@ -279,6 +279,7 @@ export const en: Record<keyof typeof de, string | ((v: V) => string)> = {
 	'status.authError': 'Sign-in expired',
 	'status.reconnect': 'Sign in again in your account and the fade carries on.',
 	'status.queued': 'Waiting …',
+	'fade.vanishing': (v: V) => `${pl(v.n, 'removed song leaves', 'removed songs leave')} the other collections in about 10 minutes. Crossfade first checks once more that ${toN(v.n) === 1 ? 'it is' : 'they are'} really gone.`,
 	'status.held': (v: V) => (toN(v.n) === 1 ? "1 deletion is waiting for you" : `${v.n} deletions are waiting for you`),
 	'status.heldDetail': 'More songs would go than your safety net allows. Nothing is deleted until you confirm.',
 

@@ -277,6 +277,7 @@ export const de = {
 	'status.authError': 'Anmeldung abgelaufen',
 	'status.reconnect': 'Melde dich im Konto neu an, dann geht es weiter.',
 	'status.queued': 'In der Warteschlange …',
+	'fade.vanishing': (v: V) => `${pl(v.n, 'entfernter Song verschwindet', 'entfernte Songs verschwinden')} in etwa 10 Minuten auch aus den anderen Sammlungen. Crossfade prüft vorher noch einmal, ob ${toN(v.n) === 1 ? 'er' : 'sie'} wirklich weg ${toN(v.n) === 1 ? 'ist' : 'sind'}.`,
 	'status.held': (v: V) => (toN(v.n) === 1 ? "1 Löschung wartet auf dich" : `${v.n} Löschungen warten auf dich`),
 	'status.heldDetail': 'Es sollten mehr Songs gelöscht werden, als dein Sicherheitsnetz erlaubt. Gelöscht wird erst, wenn du bestätigst.',
 

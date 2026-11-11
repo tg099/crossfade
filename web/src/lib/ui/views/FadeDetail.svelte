@@ -413,6 +413,9 @@
 				{#each interchange as w}
 					<p class="notice t-foot">{w.text}</p>
 				{/each}
+				{#if fade.last_summary?.vanishing && !fade.job}
+					<p class="notice t-foot">{t('fade.vanishing', { n: fade.last_summary.vanishing })}</p>
+				{/if}
 
 				{#if openIssues.length}
 					<section class="section" aria-labelledby="iss-h">
