@@ -115,6 +115,7 @@ class FakeProvider:
 @pytest.fixture(autouse=True)
 def _no_verify_wait(monkeypatch):
     monkeypatch.setattr("crossfade.engine.VERIFY_DELAY", 0)
+    monkeypatch.setattr("crossfade.engine.RECHECK_DELAY", 0)
 
 
 @pytest.fixture
@@ -605,23 +606,78 @@ def test_liked_songs_go_in_oldest_first(env):
 
 
 def test_removal_at_a_sender_waits_and_is_reported(env, monkeypatch):
-    """Unliking at a send-only source shows as waiting until it is confirmed, then goes everywhere."""
+    """Unfavouriting at a send-only Apple source shows as waiting until it is confirmed, then goes
+    everywhere."""
     clock = [1000.0]
     monkeypatch.setattr("crossfade.engine.GONE_CONFIRM", 600)
     monkeypatch.setattr("crossfade.engine._now", lambda: clock[0])
     y, a = P(env, YTM), P(env, APPLE)
-    y.put(LIKED, "", "hello", "lucky")
-    lid = make_line(env, [(YTM, LIKED, "", "send"), (APPLE, LIKED, "", "receive")])
+    a.put(LIKED, "", "hello", "lucky")
+    lid = make_line(env, [(APPLE, LIKED, "", "send"), (YTM, LIKED, "", "receive")])
     sync(env, lid)
-    y.drop(LIKED, "", "lucky")
+    a.drop(LIKED, "", "lucky")
     clock[0] += 60
     r = sync(env, lid)
-    assert a.keys() == ["hello", "lucky"]
+    assert y.keys() == ["hello", "lucky"]
     assert r.summary["vanishing"] == 1 and r.summary["recheck_at"] == 1060 + 600 + 5
     clock[0] = r.summary["recheck_at"]
     r = sync(env, lid)
-    assert a.keys() == ["hello"]
+    assert y.keys() == ["hello"]
     assert r.summary["vanishing"] == 0 and "recheck_at" not in r.summary
+
+
+def test_removal_at_spotify_goes_everywhere_in_the_same_sync(env, monkeypatch):
+    """Removed on Spotify, synced right away: still on YouTube. Only Apple's lists drop songs for a
+    while; elsewhere a second read a few seconds later confirms the removal within the sync."""
+    monkeypatch.setattr("crossfade.engine.GONE_CONFIRM", 600)
+    s, y = P(env, SPOTIFY), P(env, YTM)
+    s.put(LIKED, "", "hello", "lucky")
+    lid = make_line(env, [(SPOTIFY, LIKED, "", "both"), (YTM, LIKED, "", "both")])
+    sync(env, lid)
+    assert y.keys() == ["hello", "lucky"]
+    s.drop(LIKED, "", "lucky")
+    r = sync(env, lid)
+    assert r.status == "ok", r.message
+    assert s.keys() == y.keys() == ["hello"]
+    assert r.summary["vanishing"] == 0 and "recheck_at" not in r.summary
+
+
+def test_song_back_on_the_second_read_is_left_alone(env, monkeypatch):
+    """A read that misses a song once must not remove it anywhere, nor add it again."""
+    monkeypatch.setattr("crossfade.engine.GONE_CONFIRM", 600)
+    s, y = P(env, SPOTIFY), P(env, YTM)
+    s.put(LIKED, "", "hello", "lucky")
+    lid = make_line(env, [(SPOTIFY, LIKED, "", "both"), (YTM, LIKED, "", "both")])
+    sync(env, lid)
+    s.calls.clear()
+    s.lag, s.lag_reads = {"spotify_lucky"}, 1         # hidden from the first read only
+    r = sync(env, lid)
+    assert r.status == "ok", r.message
+    assert s.keys() == y.keys() == ["hello", "lucky"]
+    assert s.calls == [] and r.summary["remove"] == 0
+    assert env[0].val("SELECT COUNT(*) FROM member_items WHERE missing_since IS NOT NULL") == 0
+
+
+def test_unreadable_second_read_falls_back_to_waiting(env, monkeypatch):
+    from crossfade.models import ApiError
+    monkeypatch.setattr("crossfade.engine.GONE_CONFIRM", 600)
+    s, y = P(env, SPOTIFY), P(env, YTM)
+    s.put(LIKED, "", "hello", "lucky")
+    lid = make_line(env, [(SPOTIFY, LIKED, "", "both"), (YTM, LIKED, "", "both")])
+    sync(env, lid)
+    s.drop(LIKED, "", "lucky")
+    real, reads = s.read, [0]
+
+    def flaky(kind, cid):
+        reads[0] += 1
+        if reads[0] == 2:
+            raise ApiError("HTTP 500", 500)
+        return real(kind, cid)
+
+    s.read = flaky
+    r = sync(env, lid)
+    assert r.status == "ok", r.message
+    assert y.keys() == ["hello", "lucky"] and r.summary["vanishing"] == 1
 
 
 def test_scheduler_rechecks_a_waiting_removal_whatever_the_interval(env, monkeypatch):

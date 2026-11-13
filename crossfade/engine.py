@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 from . import history, matcher
 from .db import Database
 from .identity import Identity
-from .models import LIKED, SERVICE_NAMES, ApiError, AuthError, Track
+from .models import APPLE, LIKED, SERVICE_NAMES, ApiError, AuthError, Track
 from .providers.base import Provider
 from .sorting import Sorter
 
@@ -40,7 +40,9 @@ Live = Callable[[str, dict], None]   # (kind, data): results as they happen – 
 APPLY_CHUNK = 25          # songs per provider call while applying, so results show up as they happen
 PENDING_RETRY_AFTER = 3   # runs until an added-but-unseen song is added again
 PENDING_GIVE_UP = 9       # after this many runs without seeing it, ask the user instead
-GONE_CONFIRM = 600.0      # seconds a song must stay missing before it counts as removed
+GONE_CONFIRM = 600.0      # seconds a song must stay missing before it counts as removed (SLOW_LISTING)
+SLOW_LISTING = {APPLE}    # services whose lists drop songs for a while (Apple's favourites, seen live)
+RECHECK_DELAY = 3.0       # other services: a second read this much later confirms a removal in the same run
 VERIFY_DELAY = 2.0        # seconds before re-reading members that just received songs
 
 
@@ -72,6 +74,7 @@ class MemberState:
     remove_notes: dict[int, str] = field(default_factory=dict)  # song -> "sorted into …"
     removed_ok: set[int] = field(default_factory=set)
     vanishing: dict[int, float] = field(default_factory=dict)  # song -> missing since (not confirmed yet)
+    missing_twice: set[int] = field(default_factory=set)       # missing on two reads of this run
     error: str | None = None
 
     @property
@@ -163,6 +166,44 @@ class LineSync:
             history.capture(self.db, m.row["account_id"], m.row["kind"], m.row["collection_id"] or "",
                             [t.id for t in tracks], "sync")
 
+    def _read_again(self, L: set[int]) -> None:
+        """A song of the fade that a member listed before is missing now. Outside SLOW_LISTING one
+        more read a few seconds later settles it within this run: still missing -> the user removed
+        it; listed again -> the first read missed it, nothing happens. If that read fails, the
+        removal waits for GONE_CONFIRM like everywhere else."""
+        if GONE_CONFIRM <= 0:
+            return      # removals count at once anyway
+        todo = []
+        for m in self.members:
+            if m.service in SLOW_LISTING:
+                continue
+            missing = {sid for sid in L if sid not in m.current
+                       and (k := m.known.get(sid)) and k["confirmed"] and not k["excluded"]}
+            if missing:
+                todo.append((m, missing))
+        if not todo:
+            return
+        time.sleep(RECHECK_DELAY)
+        for i, (m, missing) in enumerate(todo):
+            self._check_stop()
+            self.progress(f"Checking {m.label()} once more …", i, len(todo))
+            self.active_account = m.row["account_id"]
+            try:
+                tracks = m.provider.read(m.row["kind"], m.row["collection_id"])
+            except (AuthError, ApiError):
+                continue
+            listed: dict[int, tuple[int, Track]] = {}
+            for n, t in enumerate(tracks):
+                listed.setdefault(self.ident.song_for(t), (n, t))
+            for sid in missing:
+                if sid in listed:
+                    n, t = listed[sid]
+                    m.current[sid] = t
+                    m.pos.setdefault(sid, n)
+                    m.copies[t.id] = t.handle.get("copies", 1)
+                else:
+                    m.missing_twice.add(sid)
+
     def _merge_across_services(self) -> None:
         """Identify the same song across members of different services before any search."""
         services = {m.service for m in self.members}
@@ -208,7 +249,7 @@ class LineSync:
                 if old in d:
                     v = d.pop(old)
                     d.setdefault(new, v)
-            for s in (m.pending, m.excluded_now):
+            for s in (m.pending, m.excluded_now, m.missing_twice):
                 if old in s:
                     s.discard(old)
                     s.add(new)
@@ -261,17 +302,20 @@ class LineSync:
                                             "is empty, confirm the sync.")
 
         L = self.L
+        self._read_again(L)
         now = _now()
         for m in self.members:
             confirmed = {sid for sid, r in m.known.items() if r["confirmed"] and not r["excluded"]}
-            # Services list fresh changes unreliably (Apple's favourites drop a just-added song for
-            # a while). A song only counts as removed once it was missing on two reads at least
-            # GONE_CONFIRM apart; until then it is left alone everywhere.
+            # Apple's favourites drop a just-added song for a while: there a song only counts as
+            # removed once it was missing on two reads at least GONE_CONFIRM apart. Elsewhere a
+            # second read a few seconds later is enough (_read_again). Until then it is left alone
+            # everywhere.
             gone = set()
             for sid in L:
                 if sid in confirmed and sid not in m.current:
                     since = m.known[sid]["missing_since"]
-                    if GONE_CONFIRM <= 0 or (since is not None and now - since >= GONE_CONFIRM):
+                    if GONE_CONFIRM <= 0 or sid in m.missing_twice or (
+                            since is not None and now - since >= GONE_CONFIRM):
                         gone.add(sid)
                     else:
                         m.vanishing[sid] = since if since is not None else now
