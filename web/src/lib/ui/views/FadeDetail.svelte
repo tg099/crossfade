@@ -45,7 +45,8 @@
 	let live = $state<Live | null>(null);
 	let holdLive = $state(false); // keep showing them until the stored results are loaded
 	let livePulling = false;
-	const liveView = $derived(fade?.job || holdLive ? live : null);
+	// putting likes in order has no live results of its own: the stored ones stay in view
+	const liveView = $derived((fade?.job && fade.job.trigger !== 'reorder') || holdLive ? live : null);
 
 	function emptyLive(job: Job): Live {
 		return {
@@ -89,7 +90,7 @@
 		try {
 			for (;;) {
 				const job = fade?.job;
-				if (!job) break;
+				if (!job || job.trigger === 'reorder') break;
 				if (!live || live.started_at !== job.started_at) live = emptyLive(job);
 				if ((job.live_n ?? 0) <= live.n) break;
 				const r = await api<{ running: boolean; started_at: number | null; items: LiveItem[] }>(`/api/lines/${id}/live?since=${live.n}`);
@@ -195,6 +196,20 @@
 	function pick(i: Issue) {
 		picking = i;
 		pickOpen = true;
+	}
+
+	// ---------------------------------------------------------------- likes in the order they were liked
+	const reorderable = $derived(!!fade && fade.members.length > 1 && fade.members.some((m) => m.mine && m.kind === 'liked'));
+	async function startReorder() {
+		ui.reorder = { line_id: id, rows: null };
+		ui.reorderOpen = true;
+		try {
+			await post(`/api/lines/${id}/reorder`, { preview: true });
+			app.reloadLine(id);
+		} catch (e) {
+			ui.reorderOpen = false;
+			ui.fail(e);
+		}
 	}
 
 	function confirmHeld() {
@@ -515,6 +530,16 @@
 					</ol>
 					{#if fade.last_summary?.unsorted}<p class="section-foot">{t('rule.waiting', { n: fade.last_summary.unsorted })}</p>{/if}
 					{#if !fade.mine}<p class="section-foot">{t('share.guestHint', { name: owner })}</p>{/if}
+					{#if reorderable}
+						<ul class="group reorder">
+							<li>
+								<button class="cell" onclick={startReorder} disabled={!!fade.job || !!fault}>
+									<span class="grow tintc">{t('reorder.button')}</span>
+									<Glyph name="updown" size={18} weight={2.4} />
+								</button>
+							</li>
+						</ul>
+					{/if}
 				</section>
 
 				{#if stats && stats.syncs && !liveView}
@@ -793,6 +818,9 @@
 {/if}
 
 <style>
+	.reorder {
+		margin-top: 14px;
+	}
 	.wrap {
 		position: absolute;
 		inset: 0;

@@ -19,6 +19,7 @@
 	import Glyph from '#lib/ui/Glyph.svelte';
 	import Hearing from '#lib/ui/Hearing.svelte';
 	import HistorySheet from '#lib/ui/HistorySheet.svelte';
+	import ReorderSheet from '#lib/ui/ReorderSheet.svelte';
 	import JoinSheet from '#lib/ui/JoinSheet.svelte';
 	import { mod, moveKeys } from '#lib/ui/keys.ts';
 	import PasswordSheet from '#lib/ui/PasswordSheet.svelte';
@@ -435,6 +436,7 @@
 	<UserSheet />
 	<AppsSheet />
 	<HistorySheet />
+	<ReorderSheet />
 	<PasswordSheet />
 	<PlanSheet />
 	<ReviewSheet />

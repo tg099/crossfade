@@ -25,7 +25,7 @@ from ytmusicapi.helpers import initialize_headers
 from .. import health
 from ..matcher import tidy_video
 from ..models import LIBRARY, LIKED, PLAYLIST, YTM, ApiError, AuthError, Collection, NotSupported, Track
-from .base import Provider, chunks, unique
+from .base import Provider, chunks, iso_time, unique
 
 SPECIAL_PLAYLISTS = {"LM", "SE"}
 log = logging.getLogger(__name__)
@@ -232,6 +232,9 @@ class DataApi:
                              url=f"https://music.youtube.com/watch?v={vid}", artwork=_best_thumb(sn.get("thumbnails")),
                              video_type="MUSIC_VIDEO_TYPE_ATV" if is_topic else None,
                              handle={"item_id": item.get("id")}))
+            # when it was added to the playlist (for liked music: when it was liked)
+            if (at := iso_time((item.get("snippet") or {}).get("publishedAt"))) is not None:
+                out[-1].handle["added_at"] = at
         return out
 
 

@@ -54,6 +54,32 @@ class Stopped(Exception):
     pass
 
 
+def fill_times(order: list[int], times: dict[int, float]) -> None:
+    """Give the songs of a newest-first list that have no time one between their neighbours that
+    have one (a second apart where only one side has one). Songs that have a time keep it."""
+    anchors = [i for i, sid in enumerate(order) if sid in times]
+    if not anchors:
+        return
+    k = 0
+    for i, sid in enumerate(order):
+        while k < len(anchors) and anchors[k] < i:
+            k += 1
+        if sid in times:
+            continue
+        newer = anchors[k - 1] if k > 0 else None           # above it: liked later
+        older = anchors[k] if k < len(anchors) else None    # below it: liked earlier
+        if newer is not None and older is not None:
+            t_new, t_old = times[order[newer]], times[order[older]]
+            if t_new > t_old:
+                times[sid] = t_old + (t_new - t_old) * (older - i) / (older - newer)
+            else:     # the list doesn't follow the dates here: just above the older one
+                times[sid] = t_old + (older - i) * 0.001
+        elif older is not None:
+            times[sid] = times[order[older]] + (older - i)
+        else:
+            times[sid] = times[order[newer]] - (i - newer)
+
+
 @dataclass
 class MemberState:
     row: dict
@@ -141,6 +167,7 @@ class LineSync:
         self.removed: dict[int, MemberState] = {}   # song -> member where the user removed it
         self.held: set[int] = set()         # removals waiting for confirmation
         self.policy = self.line.get("version_policy") or "closest"
+        self._like_times: dict[int, float] | None = None   # see like_times
         # the account being talked to: an auth error belongs to it (a shared fade can hold two
         # accounts of the same service, one per person)
         self.active_account: int | None = None
@@ -260,21 +287,65 @@ class LineSync:
             if old in s:
                 s.discard(old)
                 s.add(new)
+        if self._like_times and old in self._like_times:
+            at = self._like_times.pop(old)
+            self._like_times[new] = min(at, self._like_times.get(new, at))
         if old in self.removed:
             self.removed.setdefault(new, self.removed.pop(old))
 
     def _order(self, sid: int) -> tuple:
         """Where a song stands in the fade's sources: songs are added in that order, so a receiving
-        playlist is built like its source. The first sending member (in the fade's order) that lists
-        the song decides; songs no sender lists any more come last.
+        collection is built like its sources. Liked songs of every service go on one timeline, by
+        when they were liked (like_times); other songs follow the first sending member (in the
+        fade's order) that lists them; songs no sender lists any more come last.
 
         Liked songs are listed newest first by every service, but adding can only append (or, for
         liked songs, stamp "liked now"): so they go in oldest first. A playlist then reads oldest to
         newest like later additions do, and liked songs elsewhere show the newest on top again."""
         for rank, m in enumerate(self.members):
             if m.sends and sid in m.pos:
-                return (rank, -m.pos[sid] if m.row["kind"] == LIKED else m.pos[sid], sid)
-        return (len(self.members), 0, sid)
+                if m.row["kind"] == LIKED and sid in self.like_times:
+                    return (0, self.like_times[sid], 0, sid)
+                return (1 + rank, 0, -m.pos[sid] if m.row["kind"] == LIKED else m.pos[sid], sid)
+        return (len(self.members) + 1, 0, 0, sid)
+
+    @property
+    def like_times(self) -> dict[int, float]:
+        if self._like_times is None:
+            self._like_times = self._compute_like_times()
+        return self._like_times
+
+    def _compute_like_times(self) -> dict[int, float]:
+        """When each song was liked, as far as the services say (Spotify and YouTube do, Apple Music
+        doesn't): the earliest date of an entry the person made, not one Crossfade added, ever seen
+        in this fade (kept in like_times: a song liked again is dated anew). A song without one gets
+        a time between its neighbours in a liked list where the person put it; only then does the
+        date Crossfade added it somewhere count."""
+        line_id = self.line["id"]
+        ours = {(r["member_id"], r["song_id"]) for r in self.db.all(
+            "SELECT DISTINCT member_id, song_id FROM changes WHERE line_id=? AND action='add' AND ok=1", (line_id,))}
+        lists = [m for m in self.members if m.sends and m.row["kind"] == LIKED]
+        own = {r["song_id"]: r["liked_at"] for r in self.db.all(
+            "SELECT song_id, liked_at FROM like_times WHERE line_id=?", (line_id,))}
+        known = dict(own)
+        added: dict[int, float] = {}
+        for m in lists:
+            for sid, t in m.current.items():
+                at = t.handle.get("added_at")
+                if at is not None:
+                    d = added if (m.id, sid) in ours else own
+                    d[sid] = min(d.get(sid, at), at)
+        fresh = [(line_id, sid, at) for sid, at in own.items() if known.get(sid) != at]
+        if fresh:
+            with self.db.tx() as c:
+                c.executemany("""INSERT INTO like_times(line_id,song_id,liked_at) VALUES(?,?,?)
+                                 ON CONFLICT(line_id,song_id) DO UPDATE SET liked_at=excluded.liked_at""", fresh)
+        times = dict(own)
+        for m in lists:
+            fill_times([sid for sid in sorted(m.pos, key=m.pos.get) if (m.id, sid) not in ours], times)
+        for sid, at in added.items():
+            times.setdefault(sid, at)
+        return times
 
     # ================================================================ plan
     def run(self, apply: bool, allow_deletions: bool = False) -> RunResult:
@@ -634,6 +705,9 @@ class LineSync:
             c.execute("DELETE FROM line_items WHERE line_id=?", (line_id,))
             c.executemany("INSERT OR IGNORE INTO line_items(line_id,song_id,added_at) VALUES(?,?,?)",
                           [(line_id, sid, now) for sid in final_L])
+            # a song that left the fade and is liked again later is a new like
+            c.execute("DELETE FROM like_times WHERE line_id=? AND song_id NOT IN "
+                      "(SELECT song_id FROM line_items WHERE line_id=?)", (line_id, line_id))
             for m in self.members:
                 rows = []
                 for sid in final_L:
@@ -749,3 +823,129 @@ class LineSync:
             summary["recheck_at"] = min(waiting.values()) + GONE_CONFIRM + 5
         return {"summary": summary, "members": members, "held": [t(None, sid) for sid in self.held],
                 "unmatched": [{"member_id": u["member_id"], "song_id": u["song_id"], **u["track"]} for u in unmatched]}
+
+    # ================================================================ order of liked songs
+    def reorder(self, apply: bool, member_ids: set[int] | None = None) -> RunResult:
+        """Bring liked collections into the order the songs were liked (like_times). Services only
+        put a liked song on top (by liking it again), so every song out of place is unliked and liked
+        again, one by one, oldest first; the songs already in order at the bottom stay where they are.
+
+        Never loses a song: it is liked again right after (with retries); if that fails the run stops
+        and the next sync adds it again. Songs a service doesn't list right after are marked as on
+        their way, so a sync doesn't take them for removed."""
+        try:
+            self._read()
+        except AuthError as e:
+            return RunResult("auth_error", str(e))
+        except ApiError as e:
+            return RunResult("error", str(e))
+        self._check_stop()
+        self._merge_across_services()
+        targets = [m for m in self.members
+                   if m.row["kind"] == LIKED and (member_ids is None or m.id in member_ids)]
+        moves = {m.id: self._moves(m) for m in targets}
+        rows = [{"member_id": m.id, "service": m.service, "name": m.row["collection_name"],
+                 "count": len(m.current), "moves": len(moves[m.id])} for m in targets]
+        res = RunResult("preview", summary={"reorder": rows})
+        if not apply:
+            return res
+
+        total = sum(len(v) for v in moves.values())
+        done = moved = failed = 0
+        lost: list[tuple[MemberState, int]] = []
+        stop: tuple[str, str] | None = None
+        for m in targets:
+            kind, cid = m.row["kind"], m.row["collection_id"]
+            self.active_account = m.row["account_id"]
+            done_here: set[int] = set()
+            for sid in moves[m.id]:
+                if self.should_stop():
+                    stop = ("stopped", "Stopped")
+                    break
+                self.progress(f"Putting {m.label()} in order …", done, total)
+                entries = [m.current[sid], *m.extra.get(sid, [])]
+                done += 1
+                try:
+                    not_removed = set(m.provider.remove(kind, cid, entries))
+                except AuthError as e:
+                    stop = ("auth_error", str(e))
+                    break
+                except ApiError:
+                    not_removed = set()      # may have gone through in part: like it again below
+                if not_removed >= {t.id for t in entries}:
+                    failed += 1              # still liked where it was
+                    continue
+                ok, err = self._like_again(m, entries)
+                if not ok:
+                    lost.append((m, sid))
+                    stop = ("auth_error", err) if err else ("error", f"Couldn't like a song in {m.label()} "
+                                                                     "again. The next sync adds it again.")
+                    break
+                moved += 1
+                done_here.add(sid)
+            self._settle_moved(m, done_here, [sid for x, sid in lost if x is m])
+            if stop:
+                break
+        res.summary.update(moved=moved, failed=failed, lost=len(lost))
+        if stop:
+            res.status, res.message = stop
+        elif failed:
+            res.status, res.message = "partial", f"{failed} songs stayed where they were."
+        else:
+            res.status = "ok"
+        return res
+
+    REORDER_GAP = 1.1      # seconds between two songs liked again: services keep the time to the second
+    _last_like = 0.0
+
+    def _like_again(self, m: MemberState, entries: list[Track]) -> tuple[bool, str | None]:
+        """Like the entries again (a few tries). (ok, auth error message)."""
+        for attempt in range(3):
+            wait = self.REORDER_GAP - (time.monotonic() - self._last_like)
+            if wait > 0:
+                time.sleep(wait)
+            self._last_like = time.monotonic()
+            try:
+                if not m.provider.add(m.row["kind"], m.row["collection_id"], entries):
+                    return True, None
+            except AuthError as e:
+                return False, str(e)
+            except ApiError:
+                pass
+            time.sleep(2 * (attempt + 1))
+        return False, None
+
+    def _moves(self, m: MemberState) -> list[int]:
+        """The songs to like again at `m`, oldest first, so the list ends up newest first by
+        like_times. Songs without a time keep their place among their neighbours; songs with the
+        same time keep their order."""
+        listed = sorted(m.pos, key=m.pos.get)                 # as listed now: newest first
+        times = dict(self.like_times)
+        fill_times(listed, times)
+        if len(times.keys() & set(listed)) < len(listed):      # nothing to go by at all
+            return []
+        target = sorted(listed, key=lambda sid: (-times[sid], m.pos[sid]))
+        keep, above = 0, None
+        for sid in reversed(target):      # the oldest songs that are in order already stay below
+            if above is not None and m.pos[sid] >= m.pos[above]:
+                break
+            keep, above = keep + 1, sid
+        return list(reversed(target[:len(target) - keep]))
+
+    def _settle_moved(self, m: MemberState, moved: set[int], lost: list[int]) -> None:
+        """After liking songs again: one the service doesn't list yet counts as on its way (not as
+        removed by the person); one that couldn't be liked again is added by the next sync."""
+        unseen: set[int] = set()
+        if moved:
+            time.sleep(VERIFY_DELAY)
+            try:
+                listed = {self.ident.song_for(t) for t in m.provider.read(m.row["kind"], m.row["collection_id"])}
+                unseen = moved - listed
+            except (AuthError, ApiError):
+                unseen = set(moved)
+        with self.db.tx() as c:
+            c.executemany("UPDATE member_items SET confirmed=0, misses=0, missing_since=NULL "
+                          "WHERE member_id=? AND song_id=?", [(m.id, sid) for sid in unseen])
+            c.executemany("UPDATE member_items SET confirmed=0, misses=?, missing_since=NULL "
+                          "WHERE member_id=? AND song_id=?",
+                          [(PENDING_RETRY_AFTER - 1, m.id, sid) for sid in lost])

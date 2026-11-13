@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from crossfade.db import Database
-from crossfade.engine import LineSync
+from crossfade.engine import LineSync, fill_times
 from crossfade.identity import Identity
 from crossfade.models import APPLE, LIKED, PLAYLIST, SPOTIFY, YTM, Collection, Track
 
@@ -56,6 +56,7 @@ class FakeProvider:
         self.fail_remove: set[str] = set()
         self.lag: set[str] = set()      # ids added but hidden from the next `lag_reads` reads
         self.lag_reads = 1
+        self.dates: dict[str, float] = {}   # id -> when it was added (liked), as the service says
 
     def put(self, kind, cid, *keys):
         col = self.cols.setdefault((kind, cid), {})
@@ -79,7 +80,8 @@ class FakeProvider:
             if self.lag_reads <= 0:
                 self.lag.clear()
                 self.lag_reads = 1
-        return [Track(**{**t.__dict__, "handle": {"h": t.id}}) for t in visible]
+        return [Track(**{**t.__dict__, "handle": {"h": t.id, **({"added_at": self.dates[t.id]} if t.id in self.dates else {})}})
+                for t in visible]
 
     def add(self, kind, cid, tracks):
         self.calls.append(("add", kind, cid, sorted(key_of(t) for t in tracks)))
@@ -605,6 +607,46 @@ def test_liked_songs_go_in_oldest_first(env):
     assert [key_of(t) for t in a.cols[(PLAYLIST, "p")].values()] == ["bohem", "lucky", "levit"]
 
 
+def test_liked_songs_of_several_services_go_in_by_like_date(env):
+    """Apple got every song only Spotify had as one block above the YouTube ones (it shows the
+    newest favourite on top). Liked songs of all services go on one timeline, oldest first."""
+    s, y, a = P(env, SPOTIFY), P(env, YTM), P(env, APPLE)
+    s.put(LIKED, "", "lucky", "blind")                    # newest first
+    y.put(LIKED, "", "hello", "bohem")
+    s.dates = {"spotify_lucky": 50, "spotify_blind": 30}
+    y.dates = {"ytm_hello": 40, "ytm_bohem": 20}
+    lid = make_line(env, [(YTM, LIKED, "", "both"), (SPOTIFY, LIKED, "", "both"), (APPLE, LIKED, "", "receive")])
+    assert sync(env, lid).status == "ok"
+    assert [key_of(t) for t in a.cols[(LIKED, "")].values()] == ["bohem", "blind", "hello", "lucky"]
+
+
+def test_a_song_without_a_date_goes_between_its_neighbours(env):
+    """Apple has no dates: a favourite only Apple had sits between the songs around it there. The
+    date Spotify gives the entry Crossfade made for it later is not when it was liked."""
+    s, y, a = P(env, SPOTIFY), P(env, YTM), P(env, APPLE)
+    a.put(LIKED, "", "blind", "hello", "bohem")           # liked on Apple, newest first
+    s.put(LIKED, "", "blind", "bohem")                     # also liked on Spotify, with dates
+    s.dates = {"spotify_blind": 60, "spotify_bohem": 20}
+    lid = make_line(env, [(APPLE, LIKED, "", "send"), (SPOTIFY, LIKED, "", "both"), (YTM, LIKED, "", "receive")])
+    assert sync(env, lid).status == "ok"
+    assert [key_of(t) for t in y.cols[(LIKED, "")].values()] == ["bohem", "hello", "blind"]
+    s.dates["spotify_hello"] = 100                         # Crossfade liked it on Spotify just now
+    db, _, provs = env
+    ls = LineSync(db, lid, {aid: p for aid, p in provs.values()})
+    ls._read()
+    hello = Identity(db).song_for(track(APPLE, "hello"))
+    assert ls.like_times[hello] == 40
+
+
+def test_fill_times_between_neighbours():
+    times = {2: 40.0, 4: 20.0}
+    fill_times([1, 2, 3, 4, 5], times)
+    assert times == {1: 41.0, 2: 40.0, 3: 30.0, 4: 20.0, 5: 19.0}
+    times = {2: 10.0, 4: 20.0}                             # list against the dates: keep its order
+    fill_times([1, 2, 3, 4], times)
+    assert 20 < times[3] < 21 and times[1] == 11.0
+
+
 def test_removal_at_a_sender_waits_and_is_reported(env, monkeypatch):
     """Unfavouriting at a send-only Apple source shows as waiting until it is confirmed, then goes
     everywhere."""
@@ -699,3 +741,93 @@ def test_scheduler_rechecks_a_waiting_removal_whatever_the_interval(env, monkeyp
     w._tick()
     assert started == [(lid, "schedule")]
     w.pool.shutdown(wait=False)
+
+
+# ------------------------------------------------------------------------------------------ reorder
+def liked_on_top(p: FakeProvider) -> None:
+    """Like a real service: liking a song puts it on top of liked songs."""
+    real = p.add
+
+    def add(kind, cid, tracks):
+        failed = real(kind, cid, tracks)
+        if kind == LIKED:
+            col = p.cols[(kind, cid)]
+            fresh = [track(p.service, key_of(t)).id for t in tracks]
+            p.cols[(kind, cid)] = {**{i: col.pop(i) for i in reversed(fresh) if i in col}, **col}
+        return failed
+
+    p.add = add
+
+
+def reorder_env(env, monkeypatch):
+    monkeypatch.setattr("crossfade.engine.time.sleep", lambda s: None)
+    s, y, a = P(env, SPOTIFY), P(env, YTM), P(env, APPLE)
+    s.put(LIKED, "", "lucky", "blind")
+    s.dates = {"spotify_lucky": 50, "spotify_blind": 30}
+    y.put(LIKED, "", "hello", "bohem")
+    y.dates = {"ytm_hello": 40, "ytm_bohem": 20}
+    a.put(LIKED, "", "lucky", "blind", "hello", "bohem")     # Spotify's block above YouTube's
+    liked_on_top(a)
+    lid = make_line(env, [(YTM, LIKED, "", "both"), (SPOTIFY, LIKED, "", "both"), (APPLE, LIKED, "", "both")])
+    assert sync(env, lid).status == "ok"
+    apple = env[0].val("SELECT m.id FROM line_members m JOIN accounts a ON a.id=m.account_id "
+                       "WHERE m.line_id=? AND a.service=?", (lid, APPLE))
+    return lid, apple, a
+
+
+def reorder(env, lid, apply, ids):
+    db, _, provs = env
+    return LineSync(db, lid, {aid: p for aid, p in provs.values()}).reorder(apply, ids)
+
+
+def test_reorder_likes_by_like_date_moving_as_few_as_possible(env, monkeypatch):
+    lid, apple, a = reorder_env(env, monkeypatch)
+    r = reorder(env, lid, False, {apple})
+    assert r.status == "preview" and r.summary["reorder"] == [
+        {"member_id": apple, "service": APPLE, "name": "apple-liked", "count": 4, "moves": 2}]
+    assert a.keys() == ["blind", "bohem", "hello", "lucky"] and not [c for c in a.calls if c[0] == "remove"]
+    a.calls.clear()
+    r = reorder(env, lid, True, {apple})
+    assert r.status == "ok", r.message
+    assert [key_of(t) for t in a.cols[(LIKED, "")].values()] == ["lucky", "hello", "blind", "bohem"]
+    assert [c for c in a.calls if c[0] == "remove"] == [("remove", LIKED, "", ["hello"]), ("remove", LIKED, "", ["lucky"])]
+    assert r.summary["moved"] == 2
+    # in order now: nothing left to do, and the next sync sees nothing removed
+    assert reorder(env, lid, False, {apple}).summary["reorder"][0]["moves"] == 0
+    r = sync(env, lid)
+    assert r.status == "ok" and r.summary["remove"] == 0 and r.summary["add"] == 0
+
+
+def test_reorder_never_loses_a_song(env, monkeypatch):
+    """Unliked but not liked again (the service refused): the run stops, nothing is removed
+    elsewhere, and the next sync adds it again."""
+    lid, apple, a = reorder_env(env, monkeypatch)
+    working = a.add
+    a.add = lambda kind, cid, tracks: [t.id for t in tracks]
+    r = reorder(env, lid, True, {apple})
+    assert r.status == "error" and r.summary["lost"] == 1 and r.summary["moved"] == 0
+    assert "hello" not in a.keys()
+    a.add = working
+    r = sync(env, lid)
+    assert r.status == "ok", r.message
+    assert "hello" in a.keys() and P(env, YTM).keys() == ["blind", "bohem", "hello", "lucky"]
+
+
+def test_like_dates_are_kept_when_a_service_dates_a_like_anew(env):
+    """Liking a song again (putting likes in order does that) dates it anew at the service. The
+    order must not flip because of that: the first date stays. A song that left the fade and is
+    liked again later is a new like."""
+    s = P(env, SPOTIFY)
+    s.put(LIKED, "", "lucky", "blind")
+    s.dates = {"spotify_lucky": 50, "spotify_blind": 30}
+    lid = make_line(env, [(SPOTIFY, LIKED, "", "both"), (YTM, LIKED, "", "receive")])
+    assert sync(env, lid).status == "ok"
+    s.dates["spotify_blind"] = 1000
+    db, _, provs = env
+    ls = LineSync(db, lid, {aid: p for aid, p in provs.values()})
+    ls._read()
+    blind = Identity(db).song_for(track(SPOTIFY, "blind"))
+    assert ls.like_times[blind] == 30
+    s.drop(LIKED, "", "blind")
+    assert sync(env, lid).status == "ok"
+    assert db.val("SELECT COUNT(*) FROM like_times WHERE song_id=?", (blind,)) == 0

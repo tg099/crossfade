@@ -13,7 +13,7 @@ import httpx
 
 from .. import health
 from ..models import LIKED, PLAYLIST, SPOTIFY, ApiError, AuthError, Collection, NotSupported, Track
-from .base import Provider, chunks, unique
+from .base import Provider, chunks, iso_time, unique
 
 API = "https://api.spotify.com/v1"
 AUTH = "https://accounts.spotify.com/authorize"
@@ -189,10 +189,10 @@ class SpotifyProvider(Provider):
     def read(self, kind: str, collection_id: str) -> list[Track]:
         if kind == LIKED:
             items = self._paged("/me/tracks", {"limit": 50})
-            tracks = [self._track(i.get("track")) for i in items]
+            tracks = [_dated(self._track(i.get("track")), i) for i in items]
         elif kind == PLAYLIST:
             items = self._paged(f"/playlists/{collection_id}/items", {"limit": 50, "additional_types": "track"})
-            tracks = [self._track(i.get("item") or i.get("track")) for i in items if not i.get("is_local")]
+            tracks = [_dated(self._track(i.get("item") or i.get("track")), i) for i in items if not i.get("is_local")]
         else:
             raise NotSupported("Spotify has no separate library. Use “Liked Songs”.")
         return unique(tracks)
@@ -287,3 +287,10 @@ class SpotifyProvider(Provider):
             if m:
                 return m.group(1)
         return None
+
+
+def _dated(t: Track | None, item: dict) -> Track | None:
+    """When the entry was added (for liked songs: when it was liked)."""
+    if t is not None and (at := iso_time(item.get("added_at"))) is not None:
+        t.handle["added_at"] = at
+    return t

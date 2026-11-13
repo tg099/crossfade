@@ -31,7 +31,16 @@ export function fadeStatus(l: Line): FadeStatus {
 	if (job) {
 		return {
 			tone: 'running',
-			text: job.state === 'queued' ? t('status.queued') : job.mode === 'preview' ? t('status.previewing') : t('status.running'),
+			text:
+				job.state === 'queued'
+					? t('status.queued')
+					: job.mode === 'preview'
+						? t('status.previewing')
+						: job.mode === 'reorder'
+							? t('status.reordering')
+							: job.mode === 'reorder_preview'
+								? t('status.reorderReading')
+								: t('status.running'),
 			detail: job.phase || null
 		};
 	}

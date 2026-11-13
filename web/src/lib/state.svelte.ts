@@ -238,6 +238,7 @@ class AppState {
 			if (ev.type !== 'job') return;
 			const line = this.line(ev.line_id);
 			if (line) line.job = ev.job as Job | null;
+			if (ev.finished?.reorder) return this.#onReorder(ev.line_id, ev.finished);
 			if (ev.finished) {
 				const st = ev.finished.status as string;
 				const tone = ['ok', 'preview'].includes(st) ? 'good' : st === 'stopped' ? 'info' : 'fault';
@@ -268,6 +269,26 @@ class AppState {
 			}
 		};
 		this.#events = es;
+	}
+
+	/** putting likes in order: the preview fills the open sheet, the real thing says how it went */
+	#onReorder(lineId: number, f: { status: string; message: string | null; summary: any; reorder: 'preview' | 'apply' }) {
+		this.reloadLine(lineId);
+		if (f.reorder === 'preview') {
+			if (f.status === 'preview' && ui.reorder?.line_id === lineId) ui.reorder.rows = f.summary.reorder ?? [];
+			else if (f.status !== 'preview') {
+				ui.reorderOpen = false;
+				ui.say(f.message ?? t('err.generic'), 'alert', 'fault');
+			}
+			return;
+		}
+		this.finished = { line_id: lineId, status: f.status, at: Date.now() };
+		const s = f.summary ?? {};
+		if (f.status === 'ok' || f.status === 'partial')
+			ui.say(t('reorder.done', { n: s.moved ?? 0, failed: s.failed ?? 0 }), 'check', f.status === 'ok' ? 'good' : 'info');
+		else if (f.status === 'stopped') ui.say(t('reorder.done', { n: s.moved ?? 0, failed: 0 }), 'pause', 'info');
+		else ui.say(f.message ?? t('err.generic'), 'alert', 'fault');
+		if (f.status === 'auth_error') this.loadServices();
 	}
 
 	#onCatalog(ev: any) {

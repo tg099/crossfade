@@ -465,3 +465,36 @@ def test_new_fade_keeps_its_deletion_settings(admin):
     row = get_db().one("SELECT delete_confirm, delete_guard_min, delete_guard_ratio FROM lines WHERE id=?",
                        (r.json()["id"],))
     assert (row["delete_confirm"], row["delete_guard_min"], row["delete_guard_ratio"]) == (0, 7, 0.3)
+
+
+def test_reorder_takes_only_your_liked_collections(admin, monkeypatch):
+    from crossfade.api import lines as lines_api
+    uid = get_db().val("SELECT id FROM users WHERE username='tristan'")
+    connect_fake(uid, "spotify")
+    connect_fake(uid, "apple")
+    started = []
+
+    class W:
+        def start_reorder(self, line_id, user_id, apply, member_ids):
+            started.append((line_id, user_id, apply, member_ids))
+            return True
+
+        def job(self, line_id):
+            return None
+
+    monkeypatch.setattr(lines_api, "get_worker", lambda: W())
+    body = {"name": "Order", "members": [
+        {"service": "spotify", "kind": "liked", "collection_name": "Likes", "role": "both"},
+        {"service": "apple", "kind": "playlist", "collection_id": "p.1", "collection_name": "Mix", "role": "receive"}]}
+    r = admin.post("/api/lines", json=body, headers=H)
+    assert r.status_code == 200, r.text
+    lid = r.json()["id"]
+    liked = get_db().val("SELECT id FROM line_members WHERE line_id=? AND kind='liked'", (lid,))
+    playlist = get_db().val("SELECT id FROM line_members WHERE line_id=? AND kind='playlist'", (lid,))
+    assert admin.post(f"/api/lines/{lid}/reorder", json={}, headers=H).status_code == 200
+    assert admin.post(f"/api/lines/{lid}/reorder", json={"preview": False, "member_ids": [liked, playlist]},
+                      headers=H).status_code == 200
+    assert started == [(lid, uid, False, {liked}), (lid, uid, True, {liked})]
+    r = admin.post(f"/api/lines/{lid}/reorder", json={"member_ids": [playlist]}, headers=H)
+    assert r.status_code == 400
+    assert admin.delete(f"/api/lines/{lid}", headers=H).status_code == 200

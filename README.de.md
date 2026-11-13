@@ -166,6 +166,11 @@ Jeder Fade merkt sich, welche Songs er kennt und wo er sie zuletzt gesehen hat.
   Likes kann als Eingang dienen: Ein Song verschwindet dort, sobald er in allen passenden Playlists angekommen ist
   (viele auf einmal warten auf Bestätigung). Stimmungen und Genres kommen von deinem KI-Assistenten oder deinen
   eigenen Tags; Songs ohne Einordnung warten, bis sie eine haben.
+- **Reihenfolge der Likes:** Likes aus mehreren Diensten kommen in der Reihenfolge an, in der du sie geliked hast,
+  das Neueste oben – nach dem Datum, wo ein Dienst es verrät, sonst nach den Songs drumherum. Schon durcheinander
+  geratene Likes lassen sich im Fade geraderücken (**Likes in Like-Reihenfolge bringen**): Crossfade zeigt pro
+  Like-Sammlung, wie viele Songs anders stehen, und verschiebt die ausgewählten, indem es sie einzeln entliked und
+  gleich wieder liked, ohne dass einer verloren geht.
 - **Zeitreise:** Jedes Mal, wenn Crossfade eine Sammlung komplett liest, merkt es sich ihren Inhalt, aber nur wenn
   sich etwas geändert hat. In der Mediathek (Uhr-Symbol) oder bei einer Sammlung im Fade wählst du einen Zeitpunkt,
   siehst, was seitdem verschwunden und dazugekommen ist, und holst einzelne Songs zurück oder setzt die Sammlung

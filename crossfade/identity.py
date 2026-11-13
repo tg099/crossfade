@@ -95,6 +95,9 @@ class Identity:
                          origin=excluded.origin, updated_at=excluded.updated_at
                          WHERE music_annotations.origin<>'user' AND excluded.origin='user'""", (keep, drop))
             c.execute("UPDATE changes SET song_id=? WHERE song_id=?", (keep, drop))
+            c.execute("""INSERT INTO like_times(line_id,song_id,liked_at) SELECT line_id,?,liked_at FROM like_times
+                         WHERE song_id=? ON CONFLICT(line_id,song_id) DO UPDATE
+                         SET liked_at=MIN(like_times.liked_at, excluded.liked_at)""", (keep, drop))
             c.execute("DELETE FROM search_cache WHERE song_id IN (?,?)", (keep, drop))
             c.execute("UPDATE songs SET isrc=COALESCE(isrc,(SELECT isrc FROM songs WHERE id=?)) WHERE id=?",
                       (drop, keep))

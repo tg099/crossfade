@@ -127,7 +127,7 @@ export interface Member {
 export interface Job {
 	line_id: number;
 	state: 'queued' | 'running';
-	mode: 'apply' | 'preview';
+	mode: 'apply' | 'preview' | 'reorder' | 'reorder_preview';
 	trigger: string;
 	phase: string;
 	done: number;
@@ -135,6 +135,15 @@ export interface Job {
 	started_at: number;
 	/** how many live results the running job has produced so far (GET /api/lines/:id/live) */
 	live_n?: number;
+}
+
+/** A liked collection in "put likes in order": how many of its songs stand elsewhere than liked */
+export interface ReorderRow {
+	member_id: number;
+	service: Service;
+	name: string;
+	count: number;
+	moves: number;
 }
 
 /** One result of a running job, as it happened */

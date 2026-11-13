@@ -164,6 +164,10 @@ Each fade remembers which songs it knows and where it last saw them.
   New songs are sorted on every sync. A sending collection such as your liked songs can work as an inbox: a
   song leaves it once it has arrived in every playlist it fits (many at once wait for confirmation). Moods and
   genres come from your AI assistant or your own tags; songs without them wait until they have some.
+- **Order of likes:** liked songs from several services go in by when you liked them, newest on top – by the
+  date where a service tells it, otherwise by the songs around them. Likes already out of order can be put right
+  on the fade (**Put likes in the order you liked them**): Crossfade shows per liked collection how many songs
+  stand elsewhere and moves the ones you pick by unliking and liking them again, one at a time, never losing one.
 - **Time travel:** every time Crossfade reads a whole collection it remembers its content, only when something
   changed. In the library (clock icon) or on a collection in a fade you pick a point in time, see what is gone and
   what came in since, and bring back single songs or reset the collection to exactly that state. The last 7 days

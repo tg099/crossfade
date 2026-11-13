@@ -4,6 +4,7 @@ from __future__ import annotations
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any
 
 from ..models import ApiError, Collection, NotSupported, Track
@@ -99,6 +100,16 @@ def unique(tracks: list[Track | None]) -> list[Track]:
             first.handle.setdefault("extra", []).append(dict(t.handle))
             first.handle["copies"] = 1 + len(first.handle["extra"])
     return list(seen.values())
+
+
+def iso_time(value: str | None) -> float | None:
+    """'2026-11-11T18:59:20Z' -> epoch seconds (None when missing or unreadable)."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
 
 
 def chunks(items: list, n: int):

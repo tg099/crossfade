@@ -2,7 +2,7 @@
 // appearance and language. Data lives in lib/state.svelte.ts.
 import { pushState, replaceState } from '$app/navigation';
 import { put } from '#lib/api.ts';
-import type { FadeInvite, Kind, Service, TrackInfo } from '#lib/types.ts';
+import type { FadeInvite, Kind, ReorderRow, Service, TrackInfo } from '#lib/types.ts';
 import type { GlyphName } from './Glyph.svelte';
 import { i18n, t, type Key, type LangPref } from './i18n.svelte.ts';
 import { project, reducedMotion, rubberband, Spring } from './motion.ts';
@@ -73,6 +73,9 @@ class UI {
 	historyOpen = $state(false);
 	/** time travel opened right at one collection (from a fade); null = the list of all */
 	historyTarget = $state<{ account_id: number; kind: Kind; collection_id: string } | null>(null);
+	/** putting a fade's likes in order: open while Crossfade reads them (rows null), then what would move */
+	reorderOpen = $state(false);
+	reorder = $state<{ line_id: number; rows: ReorderRow[] | null } | null>(null);
 	passwordOpen = $state(false);
 	friendsOpen = $state(false);
 	/** an invitation into a friend's fade, being answered */
@@ -189,7 +192,7 @@ class UI {
 	/** everything that floats over the app goes away (signed out, session ended) */
 	closeAll() {
 		this.accountOpen = this.serviceOpen = this.usersOpen = this.userOpen = this.appsOpen = false;
-		this.notifyOpen = this.mcpOpen = this.healthOpen = this.backupOpen = this.historyOpen = false;
+		this.notifyOpen = this.mcpOpen = this.healthOpen = this.backupOpen = this.historyOpen = this.reorderOpen = false;
 		this.passwordOpen = this.friendsOpen = this.joinOpen = this.editorOpen = this.planOpen = false;
 		this.reviewOpen = this.songOpen = false;
 		this.ctx = null;

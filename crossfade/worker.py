@@ -142,6 +142,24 @@ class Worker:
         self.pool.submit(self._run, line_id, line["user_id"], trigger, apply, allow_deletions)
         return True
 
+    def start_reorder(self, line_id: int, user_id: int, apply: bool, member_ids: set[int]) -> bool:
+        """Put the person's liked collections of a fade in the order the songs were liked
+        (LineSync.reorder): a preview first, then the real thing. Holds the fade like a sync does."""
+        line = self.db.one("SELECT id, user_id FROM lines WHERE id=?", (line_id,))
+        if not line:
+            return False
+        with self._lock:
+            if line_id in self.jobs or self.restoring:
+                return False
+            self._stop_flags[line_id] = threading.Event()
+            self.jobs[line_id] = {"line_id": line_id, "state": "queued", "mode": "reorder" if apply else "reorder_preview",
+                                  "trigger": "reorder", "phase": "Waiting …", "done": 0, "total": 0,
+                                  "started_at": time.time(), "live_n": 0, "mcp_action_id": None}
+            self.live[line_id] = []
+        self._emit(line["user_id"], line_id)
+        self.pool.submit(self._reorder, line_id, line["user_id"], user_id, apply, member_ids)
+        return True
+
     def stop(self, line_id: int) -> None:
         ev = self._stop_flags.get(line_id)
         if ev:
@@ -364,6 +382,54 @@ class Worker:
                                      "preview": not apply}}
             for uid in self._audience(line_id, user_id):
                 self.bus.publish(uid, finished)
+
+    def _reorder(self, line_id: int, owner: int, user_id: int, apply: bool, member_ids: set[int]) -> None:
+        stop = self._stop_flags[line_id]
+        last_emit = [0.0]
+
+        def progress(phase: str, done: int, total: int) -> None:
+            job = self.jobs.get(line_id)
+            if job:
+                job.update(state="running", phase=phase, done=done, total=total)
+                if time.time() - last_emit[0] > 0.25 or done == total:
+                    last_emit[0] = time.time()
+                    self._emit(owner, line_id)
+
+        status, message, summary = "error", None, {}
+        locks = [self._user_lock(uid) for uid in sorted(self._audience(line_id, owner))]
+        for lock in locks:
+            lock.acquire()
+        try:
+            self.jobs[line_id].update(state="running", phase="Connecting to the services …")
+            self._emit(owner, line_id)
+            providers = {}
+            for acc in self.db.all("""SELECT DISTINCT a.* FROM accounts a JOIN line_members m ON m.account_id=a.id
+                                      WHERE m.line_id=?""", (line_id,)):
+                providers[acc["id"]] = build_provider(self.db, acc)
+            sync = LineSync(self.db, line_id, providers, progress, stop.is_set)
+            res = sync.reorder(apply, member_ids)
+            status, message, summary = res.status, res.message, res.summary
+            if status == "auth_error" and sync.active_account:
+                self._mark_account(sync.active_account, "error", message)
+        except Stopped:
+            status, message = "stopped", "Stopped"
+        except AuthError as e:
+            status, message = "auth_error", str(e)
+        except Exception as e:  # noqa: BLE001
+            log.error("reorder failed: %s", traceback.format_exc())
+            status, message = "error", f"{type(e).__name__}: {e}"
+        finally:
+            for lock in reversed(locks):
+                lock.release()
+            with self._lock:
+                self.jobs.pop(line_id, None)
+                self.live.pop(line_id, None)
+                self._stop_flags.pop(line_id, None)
+            self._emit(owner, line_id)
+            # only the person who asked hears how it went (their collections, their preview)
+            self.bus.publish(user_id, {"type": "job", "line_id": line_id, "job": None, "finished": {
+                "status": status, "message": message, "summary": summary,
+                "reorder": "apply" if apply else "preview"}})
 
     def _mark_account(self, account_id: int, status: str, message: str | None) -> None:
         mark_account(self.db, account_id, status, message)

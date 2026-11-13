@@ -408,6 +408,16 @@ MIGRATIONS: list[str] = [
     """
     ALTER TABLE lines ADD COLUMN delete_confirm INTEGER NOT NULL DEFAULT 1;
     """,
+    # ---- 22: when each song of a fade was liked, the earliest date a service told. Services date a
+    #          like anew when a song is liked again (putting likes in order does that), so it is kept.
+    """
+    CREATE TABLE like_times (
+        line_id INTEGER NOT NULL REFERENCES lines(id) ON DELETE CASCADE,
+        song_id INTEGER NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+        liked_at REAL NOT NULL,
+        PRIMARY KEY (line_id, song_id)
+    );
+    """,
 ]
 
 
