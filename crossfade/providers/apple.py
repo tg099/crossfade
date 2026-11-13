@@ -258,10 +258,29 @@ class AppleProvider(Provider):
         else:
             raise NotSupported(kind)
 
+    FAVORITE_GAP = 1.1    # seconds between two favourites
+    _last_favorite = 0.0
+
     def add(self, kind: str, collection_id: str, tracks: list[Track]) -> list[str]:
-        """Add in batches; if Apple rejects a batch (e.g. favorites only take one id, or one song
-        is unavailable in the storefront), retry its songs one by one so only the bad ones fail."""
+        """Add in batches; if Apple rejects a batch (e.g. one song is unavailable in the storefront),
+        retry its songs one by one so only the bad ones fail.
+
+        Favourites take one id per call (25 ids -> 400, seen live) and are ordered by the time they
+        were favourited, to the second: several in the same second come out in any order. So they
+        go one by one, a little more than a second apart, in the order given."""
         failed: list[str] = []
+        if kind == LIKED:
+            for t in tracks:      # the gap also holds across calls (the sync adds in small parts)
+                wait = self.FAVORITE_GAP - (time.monotonic() - self._last_favorite)
+                if wait > 0:
+                    time.sleep(wait)
+                self._last_favorite = time.monotonic()
+                try:
+                    self._add_ids(kind, collection_id, [t.id])
+                except ApiError as e:
+                    log.warning("Apple Music: song %s not added (%s): %s", t.id, kind, e)
+                    failed.append(t.id)
+            return failed
         for batch in chunks([t.id for t in tracks], 25):
             try:
                 self._add_ids(kind, collection_id, batch)
