@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from functools import lru_cache
+
+CACHE = 1 << 16   # pure text helpers, called with the same titles over and over (see matcher.CACHE)
 
 # label (shown in the UI) -> regex on normalised "title + album" text
 HARD: dict[str, str] = {
@@ -113,6 +116,7 @@ def _pipes(t: str) -> str:
     return parts[0] + "".join(_marks(p) for p in parts[1:] if p and not p.startswith("#"))
 
 
+@lru_cache(maxsize=CACHE)
 def strip_noise(title: str) -> str:
     t = title or ""
     t = re.sub(r"[(\[【]([^)\]】]*)[)\]】]", lambda m: _marks(m.group(1)) if _NOISE.search(m.group(1)) else m.group(0), t)
@@ -123,6 +127,7 @@ def strip_noise(title: str) -> str:
     return re.sub(r"\s+", " ", t).strip()
 
 
+@lru_cache(maxsize=CACHE)
 def _norm(s: str) -> str:
     s = unicodedata.normalize("NFKD", s or "")
     s = "".join(c for c in s if not unicodedata.combining(c)).lower()
@@ -155,6 +160,12 @@ class Version:
 
 def version_of(title: str, album: str = "", explicit: bool | None = None,
                album_type: str | None = None) -> Version:
+    v = _version_of(title or "", album or "", explicit, album_type)
+    return replace(v, hard=set(v.hard), soft=set(v.soft))     # callers may add to the sets
+
+
+@lru_cache(maxsize=CACHE)
+def _version_of(title: str, album: str, explicit: bool | None, album_type: str | None) -> Version:
     title = strip_noise(title)
     q = _norm(_brackets(title))
     whole = _norm(title)

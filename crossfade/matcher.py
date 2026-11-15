@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass, field, replace
+from functools import lru_cache
 
 from rapidfuzz import fuzz, process
 
@@ -16,6 +17,9 @@ SUGGEST = 0.50  # keep as suggestion for manual review at or above this score
 HARD_CAP = 0.66  # a different recording (live vs studio …) is at most a suggestion
 FITS = 0.70      # a suggestion this good (with the same title) is preselected for review
 FAR = 30         # seconds: two audio tracks this far apart on different albums are different recordings
+# The text helpers below are pure and called with the same titles and artists thousands of times per
+# sync, scan or tidy-up (every pair compared runs them again): their results are kept.
+CACHE = 1 << 16
 
 _FEAT = re.compile(r"\b(feat\.?|ft\.?|featuring)\s[^()\[\]]*", re.I)
 _TOPIC = re.compile(r"\s-\stopic$", re.I)
@@ -26,6 +30,7 @@ _QUALIFIER = re.compile(
     r"recorded|taylor|soundtrack|ost|anniversary|edition|expanded|ep|\d{4})\b", re.I)
 
 
+@lru_cache(maxsize=CACHE)
 def _base(s: str) -> str:
     s = unicodedata.normalize("NFKD", s or "")
     s = "".join(c for c in s if not unicodedata.combining(c)).lower()
@@ -34,6 +39,7 @@ def _base(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
+@lru_cache(maxsize=CACHE)
 def norm_title(title: str) -> str:
     """The bare song title: version qualifiers in brackets or after ' - ' are removed
     (they are judged separately by versions.compare)."""
@@ -100,9 +106,14 @@ def readings(t: Track) -> list[Track]:
 
 
 def artist_list(artist: str) -> list[str]:
-    artist = _TOPIC.sub("", artist or "")
+    return list(_artist_list(artist or ""))
+
+
+@lru_cache(maxsize=CACHE)
+def _artist_list(artist: str) -> tuple[str, ...]:
+    artist = _TOPIC.sub("", artist)
     parts = [_base(p) for p in _ARTIST_SPLIT.split(artist)]
-    return [p for p in parts if p]
+    return tuple(p for p in parts if p)
 
 
 def _title_sim(a: str, b: str) -> float:
@@ -114,6 +125,7 @@ def _title_sim(a: str, b: str) -> float:
 _BRACKETS = re.compile(r"\s*[(\[][^)\]]*[)\]]")
 
 
+@lru_cache(maxsize=CACHE)
 def bare_title(title: str) -> str:
     """The title without *any* bracketed part – also subtitles like "(A Man After Midnight)",
     which one service prints and another leaves out."""
