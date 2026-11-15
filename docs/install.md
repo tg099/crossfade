@@ -117,7 +117,8 @@ stays in the `crossfade-data` volume.
 ## After the installation
 
 1. Sign in as admin. Under **Account → Users** you create accounts for the other people; they get a start password
-   and choose their own at the first sign-in.
+   and choose their own at the first sign-in. To set things up for someone, open them there and pick
+   **Sign in as this person** (ends by itself after two hours).
 2. Each person connects their own services under **Account → Services**. Some services need a one-time step by the
    admin first: see [Setting up the services](../README.md#setting-up-the-services).
 3. Create your first fade and start with the **preview**: it shows what a sync would do without changing anything.

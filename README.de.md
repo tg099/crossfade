@@ -15,12 +15,16 @@ Mehrere Personen teilen sich eine Instanz, jede mit eigenen Diensten und Fades. 
 <p align="center"><a href="https://buymeacoffee.com/tg099"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" height="48"></a></p>
 
 <p align="center">
-  <img src="docs/screenshots/desktop-light.png" alt="Übersicht: deine Fades, neue Songs der Woche und was gerade dazugekommen ist" width="100%">
+  <img src="docs/screenshots/desktop-light.png" alt="Übersicht: deine Fades, neue Songs der Woche, was gerade dazugekommen ist und was Freunde beigesteuert haben" width="100%">
 </p>
 
-| Ein Fade | Deine Mediathek | Auf dem Telefon |
+| Ein Fade | Deine Mediathek |
+|---|---|
+| ![Ein Fade mit Sammlungen bei drei Diensten und Statistik, dunkel](docs/screenshots/desktop-dark.png) | ![Alle Songs aller Dienste in einer Liste, mit Filtern nach Dienst, Interpret, Album und Fade](docs/screenshots/library-dark.png) |
+
+| Auf dem Telefon | Mit einem Freund geteilt | Mediathek unterwegs |
 |---|---|---|
-| ![Ein Fade mit Sammlungen und Statistik, dunkel](docs/screenshots/desktop-dark.png) | ![Alle Songs aller Dienste in einer Liste](docs/screenshots/library-dark.png) | ![Übersicht auf dem Telefon](docs/screenshots/phone-light.png) |
+| ![Übersicht auf dem Telefon](docs/screenshots/phone-light.png) | ![Ein mit einem Freund geteilter Fade auf dem Telefon, dunkel](docs/screenshots/phone-fade-dark.png) | ![Die Mediathek auf dem Telefon](docs/screenshots/phone-library-light.png) |
 
 ## Begriffe
 
@@ -197,6 +201,11 @@ Jeder Fade merkt sich, welche Songs er kennt und wo er sie zuletzt gesehen hat.
   `CROSSFADE_UPDATE_CHECK=false` schaltet es ab.
 - **Erste Schritte:** Neue Nutzer bekommen auf der Übersicht eine Checkliste (Dienste verbinden, erster Fade, erster
   Sync, Benachrichtigungen), bis alles eingerichtet ist oder sie sie ausblenden.
+- **Für jemanden einrichten** (nur Admins, **Konto → Nutzer** → eine Person → **Als diese Person anmelden**): Der
+  Admin sieht Crossfade so wie diese Person und kann für sie Dienste verbinden, Fades bauen und Einstellungen
+  ändern. Der Besuch endet nach zwei Stunden von selbst, ein Banner oben bringt den Admin mit einem Tipp zurück.
+  Passwort und KI-Assistenten der Person sowie die Admin-Seiten bleiben dabei gesperrt, und bei anderen Admins
+  geht es nicht.
 
 ## Sicherheit
 
@@ -229,14 +238,22 @@ Bitte Syncs nicht gegen deine echten Konten testen: nimm ein eigenes `CROSSFADE_
 | `crossfade/matcher.py` | Abgleich nach Titel, Interpret, Dauer, ISRC |
 | `crossfade/providers/` | Ein Modul pro [unterstütztem Dienst](#unterstützte-dienste) |
 | `crossfade/worker.py` | Zeitplan, Hintergrund-Syncs, Live-Fortschritt |
+| `crossfade/catalog.py` | Die Mediathek: alle Songs aller Dienste, Hinzufügen und Entfernen in einem Rutsch |
+| `crossfade/sorting.py` | Regeln, die Songs im Fade in Playlists einsortieren |
+| `crossfade/sharing.py` | Freunde und geteilte Fades, wer was sehen darf |
+| `crossfade/history.py` | Zeitreise: Stände der Sammlungen und Wiederherstellen |
+| `crossfade/mcp_server.py` | MCP-Server für KI-Assistenten |
 | `crossfade/api/` | HTTP-API, Anmeldung, Nutzerverwaltung |
 | `web/` | Oberfläche (SvelteKit, statisch gebaut) |
 
 Umgebungsvariablen: siehe `.env.example`. Zusätzlich `CROSSFADE_DATA_DIR`, `CROSSFADE_BASE_URL`,
-`CROSSFADE_WEB_DIR` und `CROSSFADE_SECURE_COOKIES`.
+`CROSSFADE_WEB_DIR`, `CROSSFADE_SECURE_COOKIES` und `CROSSFADE_BACKUP_ON_START`.
 
 Die Oberfläche nutzt ein Liquid-Glass-Design für Telefon und Desktop, mit Hell/Dunkel/System und Deutsch und Englisch
 (Texte in `web/src/lib/ui/lang/`, beide Dateien haben dieselben Schlüssel).
+
+Die Screenshots in `docs/screenshots/` zeigen ausgedachte Personen und generierte Cover auf einer Wegwerf-Datenbank,
+nie echte Konten.
 
 ### Releases
 

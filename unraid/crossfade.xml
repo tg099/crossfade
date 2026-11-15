@@ -17,6 +17,9 @@
   <Category>MediaApp:Music Tools:</Category>
   <WebUI>http://[IP]:[PORT:8765]/</WebUI>
   <Icon>https://raw.githubusercontent.com/tg099/crossfade/main/web/static/icon.png</Icon>
+  <Screenshot>https://raw.githubusercontent.com/tg099/crossfade/main/docs/screenshots/desktop-light.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/tg099/crossfade/main/docs/screenshots/desktop-dark.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/tg099/crossfade/main/docs/screenshots/phone-light.png</Screenshot>
   <ExtraParams>--restart=unless-stopped</ExtraParams>
   <PostArgs/>
   <DateInstalled/>

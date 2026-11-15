@@ -15,12 +15,16 @@ Several people share one instance, each with their own services and fades. Only 
 <p align="center"><a href="https://buymeacoffee.com/tg099"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" height="48"></a></p>
 
 <p align="center">
-  <img src="docs/screenshots/desktop-light.png" alt="Home: your fades, this week's new songs and what was just added" width="100%">
+  <img src="docs/screenshots/desktop-light.png" alt="Home: your fades, this week's new songs, what was just added and how much friends brought in" width="100%">
 </p>
 
-| A fade | Your library | On the phone |
+| A fade | Your library |
+|---|---|
+| ![A fade with its collections across three services and its stats, dark mode](docs/screenshots/desktop-dark.png) | ![All songs across services in one list, with filters per service, artist, album and fade](docs/screenshots/library-dark.png) |
+
+| On the phone | Shared with a friend | Library on the go |
 |---|---|---|
-| ![A fade with its collections and stats, dark mode](docs/screenshots/desktop-dark.png) | ![All songs across services in one list](docs/screenshots/library-dark.png) | ![Home on a phone](docs/screenshots/phone-light.png) |
+| ![Home on a phone](docs/screenshots/phone-light.png) | ![A fade shared with a friend on a phone, dark mode](docs/screenshots/phone-fade-dark.png) | ![The library on a phone](docs/screenshots/phone-library-light.png) |
 
 ## Concepts
 
@@ -191,6 +195,11 @@ Each fade remembers which songs it knows and where it last saw them.
   home page and under **Account**. Development builds never look; `CROSSFADE_UPDATE_CHECK=false` turns it off.
 - **First steps:** new users get a checklist on the home page (connect services, first fade, first sync,
   notifications) until everything is set up or they hide it.
+- **Setting things up for someone** (admins only, **Account → Users** → a person → **Sign in as this person**): an
+  admin sees Crossfade the way that person does and can connect services, build fades and change settings for
+  them. The visit ends by itself after two hours, and a banner at the top brings the admin back with one tap.
+  The person's password, AI assistants and the admin pages stay off limits meanwhile, and admins can't sign in as
+  other admins.
 
 ## Security
 
@@ -223,14 +232,22 @@ Please don't test syncs against your real accounts: use a scratch `CROSSFADE_DAT
 | `crossfade/matcher.py` | Matching by title, artist, duration, ISRC |
 | `crossfade/providers/` | One module per [supported service](#supported-services) |
 | `crossfade/worker.py` | Schedule, background syncs, live progress |
+| `crossfade/catalog.py` | The library: every song across services, bulk add and remove |
+| `crossfade/sorting.py` | Rules that sort songs into playlists inside a fade |
+| `crossfade/sharing.py` | Friends and shared fades, who may see what |
+| `crossfade/history.py` | Time travel: snapshots of collections and restoring them |
+| `crossfade/mcp_server.py` | MCP server for AI assistants |
 | `crossfade/api/` | HTTP API, sign-in, user management |
 | `web/` | UI (SvelteKit, static build) |
 
 Environment variables: see `.env.example`. Additionally `CROSSFADE_DATA_DIR`, `CROSSFADE_BASE_URL`,
-`CROSSFADE_WEB_DIR` and `CROSSFADE_SECURE_COOKIES`.
+`CROSSFADE_WEB_DIR`, `CROSSFADE_SECURE_COOKIES` and `CROSSFADE_BACKUP_ON_START`.
 
 The UI uses a Liquid Glass design for phone and desktop, with light/dark/system themes and German and English
 (texts in `web/src/lib/ui/lang/`, both files share the same keys).
+
+The screenshots in `docs/screenshots/` show made-up people and generated covers on a throwaway database, never real
+accounts.
 
 ### Releasing
 
