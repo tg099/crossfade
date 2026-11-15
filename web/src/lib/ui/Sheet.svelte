@@ -15,6 +15,7 @@
 		label,
 		class: cls = '',
 		style = '',
+		fill = false,
 		onclosed,
 		header,
 		children
@@ -23,6 +24,8 @@
 		label: string;
 		class?: string;
 		style?: string;
+		/** desktop: as tall as the screen allows instead of fitting the content, for content that lays itself out in the full height */
+		fill?: boolean;
 		onclosed?: () => void;
 		header?: Snippet;
 		children?: Snippet;
@@ -174,12 +177,17 @@
 		window.removeEventListener('pointercancel', hup);
 	});
 
-	// content: take over from scrolling only when it is at the top and the finger moves down
+	// content: take over from scrolling only when it is at the top and the finger moves down.
+	// "At the top" counts for every scroller under the finger, so a list inside scrolls back first.
 	let t: { x: number; y: number; atTop: boolean; decided: boolean; active: boolean } | null = null;
+	function atTop(from: EventTarget | null) {
+		for (let n = from instanceof Element ? from : null; n && n !== bodyEl; n = n.parentElement) if (n.scrollTop > 0) return false;
+		return (bodyEl?.scrollTop ?? 0) <= 0;
+	}
 	function tstart(e: TouchEvent) {
 		if (e.touches.length !== 1 || !bodyEl) return;
 		const p0 = e.touches[0];
-		t = { x: p0.clientX, y: p0.clientY, atTop: bodyEl.scrollTop <= 0, decided: false, active: false };
+		t = { x: p0.clientX, y: p0.clientY, atTop: atTop(e.target), decided: false, active: false };
 	}
 	function tmove(e: TouchEvent) {
 		if (!t) return;
@@ -231,6 +239,7 @@
 		<div
 			bind:this={sheetEl}
 			class="sheet {cls}"
+			class:fill
 			role="dialog"
 			aria-modal="true"
 			aria-label={label}
@@ -330,6 +339,9 @@
 			border-radius: 30px;
 			transform-origin: 50% 50%;
 			transform: translate3d(-50%, calc(-50% + var(--y)), 0) scale(calc(1 - var(--above) * 0.04));
+		}
+		.sheet.fill {
+			height: min(780px, 100dvh - 64px);
 		}
 	}
 	.head {

@@ -2,7 +2,7 @@
 	import { SERVICE_NAME } from '#lib/format.ts';
 	import { player } from '#lib/player.svelte.ts';
 	import { app } from '#lib/state.svelte.ts';
-	import type { Issue } from '#lib/types.ts';
+	import type { Issue, TrackInfo } from '#lib/types.ts';
 	import Cover from './Cover.svelte';
 	import Glyph from './Glyph.svelte';
 	import Sheet from './Sheet.svelte';
@@ -16,8 +16,10 @@
 	import { mmss, ui } from './ui.svelte.ts';
 
 	// Unsure songs as a stack of cards: throw right to take the suggested version, left to ignore.
-	// The card follows the finger in 2D, tilts around where you grabbed it, flies off with your
-	// momentum. Ignoring can be undone; taking a version adds it to the service right away.
+	// A sideways move picks the card up; then it follows the finger in 2D, tilts around where you
+	// grabbed it and flies off with your momentum. Up and down scrolls the versions inside the card,
+	// which always fits the screen with the actions below it. Ignoring can be undone; taking a
+	// version adds it to the service right away.
 	const line = $derived(ui.reviewFade ? app.line(ui.reviewFade) : null);
 	let queue = $state<Issue[]>([]);
 	let idx = $state(0);
@@ -85,6 +87,11 @@
 		const dy = e.clientY - drag.y0;
 		if (!drag.started) {
 			if (Math.hypot(dx, dy) < 8) return;
+			// up and down scrolls the versions; only a sideways move picks up the card
+			if (Math.abs(dy) > Math.abs(dx)) {
+				drag = null;
+				return;
+			}
 			drag.started = true;
 			(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 		}
@@ -112,6 +119,17 @@
 			// let go without intent: spring home with a little give, the throw carried momentum
 			xs.to(0, { response: 0.42, damping: 0.72, velocity: v.x });
 			ys.to(0, { response: 0.42, damping: 0.72, velocity: v.y });
+		}
+	}
+	/** the browser took the gesture over (it scrolls): the card goes back without a decision */
+	function cancel() {
+		if (!drag) return;
+		const started = drag.started;
+		drag = null;
+		armed = null;
+		if (started) {
+			xs.to(0, { response: 0.42, damping: 0.8 });
+			ys.to(0, { response: 0.42, damping: 0.8 });
 		}
 	}
 	function settle() {
@@ -182,12 +200,41 @@
 		return choice[i.id] ?? preset(i);
 	}
 	const cardColors = $derived(cur ? seedColors(cur.data.track.id) : []);
+
+	/** "Title - Single" as the album of a song called "Title" says nothing new: just "Single" */
+	function release(c: TrackInfo) {
+		const album = (c.album ?? '').trim();
+		const m = album.match(/^(.*?)\s+-\s+(Single|EP)$/i);
+		if ((m ? m[1] : album).toLowerCase() !== c.title.trim().toLowerCase()) return album;
+		return m ? m[2] : c.album_type === 'single' ? 'Single' : '';
+	}
+	const candLine = (c: TrackInfo) =>
+		[c.artist, release(c), mmss(c.duration)].filter(Boolean).join(' · ') +
+		(c.exact ? ` · ${t('issue.exact')}` : tr && sameLength(c, tr) ? ` · ${t('review.sameLength')}` : '');
+
+	// the versions scroll inside the card: soft edges say there is more above or below
+	let listEl = $state<HTMLElement>();
+	let listH = $state(0);
+	let moreUp = $state(false);
+	let moreDown = $state(false);
+	function edges() {
+		const el = listEl;
+		moreUp = !!el && el.scrollTop > 1;
+		moreDown = !!el && el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+	}
+	$effect(() => {
+		listEl;
+		listH;
+		cands;
+		edges();
+	});
 </script>
 
 <Sheet
 	bind:open={ui.reviewOpen}
 	label={t('review.title')}
 	class="tinted"
+	fill
 	style={line ? tintVars(line.color) : ''}
 	onclosed={() => {
 		loadedFor = -1;
@@ -206,69 +253,73 @@
 		{#if loading}
 			<p class="t-sub t-2 wait">{t('review.loading')}</p>
 		{:else if cur && line}
-			<div class="deck" bind:clientWidth={W}>
-				{#if next}
-					<div class="card under" style:transform="translateY({(1 - lift) * 14}px) scale({0.94 + lift * 0.06})" aria-hidden="true"></div>
-				{/if}
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div
-					class="card top"
-					style:--c0={cardColors[0]}
-					style:--c1={cardColors[1]}
-					style:transform="translate3d({x}px, {y}px, 0) rotate({rot}deg)"
-					style:transform-origin={grabLow ? '50% 0%' : '50% 100%'}
-					onpointerdown={down}
-					onpointermove={move}
-					onpointerup={up}
-					onpointercancel={up}
-				>
-					<span class="stamp take" style:opacity={takeO}>{t('review.take')}</span>
-					<span class="stamp skip" style:opacity={skipO}>{t('review.skip')}</span>
-					<!-- the song itself, compact: the decision is made in the versions below -->
-					<div class="rhead">
-						<div class="rcover">
-							<Cover src={tr.artwork} seed={tr.id} size={96} radius={0.14} track={tr} />
-							<span class="play"><HearButton track={tr} size={36} onArt /></span>
-						</div>
-						<div class="rmeta">
-							<p class="t-title3 rtitle">{tr.title}</p>
-							<p class="t-sub t-2 clip">{tr.artist}{tr.duration ? ` · ${mmss(tr.duration)}` : ''}</p>
-						</div>
-					</div>
-					<p class="why t-foot">{cur.data.reason ? `${cur.data.reason} · ` : ''}{t('review.for', { service: `${SERVICE_NAME[cur.service]} · ${cur.collection_name}` })}</p>
-					{#if cands.length}
-						{#if pick(cur) < 0 && !links[cur.id]}<p class="t-foot t-2 unsure">{t('review.noneSure')}</p>{/if}
-						<div class="cands" role="radiogroup" aria-label={t('review.versionIn', { service: SERVICE_NAME[cur.service] })}>
-							{#each cands as c, ci (c.id)}
-								<div class="cand" class:on={pick(cur) === ci && !links[cur.id]}>
-									<HearButton track={c} />
-									<button class="cand-pick" role="radio" aria-checked={pick(cur) === ci && !links[cur.id]} onclick={() => ((choice[cur.id] = ci), (links[cur.id] = ''))}>
-										<span class="grow">
-											<span class="b ctitle">{c.title}</span>
-											<span class="b t-foot t-2 clip">{#if c.version && c.version !== 'Original'}<span class="tag warn ver">{c.version}</span> {/if}{c.album ? `${c.album} · ` : ''}{mmss(c.duration)}{c.exact ? ` · ${t('issue.exact')}` : sameLength(c, tr) ? ` · ${t('review.sameLength')}` : ''}</span>
-										</span>
-										<span class="radio" class:on={pick(cur) === ci && !links[cur.id]}>{#if pick(cur) === ci && !links[cur.id]}<Glyph name="check" size={13} weight={3.2} />{/if}</span>
-									</button>
-								</div>
-							{/each}
-						</div>
-					{:else}
-						<p class="t-foot t-2 nocand">{t('issue.noCandidates')}</p>
+			<div class="deck">
+				<div class="stack" bind:clientWidth={W}>
+					{#if next}
+						<div class="card under" style:transform="translateY({(1 - lift) * 14}px) scale({0.94 + lift * 0.06})" aria-hidden="true"></div>
 					{/if}
-					<label class="field linkfield">
-						<Glyph name="link" size={16} weight={2.2} />
-						<input bind:value={links[cur.id]} placeholder={t('issue.linkPh', { service: SERVICE_NAME[cur.service] })} autocomplete="off" spellcheck="false" />
-					</label>
+					{#key cur.id}
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<div
+							class="card top"
+							style:--c0={cardColors[0]}
+							style:--c1={cardColors[1]}
+							style:transform="translate3d({x}px, {y}px, 0) rotate({rot}deg)"
+							style:transform-origin={grabLow ? '50% 0%' : '50% 100%'}
+							onpointerdown={down}
+							onpointermove={move}
+							onpointerup={up}
+							onpointercancel={cancel}
+						>
+							<span class="stamp take" style:opacity={takeO}>{t('review.take')}</span>
+							<span class="stamp skip" style:opacity={skipO}>{t('review.skip')}</span>
+							<!-- the song itself, compact: the decision is made in the versions below -->
+							<div class="rhead">
+								<div class="rcover">
+									<Cover src={tr.artwork} seed={tr.id} size={ui.phone ? 76 : 96} radius={0.14} track={tr} />
+									<span class="play"><HearButton track={tr} size={36} onArt /></span>
+								</div>
+								<div class="rmeta">
+									<p class="t-title3 rtitle">{tr.title}</p>
+									<p class="t-sub t-2 clip">{tr.artist}{tr.duration ? ` · ${mmss(tr.duration)}` : ''}</p>
+								</div>
+							</div>
+							<p class="why t-foot">{cur.data.reason ? `${cur.data.reason} · ` : ''}{t('review.for', { service: `${SERVICE_NAME[cur.service]} · ${cur.collection_name}` })}</p>
+							{#if cands.length}
+								{#if pick(cur) < 0 && !links[cur.id]}<p class="t-foot t-2 unsure">{t('review.noneSure')}</p>{/if}
+								<div class="cands" class:more-up={moreUp} class:more-down={moreDown} bind:this={listEl} bind:clientHeight={listH} onscroll={edges} role="radiogroup" aria-label={t('review.versionIn', { service: SERVICE_NAME[cur.service] })}>
+									{#each cands as c, ci (c.id)}
+										<div class="cand" class:on={pick(cur) === ci && !links[cur.id]}>
+											<HearButton track={c} />
+											<button class="cand-pick" role="radio" aria-checked={pick(cur) === ci && !links[cur.id]} onclick={() => ((choice[cur.id] = ci), (links[cur.id] = ''))}>
+												<span class="grow">
+													<span class="b ctitle">{c.title}</span>
+													<span class="b t-foot t-2 clip">{#if c.version && c.version !== 'Original'}<span class="tag warn ver">{c.version}</span> {/if}{candLine(c)}</span>
+												</span>
+												<span class="radio" class:on={pick(cur) === ci && !links[cur.id]}>{#if pick(cur) === ci && !links[cur.id]}<Glyph name="check" size={13} weight={3.2} />{/if}</span>
+											</button>
+										</div>
+									{/each}
+								</div>
+							{:else}
+								<p class="t-foot t-2 nocand">{t('issue.noCandidates')}</p>
+							{/if}
+							<label class="field linkfield">
+								<Glyph name="link" size={16} weight={2.2} />
+								<input bind:value={links[cur.id]} placeholder={t('issue.linkPh', { service: SERVICE_NAME[cur.service] })} autocomplete="off" spellcheck="false" />
+							</label>
+						</div>
+					{/key}
 				</div>
 			</div>
 
 			<div class="foot">
-			<div class="actions">
-				<button class="act glass lq" onclick={() => fly('skip')} aria-label={t('review.skip')}><Glyph name="x" size={26} weight={2.6} /></button>
-				<button class="act sm glass lq" onclick={undo} disabled={!canUndo} aria-label={t('common.undo')}><Glyph name="undo" size={20} weight={2.4} /></button>
-				<button class="act glass tint lq" class:idle={!target(cur)} onclick={() => fly('take')} aria-label={t('review.take')}><Glyph name="check" size={28} weight={2.8} /></button>
-			</div>
-			<p class="rhint t-foot t-2">{t('review.hint')}</p>
+				<div class="actions">
+					<button class="act glass lq" onclick={() => fly('skip')} aria-label={t('review.skip')}><Glyph name="x" size={26} weight={2.6} /></button>
+					<button class="act sm glass lq" onclick={undo} disabled={!canUndo} aria-label={t('common.undo')}><Glyph name="undo" size={20} weight={2.4} /></button>
+					<button class="act glass tint lq" class:idle={!target(cur)} onclick={() => fly('take')} aria-label={t('review.take')}><Glyph name="check" size={28} weight={2.8} /></button>
+				</div>
+				<p class="rhint t-foot t-2">{t('review.hint')}</p>
 			</div>
 		{:else}
 			<div class="done">
@@ -285,17 +336,32 @@
 </Sheet>
 
 <style>
+	/* the whole sheet height: card in the middle, actions at the bottom, nothing scrolls behind them */
 	.review {
-		display: grid;
-		/* never wider than the sheet, however long a title is */
-		grid-template-columns: minmax(0, 1fr);
-		justify-items: center;
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+		min-height: 400px; /* tiny screens: the sheet scrolls rather than squeezing the card */
 		overflow-x: clip; /* a card flying out must not widen the sheet */
-		padding: 6px 18px calc(var(--safe-bottom) + 24px);
+		padding: 6px 18px 0;
 		outline: none;
 	}
 	.deck {
+		flex: 1 1 auto;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		align-items: center;
+		padding-bottom: 12px; /* the next card peeks out below */
+	}
+	/* as tall as its content, at most the room there is: then the versions scroll inside */
+	.stack {
 		position: relative;
+		flex: 0 1 auto;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
 		width: min(100%, 380px);
 		min-width: 0;
 	}
@@ -313,14 +379,19 @@
 	}
 	.top {
 		position: relative;
+		flex: 0 1 auto;
+		min-height: 0;
 		min-width: 0;
-		padding: 14px 14px 12px;
+		display: flex;
+		flex-direction: column;
+		padding: 14px;
 		/* opaque: the next card waits underneath and must not show through */
 		background:
 			radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, var(--c0) 22%, transparent), transparent 70%),
 			linear-gradient(var(--sheet-cell), var(--sheet-cell)),
 			var(--bg);
-		touch-action: none;
+		/* up and down is the browser's (the versions scroll), sideways is the card's */
+		touch-action: pan-y;
 		user-select: none;
 		-webkit-user-select: none;
 		cursor: grab;
@@ -328,6 +399,12 @@
 	}
 	.top:active {
 		cursor: grabbing;
+	}
+	.rhead,
+	.unsure,
+	.nocand,
+	.linkfield {
+		flex: none;
 	}
 	.rhead {
 		display: flex;
@@ -356,7 +433,9 @@
 		overflow: hidden;
 	}
 	.why {
-		display: inline-block;
+		flex: none;
+		align-self: flex-start;
+		max-width: 100%;
 		margin: 8px 0 10px;
 		padding: 4px 10px;
 		border-radius: 999px;
@@ -365,9 +444,27 @@
 		font-weight: 600;
 	}
 	.cands {
+		flex: 0 1 auto;
+		min-height: 0;
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
+		align-content: start;
 		gap: 6px;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		scrollbar-width: thin;
+		/* a scroller decides for itself: without this it would take sideways moves too, and the card couldn't be thrown from here */
+		touch-action: pan-y;
+		--fade-up: 0px;
+		--fade-down: 0px;
+		-webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--fade-up), #000 calc(100% - var(--fade-down)), transparent);
+		mask-image: linear-gradient(to bottom, transparent, #000 var(--fade-up), #000 calc(100% - var(--fade-down)), transparent);
+	}
+	.cands.more-up {
+		--fade-up: 18px;
+	}
+	.cands.more-down {
+		--fade-down: 30px;
 	}
 	.cand {
 		display: flex;
@@ -443,7 +540,6 @@
 		color: var(--label-2);
 		rotate: 12deg;
 	}
-	/* stays in reach while a long list of versions scrolls underneath */
 	.actions {
 		display: flex;
 		align-items: center;
@@ -479,9 +575,6 @@
 	}
 	/* phones: the actions take less height, so more versions stay in view above them */
 	@media (max-width: 720px) {
-		.foot {
-			padding-top: 16px;
-		}
 		.act {
 			width: 60px;
 			height: 60px;
@@ -496,17 +589,12 @@
 			display: none;
 		}
 	}
-	/* actions stay in reach and sit on their own ground: nothing scrolls visibly behind them */
+	/* always in the same place, in reach of the thumb */
 	.foot {
-		position: sticky;
-		bottom: 0;
-		z-index: 2;
+		flex: none;
 		display: grid;
 		justify-items: center;
-		width: calc(100% + 36px);
-		margin: 0 -18px calc(-1 * (var(--safe-bottom) + 24px));
-		padding: 28px 18px calc(var(--safe-bottom) + 16px);
-		background: linear-gradient(to bottom, transparent, var(--sheet-solid, var(--bg)) 26px);
+		padding: 6px 0 20px;
 	}
 	.wait {
 		padding: 40px 20px;
@@ -516,7 +604,7 @@
 		padding: 4px 4px 2px;
 	}
 	.linkfield {
-		margin-top: 8px;
+		margin-top: 10px;
 		font-size: var(--f-sub);
 	}
 	.rhint {
@@ -528,7 +616,8 @@
 		display: grid;
 		justify-items: center;
 		gap: 8px;
-		padding: 60px 20px;
+		margin: auto 0;
+		padding: 40px 20px 60px;
 		text-align: center;
 	}
 	.done-ic {
