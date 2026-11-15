@@ -134,7 +134,7 @@
 		background:
 			radial-gradient(80% 40% at 20% 0%, rgb(110 170 130 / 0.32), transparent 70%),
 			radial-gradient(70% 40% at 100% 10%, rgb(225 180 115 / 0.26), transparent 70%),
-			#111312;
+			#121413;
 		--ink: rgb(246 244 241 / 0.8);
 		--soft: rgb(246 244 241 / 0.16);
 		--glass: rgb(70 68 68 / 0.75);

@@ -19,7 +19,7 @@ export const TABS: { id: Tab; label: Key; icon: GlyphName; path: string }[] = [
 
 // ---------------------------------------------------------------- appearance
 export type Theme = 'system' | 'light' | 'dark';
-const BG = { light: '#f7f6f1', dark: '#111312' };
+const BG = { light: '#f7f6f1', dark: '#121413' };
 const CACHE = 'crossfade.prefs'; // last known theme/lang, so the first paint is right before the user is loaded
 
 /** html[data-theme] forces a scheme; without it the CSS follows prefers-color-scheme */
