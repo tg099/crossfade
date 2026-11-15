@@ -222,7 +222,7 @@
 				<div class="section">
 					<div class="group">
 						<button class="cell" style:--inset="58px" onclick={undo} disabled={!!job}>
-							<span class="tile-icon" style:background="#8e8e93"><Glyph name="undo" size={17} weight={2.2} /></span>
+							<span class="tile-icon" style:background="var(--tile-grey)"><Glyph name="undo" size={17} weight={2.2} /></span>
 							<span class="grow">
 								<span class="b tintc">{t('clean.undo')}</span>
 								<span class="b t-foot t-2">{t('clean.undoSub', { n: k.undo.n, ago: ago(k.undo.at) })}</span>
@@ -245,12 +245,12 @@
 							<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
 						</button>
 					{/snippet}
-					{@render cat('dupes', 'copy', '#5e5ce6', 'clean.cat.dupes', t('clean.cat.dupesSub'), likely.length + check.length)}
+					{@render cat('dupes', 'copy', 'var(--tile-indigo)', 'clean.cat.dupes', t('clean.cat.dupesSub'), likely.length + check.length)}
 					{@render cat('twice', 'refresh', 'var(--orange)', 'clean.cat.twice', t('clean.cat.twiceSub'), twiceCount)}
-					{@render cat('unusual', 'ear', '#ff375f', 'clean.cat.unusual', t('clean.cat.unusualSub'), k.unusual.length)}
-					{@render cat('playlists', 'library', '#30b0c7', 'clean.cat.playlists', t('clean.cat.playlistsSub'), k.playlists.length)}
+					{@render cat('unusual', 'ear', 'var(--tile-pink)', 'clean.cat.unusual', t('clean.cat.unusualSub'), k.unusual.length)}
+					{@render cat('playlists', 'library', 'var(--tile-cyan)', 'clean.cat.playlists', t('clean.cat.playlistsSub'), k.playlists.length)}
 					{#if yt && k.youtube}
-						{@render cat('youtube', 'play', '#ff3b30', 'clean.cat.youtube', t(`clean.cat.youtubeSub.${k.youtube.format}`), k.youtube.candidates.length)}
+						{@render cat('youtube', 'play', 'var(--tile-red)', 'clean.cat.youtube', t(`clean.cat.youtubeSub.${k.youtube.format}`), k.youtube.candidates.length)}
 					{/if}
 				</div>
 			</div>

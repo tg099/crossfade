@@ -45,9 +45,9 @@
 		z-index: -1;
 		height: auto;
 		background:
-			radial-gradient(40% 40% at 20% 15%, color-mix(in srgb, #ff3b4e 40%, transparent), transparent 70%),
-			radial-gradient(45% 40% at 85% 20%, color-mix(in srgb, #2e6bff 38%, transparent), transparent 70%),
-			radial-gradient(50% 45% at 55% 90%, color-mix(in srgb, #ff3b4e 26%, transparent), transparent 72%);
+			radial-gradient(40% 40% at 20% 15%, color-mix(in srgb, #5e9a72 36%, transparent), transparent 70%),
+			radial-gradient(45% 40% at 85% 20%, color-mix(in srgb, #e0b77a 40%, transparent), transparent 70%),
+			radial-gradient(50% 45% at 55% 90%, color-mix(in srgb, #5e9a72 22%, transparent), transparent 72%);
 		filter: blur(10px);
 	}
 	.brand {

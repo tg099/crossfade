@@ -12,14 +12,15 @@ export function hash(s: string) {
 export function seedArt(seed: string) {
 	const h = hash(seed);
 	const a = h % 360;
-	const b = (a + 30 + ((h >> 9) % 70)) % 360;
-	return { a, b, c: (a + 300) % 360, cx: 20 + ((h >> 4) % 60), cy: 15 + ((h >> 12) % 55) };
+	// neighbouring hues only and soft saturation: a calm, dusty stand-in, never a rainbow
+	const b = (a + 20 + ((h >> 9) % 40)) % 360;
+	return { a, b, c: (a + 330) % 360, cx: 20 + ((h >> 4) % 60), cy: 15 + ((h >> 12) % 55) };
 }
 
 /** three colours: highlight, body, shadow */
 export function seedColors(seed: string): string[] {
 	const { a, b, c } = seedArt(seed);
-	return [`hsl(${b} 80% 66%)`, `hsl(${a} 62% 50%)`, `hsl(${c} 58% 26%)`];
+	return [`hsl(${b} 46% 72%)`, `hsl(${a} 34% 52%)`, `hsl(${c} 28% 28%)`];
 }
 
 const cache = new Map<string, Promise<string[]>>();

@@ -123,12 +123,12 @@
 			<div class="section">
 				<div class="group">
 					<button class="cell" style:--inset="58px" onclick={() => (ui.notifyOpen = true)}>
-						<span class="tile-icon" style:background="#ff3b30"><Glyph name="bell" size={19} weight={2.1} /></span>
+						<span class="tile-icon" style:background="var(--tile-red)"><Glyph name="bell" size={19} weight={2.1} /></span>
 						<span class="grow">{t('account.notify')}</span>
 						<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
 					</button>
 					<button class="cell" style:--inset="58px" onclick={() => (ui.friendsOpen = true)}>
-						<span class="tile-icon" style:background="#30b0c7"><Glyph name="users" size={19} weight={2.1} /></span>
+						<span class="tile-icon" style:background="var(--tile-cyan)"><Glyph name="users" size={19} weight={2.1} /></span>
 						<span class="grow">
 							<span class="b">{t('friends.title')}</span>
 							{#if app.socialBadge}<span class="b t-foot tintc">{t('friends.badge', { n: app.socialBadge })}</span>{/if}
@@ -138,7 +138,7 @@
 					</button>
 					{#if !me.impersonator}
 						<button class="cell" style:--inset="58px" onclick={() => (ui.mcpOpen = true)}>
-							<span class="tile-icon" style:background="#7c5ce6"><Glyph name="sparkle" size={19} weight={2.1} /></span>
+							<span class="tile-icon" style:background="var(--tile-violet)"><Glyph name="sparkle" size={19} weight={2.1} /></span>
 							<span class="grow">{t('mcp.title')}</span>
 							<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
 						</button>
@@ -174,7 +174,7 @@
 					<div class="group">
 						{#if upd}
 							<button class="cell" style:--inset="58px" onclick={checkUpdate} disabled={updates.checking || (!upd.enabled && !upd.available)}>
-								<span class="tile-icon" style:background={upd.available ? 'var(--tint-fill, #ff3b4e)' : '#8e8e93'}><Glyph name={upd.available ? 'sparkle' : 'refresh'} size={18} weight={2.2} /></span>
+								<span class="tile-icon" style:background={upd.available ? 'var(--tint-fill, var(--tile-green))' : 'var(--tile-grey)'}><Glyph name={upd.available ? 'sparkle' : 'refresh'} size={18} weight={2.2} /></span>
 								<span class="grow">
 									{#if upd.available}
 										<span class="b">{t('update.available', { version: (upd.latest ?? '').toUpperCase() })}</span>
@@ -194,22 +194,22 @@
 							</button>
 						{/if}
 						<button class="cell" style:--inset="58px" onclick={() => (ui.usersOpen = true)}>
-							<span class="tile-icon" style:background="#5e5ce6"><Glyph name="users" size={19} weight={2.1} /></span>
+							<span class="tile-icon" style:background="var(--tile-indigo)"><Glyph name="users" size={19} weight={2.1} /></span>
 							<span class="grow">{t('users.title')}</span>
 							<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
 						</button>
 						<button class="cell" style:--inset="58px" onclick={() => (ui.healthOpen = true)}>
-							<span class="tile-icon" style:background="#34c759"><Glyph name="pulse" size={19} weight={2.2} /></span>
+							<span class="tile-icon" style:background="var(--tile-green)"><Glyph name="pulse" size={19} weight={2.2} /></span>
 							<span class="grow">{t('account.health')}</span>
 							<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
 						</button>
 						<button class="cell" style:--inset="58px" onclick={() => (ui.backupOpen = true)}>
-							<span class="tile-icon" style:background="#0a84ff"><Glyph name="archive" size={18} weight={2.2} /></span>
+							<span class="tile-icon" style:background="var(--tile-blue)"><Glyph name="archive" size={18} weight={2.2} /></span>
 							<span class="grow">{t('account.backup')}</span>
 							<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
 						</button>
 						<button class="cell" style:--inset="58px" onclick={() => (ui.appsOpen = true)}>
-							<span class="tile-icon" style:background="#636366"><Glyph name="shield" size={18} weight={2.2} /></span>
+							<span class="tile-icon" style:background="var(--tile-slate)"><Glyph name="shield" size={18} weight={2.2} /></span>
 							<span class="grow">{t('account.apps')}</span>
 							<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
 						</button>
@@ -229,7 +229,7 @@
 				<div class="section">
 					<div class="group">
 						<button class="cell" style:--inset="58px" onclick={() => (ui.passwordOpen = true)}>
-							<span class="tile-icon" style:background="#8e8e93"><Glyph name="key" size={18} weight={2.2} /></span>
+							<span class="tile-icon" style:background="var(--tile-grey)"><Glyph name="key" size={18} weight={2.2} /></span>
 							<span class="grow">{t('account.password')}</span>
 							<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
 						</button>

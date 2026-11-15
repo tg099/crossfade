@@ -167,7 +167,7 @@
 						{#each shown as c (c.kind + c.id)}
 							{@const on = !!picked && !picked.create && picked.kind === c.kind && picked.id === c.id}
 							<button class="cell" style:--inset="58px" aria-pressed={on} onclick={() => (picked = { kind: c.kind, id: c.id, name: c.name, create: false })}>
-								<span class="tile-icon" style:background={c.kind === 'liked' ? '#ff2d55' : c.kind === 'library' ? '#8e8e93' : 'var(--tint-fill)'}>
+								<span class="tile-icon" style:background={c.kind === 'liked' ? 'var(--tile-pink)' : c.kind === 'library' ? 'var(--tile-grey)' : 'var(--tint-fill)'}>
 									<Glyph name={c.kind === 'liked' ? 'heart' : c.kind === 'library' ? 'library' : 'note'} size={17} weight={2.2} />
 								</span>
 								<span class="grow">

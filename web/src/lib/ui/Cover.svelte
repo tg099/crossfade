@@ -77,7 +77,7 @@
 			class="cover"
 			style:--s={px}
 			style:--r={radius}
-			style:background="radial-gradient(circle at {art.cx}% {art.cy}%, hsl({art.b} 85% 72% / 0.95), transparent 58%), linear-gradient(150deg, hsl({art.a} 62% 52%), hsl({art.c} 58% 24%))"
+			style:background="radial-gradient(circle at {art.cx}% {art.cy}%, hsl({art.b} 48% 76% / 0.9), transparent 58%), linear-gradient(150deg, hsl({art.a} 36% 54%), hsl({art.c} 30% 28%))"
 			aria-hidden="true"
 		></span>
 	{/if}

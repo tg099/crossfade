@@ -211,7 +211,7 @@
 		background: var(--orange);
 	}
 	.gray {
-		background: #8e8e93;
+		background: var(--tile-grey);
 	}
 	.tint {
 		background: var(--tint-fill);

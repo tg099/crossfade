@@ -123,18 +123,18 @@
 	}
 	.screen.light {
 		background:
-			radial-gradient(80% 40% at 20% 0%, rgb(255 140 170 / 0.45), transparent 70%),
-			radial-gradient(70% 40% at 100% 10%, rgb(120 190 255 / 0.4), transparent 70%),
-			#fbfaf8;
+			radial-gradient(80% 40% at 20% 0%, rgb(120 175 135 / 0.42), transparent 70%),
+			radial-gradient(70% 40% at 100% 10%, rgb(235 195 135 / 0.45), transparent 70%),
+			#f7f6f1;
 		--ink: rgb(28 26 25 / 0.75);
 		--soft: rgb(28 26 25 / 0.14);
 		--glass: rgb(255 255 255 / 0.75);
 	}
 	.screen.dark {
 		background:
-			radial-gradient(80% 40% at 20% 0%, rgb(255 90 140 / 0.35), transparent 70%),
-			radial-gradient(70% 40% at 100% 10%, rgb(80 150 255 / 0.3), transparent 70%),
-			#0c0b0b;
+			radial-gradient(80% 40% at 20% 0%, rgb(110 170 130 / 0.32), transparent 70%),
+			radial-gradient(70% 40% at 100% 10%, rgb(225 180 115 / 0.26), transparent 70%),
+			#111312;
 		--ink: rgb(246 244 241 / 0.8);
 		--soft: rgb(246 244 241 / 0.16);
 		--glass: rgb(70 68 68 / 0.75);
@@ -148,7 +148,7 @@
 	.card {
 		aspect-ratio: 2.1;
 		border-radius: 8px;
-		background: linear-gradient(140deg, #ff3b4e, #2e6bff);
+		background: #5e9a72;
 	}
 	.trow {
 		display: flex;

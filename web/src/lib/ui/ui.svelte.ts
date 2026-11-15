@@ -19,7 +19,7 @@ export const TABS: { id: Tab; label: Key; icon: GlyphName; path: string }[] = [
 
 // ---------------------------------------------------------------- appearance
 export type Theme = 'system' | 'light' | 'dark';
-const BG = { light: '#fbfaf8', dark: '#0c0b0b' };
+const BG = { light: '#f7f6f1', dark: '#111312' };
 const CACHE = 'crossfade.prefs'; // last known theme/lang, so the first paint is right before the user is loaded
 
 /** html[data-theme] forces a scheme; without it the CSS follows prefers-color-scheme */
@@ -433,7 +433,8 @@ export function flowIcon(a: { role: string }, b: { role: string }): 'right' | 'l
 }
 
 /** brand colours (logo + background of every page that isn't about one fade) */
-export const BRAND = ['#ff3b4e', '#2e6bff'];
+/** sage and sand: the two colours of the logo and the soft glow behind page titles */
+export const BRAND = ['#5e9a72', '#e0b77a'];
 
 /** soft colour fields behind a page, from a few colours */
 export function ambient(colors: string[]): string {

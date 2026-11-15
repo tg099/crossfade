@@ -21,7 +21,7 @@ from .deps import current_user, db_dep
 
 router = APIRouter(prefix="/api/lines", tags=["lines"])
 
-PALETTE = ["#0072CE", "#E4A100", "#C4007A", "#2E9E44", "#7A8B1E", "#009CA6", "#6A3FA0", "#8C5A2B"]
+PALETTE = ["#4A7FB8", "#CF9F3E", "#BC5E8C", "#5E9A72", "#8A9449", "#3F999B", "#8270B4", "#A3744C"]
 
 
 # ---------------------------------------------------------------------- serialization

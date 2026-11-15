@@ -236,7 +236,7 @@
 	<div class="section">
 		<div class="group">
 			<div class="cell">
-				<span class="tile-icon" style:background={a.destructive ? 'var(--red)' : '#7c5ce6'}><Glyph name={a.destructive ? 'trash' : 'sparkle'} size={17} weight={2.2} /></span>
+				<span class="tile-icon" style:background={a.destructive ? 'var(--red)' : 'var(--tile-violet)'}><Glyph name={a.destructive ? 'trash' : 'sparkle'} size={17} weight={2.2} /></span>
 				<span class="grow">
 					<span class="b">{operation(a.operation)}</span>
 					<span class="b t-foot t-2 clip">{[a.connection ? t('mcp.by', { name: a.connection }) : '', ago(a.created_at)].filter(Boolean).join(' · ')}</span>
@@ -391,7 +391,7 @@
 						{#each data.tokens as tk (tk.id)}
 							<li>
 								<button class="cell" style:--inset="58px" onclick={() => (page = { kind: 'token', id: tk.id })}>
-									<span class="tile-icon" style:background={expired(tk) ? '#8e8e93' : '#7c5ce6'}><Glyph name="sparkle" size={18} weight={2.2} /></span>
+									<span class="tile-icon" style:background={expired(tk) ? 'var(--tile-grey)' : 'var(--tile-violet)'}><Glyph name="sparkle" size={18} weight={2.2} /></span>
 									<span class="grow">
 										<span class="b clip">{tk.name}</span>
 										<span class="b t-foot t-2 clip">{scopes(tk)} · {expired(tk) ? t('mcp.expired') : tk.last_used_at ? t('mcp.lastUsed', { ago: ago(tk.last_used_at) }) : t('mcp.neverUsed')}</span>

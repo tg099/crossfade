@@ -657,7 +657,7 @@
 						{#each shownCollections as c (c.kind + c.id)}
 							{@const isTaken = taken(pickSvc, c)}
 							<button class="cell" style:--inset="58px" disabled={isTaken} onclick={() => choose(c)}>
-								<span class="tile-icon" style:background={c.kind === 'liked' ? '#ff2d55' : c.kind === 'library' ? '#8e8e93' : 'var(--tint-fill)'}>
+								<span class="tile-icon" style:background={c.kind === 'liked' ? 'var(--tile-pink)' : c.kind === 'library' ? 'var(--tile-grey)' : 'var(--tint-fill)'}>
 									<Glyph name={c.kind === 'liked' ? 'heart' : c.kind === 'library' ? 'library' : 'note'} size={17} weight={2.2} />
 								</span>
 								<span class="grow">

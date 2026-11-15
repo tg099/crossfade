@@ -134,28 +134,28 @@
 	<ul class="tpls">
 		<li>
 			<button class="tpl glass lq" onclick={() => ui.edit(0, 'likes')}>
-				<span class="tile-icon" style:background="#C4007A"><Glyph name="heart" size={18} weight={2.3} /></span>
+				<span class="tile-icon" style:background="var(--tile-pink)"><Glyph name="heart" size={18} weight={2.3} /></span>
 				<span class="b">{t('start.likes')}</span>
 				<span class="t-foot t-2">{t('start.likesText', { services: app.connected.map((s) => s.name).join(' · ') })}</span>
 			</button>
 		</li>
 		<li>
 			<button class="tpl glass lq" onclick={() => ui.edit(0, 'copy')}>
-				<span class="tile-icon" style:background="#0072CE"><Glyph name="right" size={18} weight={2.3} /></span>
+				<span class="tile-icon" style:background="var(--tile-blue)"><Glyph name="right" size={18} weight={2.3} /></span>
 				<span class="b">{t('start.copy')}</span>
 				<span class="t-foot t-2">{t('start.copyText')}</span>
 			</button>
 		</li>
 		<li>
 			<button class="tpl glass lq" onclick={() => ui.edit(0, 'sort')}>
-				<span class="tile-icon" style:background="#E4A100"><Glyph name="filter" size={18} weight={2.3} /></span>
+				<span class="tile-icon" style:background="var(--tile-orange)"><Glyph name="filter" size={18} weight={2.3} /></span>
 				<span class="b">{t('start.sort')}</span>
 				<span class="t-foot t-2">{t('start.sortText')}</span>
 			</button>
 		</li>
 		<li>
 			<button class="tpl glass lq" onclick={() => ui.edit(0)}>
-				<span class="tile-icon" style:background="#8E8E93"><Glyph name="plus" size={18} weight={2.6} /></span>
+				<span class="tile-icon" style:background="var(--tile-grey)"><Glyph name="plus" size={18} weight={2.6} /></span>
 				<span class="b">{t('start.own')}</span>
 				<span class="t-foot t-2">{t('start.ownText')}</span>
 			</button>

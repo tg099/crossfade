@@ -143,11 +143,11 @@
 		<div class="section">
 			<div class="group">
 				<button class="cell" style:--inset="58px" onclick={make} disabled={!!busy}>
-					<span class="tile-icon" style:background="#0a84ff"><Glyph name="archive" size={18} weight={2.2} /></span>
+					<span class="tile-icon" style:background="var(--tile-blue)"><Glyph name="archive" size={18} weight={2.2} /></span>
 					<span class="grow tintc">{busy === 'make' ? t('backup.making') : t('backup.now')}</span>
 				</button>
 				<button class="cell" style:--inset="58px" onclick={() => file?.click()} disabled={!!busy}>
-					<span class="tile-icon" style:background="#8e8e93"><Glyph name="undo" size={18} weight={2.2} /></span>
+					<span class="tile-icon" style:background="var(--tile-grey)"><Glyph name="undo" size={18} weight={2.2} /></span>
 					<span class="grow">{busy === 'check' ? t('backup.checking') : busy === 'restore' ? t('backup.restoring') : t('backup.upload')}</span>
 				</button>
 			</div>
@@ -192,7 +192,7 @@
 			<div class="section">
 				<div class="section-head"><span class="caps">{t('backup.keyHead')}</span></div>
 				<div class="group key">
-					<span class="tile-icon" style:background="#ff9f0a"><Glyph name="key" size={18} weight={2.2} /></span>
+					<span class="tile-icon" style:background="var(--tile-orange)"><Glyph name="key" size={18} weight={2.2} /></span>
 					<p class="t-foot">{t('backup.key', { where: data.key_from_env ? t('backup.keyEnv') : t('backup.keyFile') })}</p>
 				</div>
 			</div>

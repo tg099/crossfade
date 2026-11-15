@@ -55,7 +55,7 @@
 		transition: box-shadow 160ms;
 	}
 	input:focus {
-		box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--tint-fill) 60%, #0a84ff);
+		box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--tint-fill) 60%, var(--mark-b));
 	}
 	input[aria-invalid='true'] {
 		box-shadow: inset 0 0 0 1.5px var(--red);

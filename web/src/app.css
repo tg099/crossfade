@@ -6,22 +6,22 @@
 	/* brand mark (logo + avatars): flat, no gradients; light = white tile, dark = ink tile */
 	--mark-bg: #ffffff;
 	--mark-rim: rgb(0 0 0 / 0.09);
-	--mark-red: #f02d45;
-	--mark-blue: #2462f2;
-	--avatar-ink: 72% 44%; /* saturation + lightness of the initial, hue comes per user */
+	--mark-a: #c9924a;
+	--mark-b: #4f8c64;
+	--avatar-ink: 46% 44%; /* saturation + lightness of the initial, hue comes per user */
 	--content-max: 1440px; /* pages grow with the window up to here, then stay centred-left */
-	/* surfaces: a warm, soft white instead of clinical grey */
-	--bg: #fbfaf8;
-	--bg-grouped: #f3f1ee;
+	/* surfaces: sand, a soft paper white instead of clinical grey */
+	--bg: #f7f6f1;
+	--bg-grouped: #efeee7;
 	--cell: transparent;
 	/* grouped lists are glass too: the colour behind them shows through, no white boxes */
 	--cell-grouped: rgb(255 255 255 / 0.2);
-	--sheet: rgb(252 251 250 / 0.58);
-	--sheet-solid: #f7f6f3;
+	--sheet: rgb(250 249 244 / 0.58);
+	--sheet-solid: #f4f3ed;
 	--sheet-cell: rgb(255 255 255 / 0.42);
 	--elevated: #ffffff;
 	/* light: a soft warm dim, so the colour behind still shows through the sheet's glass */
-	--scrim: rgb(40 30 25 / 0.5);
+	--scrim: rgb(30 32 26 / 0.5);
 
 	/* glass. On a light page white-on-white disappears, so light glass is clearer (more of the
 	   colour behind comes through) and its edge is drawn by a soft dark rim at the bottom and
@@ -35,53 +35,64 @@
 	--rim-mid: rgb(255 255 255 / 0.55);
 	--rim-lo: rgb(255 255 255 / 0.95);
 	--rim-w: 1.5px;
-	--rim-edge: rgb(60 40 30 / 0.05);
+	--rim-edge: rgb(52 54 44 / 0.05);
 	--sheen: rgb(255 255 255 / 0.32);
 	/* a fine dark line outside the bright rim: that pair is what reads as a glass edge on white */
-	--glass-shadow: 0 0 0 0.5px rgb(60 40 30 / 0.1), 0 1px 2px rgb(40 30 20 / 0.06), 0 12px 30px -10px rgb(40 30 20 / 0.28);
-	--group-rim: inset 0 0 0 1px rgb(255 255 255 / 0.75), 0 0 0 0.5px rgb(60 40 30 / 0.08);
+	--glass-shadow: 0 0 0 0.5px rgb(52 54 44 / 0.1), 0 1px 2px rgb(34 36 28 / 0.06), 0 12px 30px -10px rgb(34 36 28 / 0.28);
+	--group-rim: inset 0 0 0 1px rgb(255 255 255 / 0.75), 0 0 0 0.5px rgb(52 54 44 / 0.08);
 	/* thickness: light caught along the top, a faint shade pooling at the bottom */
-	--glass-depth: inset 0 1.5px 1px -0.5px rgb(255 255 255 / 0.9), inset 0 -8px 16px -10px rgb(60 40 30 / 0.16);
-	--group-shadow: 0 1px 2px rgb(40 30 20 / 0.05), 0 8px 24px -14px rgb(40 30 20 / 0.22);
+	--glass-depth: inset 0 1.5px 1px -0.5px rgb(255 255 255 / 0.9), inset 0 -8px 16px -10px rgb(52 54 44 / 0.16);
+	--group-shadow: 0 1px 2px rgb(34 36 28 / 0.05), 0 8px 24px -14px rgb(34 36 28 / 0.22);
 	--lens: rgb(255 255 255 / 0.7);
 	--thumb: rgb(255 255 255 / 0.92);
 	--sidebar: rgb(255 255 255 / 0.2);
 	/* controls on light glass: buttons and pills are small pieces of glass themselves (raised,
 	   bright rim); fields, search and segmented tracks are wells pressed into the glass */
 	--ctl: rgb(255 255 255 / 0.5);
-	--ctl-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.85), inset 0 -3px 6px -4px rgb(60 40 30 / 0.12), 0 0 0 0.5px rgb(60 40 30 / 0.1), 0 2px 6px -2px rgb(40 30 20 / 0.14);
+	--ctl-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.85), inset 0 -3px 6px -4px rgb(52 54 44 / 0.12), 0 0 0 0.5px rgb(52 54 44 / 0.1), 0 2px 6px -2px rgb(34 36 28 / 0.14);
 	--well: rgb(255 255 255 / 0.28);
-	--well-shadow: inset 0 1px 3px rgb(60 40 30 / 0.1), inset 0 0 0 0.5px rgb(60 40 30 / 0.1), 0 1px 0 rgb(255 255 255 / 0.8);
+	--well-shadow: inset 0 1px 3px rgb(52 54 44 / 0.1), inset 0 0 0 0.5px rgb(52 54 44 / 0.1), 0 1px 0 rgb(255 255 255 / 0.8);
 	/* a filled (tinted) button catches light too */
 	--fill-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), inset 0 -2px 6px -2px rgb(0 0 0 / 0.18);
-	--fill-drop: 0 6px 14px -8px rgb(40 30 20 / 0.3);
+	--fill-drop: 0 6px 14px -8px rgb(34 36 28 / 0.3);
 
 	/* labels */
-	--label: #1c1a19;
-	--label-2: rgb(60 56 52 / 0.62);
-	--label-3: rgb(60 56 52 / 0.32);
-	--sep: rgb(60 56 52 / 0.14);
-	--fill: rgb(120 116 112 / 0.2);
-	--fill-2: rgb(120 116 112 / 0.15);
-	--fill-3: rgb(120 116 112 / 0.11);
+	--label: #1d1f1b;
+	--label-2: rgb(54 58 50 / 0.62);
+	--label-3: rgb(54 58 50 / 0.32);
+	--sep: rgb(54 58 50 / 0.14);
+	--fill: rgb(116 120 110 / 0.2);
+	--fill-2: rgb(116 120 110 / 0.15);
+	--fill-3: rgb(116 120 110 / 0.11);
 
 	/* system colours */
-	--red: #ff3b30;
-	--red-text: #d70015;
-	--orange: #ff9500;
-	--orange-text: #c93400;
-	--green: #34c759;
-	--green-text: #248a3d;
+	--red: #d95a4e;
+	--red-text: #b23a2f;
+	--orange: #e09a3e;
+	--orange-text: #9c5a12;
+	--green: #3c9a9e;
+	--green-text: #24716f;
 
 	/* tint: neutral until a line provides one */
 	--tint: var(--label);
 	--tint-fill: var(--label);
 	--on-tint: #ffffff;
 	--raw: #8e8e93;
+	/* icon tiles in settings lists: soft, dusty hues that sit with sage and sand */
+	--tile-red: #d0685c;
+	--tile-orange: #cf9346;
+	--tile-green: #5e9a72;
+	--tile-cyan: #4f9aa2;
+	--tile-blue: #5a82b8;
+	--tile-indigo: #7274b4;
+	--tile-violet: #8a74b6;
+	--tile-pink: #c7657f;
+	--tile-grey: #8b8d86;
+	--tile-slate: #696c66;
 	/* single-series chart mark (validated: lightness band + contrast on both surfaces) */
-	--chart: #e8506e;
+	--chart: #5e9a72;
 
-	--shadow-sheet: 0 0 0 0.5px rgb(60 40 30 / 0.1), 0 20px 60px -12px rgb(40 30 20 / 0.35);
+	--shadow-sheet: 0 0 0 0.5px rgb(52 54 44 / 0.1), 0 20px 60px -12px rgb(34 36 28 / 0.35);
 
 	/* type scale (17px body, Apple text styles) */
 	--f-large: 2.06rem; /* 35 */
@@ -141,13 +152,13 @@
 
 /* dark: follows the system unless the user picked a theme (html[data-theme]) */
 :root[data-theme='dark'] {
-	--mark-bg: #17171d;
+	--mark-bg: #1a1c1a;
 	--mark-rim: rgb(255 255 255 / 0.1);
-	--mark-red: #ff3b4e;
-	--mark-blue: #2e6bff;
-	--avatar-ink: 85% 66%;
-	--bg: #050506;
-	--bg-grouped: #050506;
+	--mark-a: #ddb06e;
+	--mark-b: #7cb48e;
+	--avatar-ink: 50% 70%;
+	--bg: #111312;
+	--bg-grouped: #111312;
 	--cell: transparent;
 	--cell-grouped: rgb(255 255 255 / 0.075);
 	--sheet: rgb(26 26 30 / 0.84);
@@ -172,7 +183,7 @@
 	--fill-shadow: 0 0 0 0 transparent;
 	--fill-drop: 0 0 0 transparent;
 	--group-rim: inset 0 1px 0 rgb(255 255 255 / 0.35);
-	--group-shadow: 0 1px 2px rgb(40 30 20 / 0.04);
+	--group-shadow: 0 1px 2px rgb(34 36 28 / 0.04);
 	--lens: rgb(255 255 255 / 0.14);
 	--thumb: rgb(255 255 255 / 0.24);
 	--sidebar: rgb(24 24 28 / 0.55);
@@ -183,26 +194,26 @@
 	--fill: rgb(120 120 128 / 0.36);
 	--fill-2: rgb(120 120 128 / 0.3);
 	--fill-3: rgb(120 120 128 / 0.22);
-	--red: #ff453a;
-	--red-text: #ff6961;
-	--orange: #ff9f0a;
-	--orange-text: #ffb340;
-	--green: #30d158;
-	--green-text: #30db5b;
+	--red: #e8695d;
+	--red-text: #f08a7f;
+	--orange: #e8a650;
+	--orange-text: #f0bb73;
+	--green: #55b2b5;
+	--green-text: #72c6c8;
 	--on-tint: #000000;
-	--chart: #ee5a78;
+	--chart: #7cb48e;
 	--shadow-sheet: 0 20px 60px -10px rgb(0 0 0 / 0.8);
 	color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
 	:root:not([data-theme='light']) {
-		--mark-bg: #17171d;
+		--mark-bg: #1a1c1a;
 		--mark-rim: rgb(255 255 255 / 0.1);
-		--mark-red: #ff3b4e;
-		--mark-blue: #2e6bff;
-		--avatar-ink: 85% 66%;
-		--bg: #050506;
-		--bg-grouped: #050506;
+		--mark-a: #ddb06e;
+		--mark-b: #7cb48e;
+		--avatar-ink: 50% 70%;
+		--bg: #111312;
+		--bg-grouped: #111312;
 		--cell: transparent;
 		--cell-grouped: rgb(255 255 255 / 0.075);
 		--sheet: rgb(26 26 30 / 0.84);
@@ -227,7 +238,7 @@
 		--fill-shadow: 0 0 0 0 transparent;
 		--fill-drop: 0 0 0 transparent;
 		--group-rim: inset 0 1px 0 rgb(255 255 255 / 0.35);
-		--group-shadow: 0 1px 2px rgb(40 30 20 / 0.04);
+		--group-shadow: 0 1px 2px rgb(34 36 28 / 0.04);
 		--lens: rgb(255 255 255 / 0.14);
 		--thumb: rgb(255 255 255 / 0.24);
 		--sidebar: rgb(24 24 28 / 0.55);
@@ -238,14 +249,14 @@
 		--fill: rgb(120 120 128 / 0.36);
 		--fill-2: rgb(120 120 128 / 0.3);
 		--fill-3: rgb(120 120 128 / 0.22);
-		--red: #ff453a;
-		--red-text: #ff6961;
-		--orange: #ff9f0a;
-		--orange-text: #ffb340;
-		--green: #30d158;
-		--green-text: #30db5b;
+		--red: #e8695d;
+		--red-text: #f08a7f;
+		--orange: #e8a650;
+		--orange-text: #f0bb73;
+		--green: #55b2b5;
+		--green-text: #72c6c8;
 		--on-tint: #000000;
-		--chart: #ee5a78;
+		--chart: #7cb48e;
 		--shadow-sheet: 0 20px 60px -10px rgb(0 0 0 / 0.8);
 		color-scheme: dark;
 	}
@@ -375,7 +386,7 @@ button {
 	-webkit-tap-highlight-color: transparent;
 }
 :focus-visible {
-	outline: 3px solid color-mix(in srgb, var(--tint-fill) 70%, #0a84ff);
+	outline: 3px solid color-mix(in srgb, var(--tint-fill) 70%, var(--mark-b));
 	outline-offset: 2px;
 	border-radius: 999px;
 }
@@ -745,8 +756,8 @@ a.cell:active {
 	color: var(--orange-text);
 }
 .tag.accent {
-	background: color-mix(in srgb, #5e5ce6 16%, transparent);
-	color: color-mix(in srgb, #5e5ce6 70%, var(--label));
+	background: color-mix(in srgb, var(--chart) 16%, transparent);
+	color: color-mix(in srgb, var(--chart) 70%, var(--label));
 }
 .tag.bad {
 	background: color-mix(in srgb, var(--red) 14%, transparent);

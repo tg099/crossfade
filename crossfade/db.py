@@ -424,6 +424,19 @@ MIGRATIONS: list[str] = [
     ALTER TABLE sessions ADD COLUMN impersonator_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
     ALTER TABLE sessions ADD COLUMN return_hash TEXT;
     """,
+    # 24: softer fade colours (sage & sand look); move stored fades to their new shade
+    """
+    UPDATE lines SET color = CASE upper(color)
+        WHEN '#0072CE' THEN '#4A7FB8'
+        WHEN '#E4A100' THEN '#CF9F3E'
+        WHEN '#C4007A' THEN '#BC5E8C'
+        WHEN '#2E9E44' THEN '#5E9A72'
+        WHEN '#7A8B1E' THEN '#8A9449'
+        WHEN '#009CA6' THEN '#3F999B'
+        WHEN '#6A3FA0' THEN '#8270B4'
+        WHEN '#8C5A2B' THEN '#A3744C'
+        ELSE color END;
+    """,
 ]
 
 

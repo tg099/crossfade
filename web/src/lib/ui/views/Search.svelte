@@ -126,7 +126,7 @@
 		gap: 4px;
 	}
 	mark {
-		background: color-mix(in srgb, var(--yellow, #ffd60a) 45%, transparent);
+		background: color-mix(in srgb, var(--mark-a) 34%, transparent);
 		color: inherit;
 		border-radius: 3px;
 	}

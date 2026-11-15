@@ -145,7 +145,7 @@
 		const n = c.events.length;
 		return `${n === EVENTS.length ? t('notify.allEvents') : t('notify.nEvents', { n })} · ${c.last_sent_at ? t('notify.lastSent', { ago: ago(c.last_sent_at) }) : t('notify.neverSent')}`;
 	}
-	const ICON: Record<Kind, string> = { ntfy: '#34c759', webhook: '#5e5ce6', email: '#0a84ff' };
+	const ICON: Record<Kind, string> = { ntfy: 'var(--tile-green)', webhook: 'var(--tile-indigo)', email: 'var(--tile-blue)' };
 </script>
 
 <Sheet bind:open={ui.notifyOpen} label={t('notify.title')} onclosed={closed}>

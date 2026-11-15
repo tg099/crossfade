@@ -198,7 +198,7 @@
 
 			{#if c.data?.songs.length && (c.cleanupCount || c.cleanup?.undo)}
 				<button class="card glass tidy" onclick={() => (c.cleanupOpen = true)}>
-					<span class="tile-icon" style:background="#5e5ce6"><Glyph name="sparkle" size={17} weight={2.2} /></span>
+					<span class="tile-icon" style:background="var(--tile-indigo)"><Glyph name="sparkle" size={17} weight={2.2} /></span>
 					<span class="grow">
 						<span class="b">{c.cleanupCount ? t('clean.entry', { n: num(c.cleanupCount) }) : t('clean.title')}</span>
 						<span class="b t-foot t-2 clip">{c.cleanupCount ? t('clean.entrySub') : t('clean.undo')}</span>
@@ -607,7 +607,7 @@
 		vertical-align: 2px;
 	}
 	mark {
-		background: color-mix(in srgb, var(--yellow, #ffd60a) 45%, transparent);
+		background: color-mix(in srgb, var(--mark-a) 34%, transparent);
 		color: inherit;
 		border-radius: 3px;
 	}

@@ -235,3 +235,17 @@ def test_restore_waits_while_something_runs():
         w.jobs.pop(-1)
     assert w.begin_restore() and not w.start(1) and not w.start_catalog(1, "scan")
     w.end_restore()
+
+
+def test_fades_move_to_the_softer_colours(tmp_path):
+    f = tmp_path / "crossfade.sqlite3"
+    c = sqlite3.connect(f)
+    c.executescript("".join(MIGRATIONS[:23]) + "PRAGMA user_version=23;")
+    c.execute("INSERT INTO users(username,display_name,password_hash,is_admin,created_at) VALUES('u','U','x',1,0)")
+    for name, color in (("Old blue", "#0072CE"), ("Lower case", "#c4007a"), ("Own pick", "#123456")):
+        c.execute("INSERT INTO lines(user_id,name,color,created_at,updated_at) VALUES(1,?,?,0,0)", (name, color))
+    c.commit()
+    c.close()
+    db = Database(f)
+    assert dict((r["name"], r["color"]) for r in db.all("SELECT name, color FROM lines")) == {
+        "Old blue": "#4A7FB8", "Lower case": "#BC5E8C", "Own pick": "#123456"}
