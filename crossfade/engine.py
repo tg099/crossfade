@@ -24,9 +24,13 @@ senders, and deletions are only ever derived from songs that were actually seen 
 from __future__ import annotations
 
 import json
+import sqlite3
+import threading
 import time
 from collections.abc import Callable
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
+from typing import Any
 
 from . import history, matcher
 from .db import Database
@@ -52,6 +56,72 @@ def _now() -> float:
 
 class Stopped(Exception):
     pass
+
+
+class _Skipped(Exception):
+    """Not read: an earlier collection of the same service failed (see LineSync._each)."""
+
+
+class _Turns:
+    """A provider the threads of one run share. The services work side by side (reading, searching,
+    adding), but every call to one service waits for the one before it to finish: no service is
+    asked more at once than in a run that does one thing after the other."""
+
+    __slots__ = ("_inner", "_lock")
+
+    def __init__(self, inner: Any, lock: threading.RLock):
+        object.__setattr__(self, "_inner", inner)
+        object.__setattr__(self, "_lock", lock)
+
+    def __getattr__(self, name: str) -> Any:
+        value = getattr(self._inner, name)
+        if name.startswith("_") or not callable(value):
+            return value
+        lock = self._lock
+
+        def call(*args, **kwargs):
+            with lock:
+                return value(*args, **kwargs)
+        return call
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        setattr(self._inner, name, value)
+
+
+class _Lanes:
+    """Hands out work to several services at once: each service ("lane") does one thing at a time,
+    in the order given; the answers come back to the calling thread, which alone changes the run's
+    state. With a single lane everything runs right there, one after the other."""
+
+    def __init__(self, lanes: int):
+        self.pool = ThreadPoolExecutor(max_workers=lanes, thread_name_prefix="lane") if lanes > 1 else None
+        self.flying: dict[Future, tuple[int, str, Any]] = {}
+        self._seq = 0
+
+    def busy(self, lane: str) -> bool:
+        return any(lane == x for _, x, _ in self.flying.values())
+
+    def submit(self, lane: str, tag: Any, fn: Callable, *args) -> None:
+        if self.pool is None:
+            f: Future = Future()
+            try:
+                f.set_result(fn(*args))
+            except BaseException as e:  # noqa: BLE001 - handed over with the result
+                f.set_exception(e)
+        else:
+            f = self.pool.submit(fn, *args)
+        self._seq += 1
+        self.flying[f] = (self._seq, lane, tag)
+
+    def answers(self) -> list[tuple[Any, Future]]:
+        """Waits for at least one answer; returns those that are there, in the order handed out."""
+        done, _ = wait(list(self.flying), return_when=FIRST_COMPLETED)
+        got = sorted((self.flying.pop(f), f) for f in done)
+        return [(tag, f) for (_, _, tag), f in got]
+
+    def close(self) -> None:
+        if self.pool is not None:
+            self.pool.shutdown(wait=True, cancel_futures=True)
 
 
 def fill_times(order: list[int], times: dict[int, float]) -> None:
@@ -155,7 +225,10 @@ class LineSync:
         rows = db.all("""SELECT m.*, a.service, a.yt_format, a.user_id FROM line_members m
                          JOIN accounts a ON a.id=m.account_id WHERE m.line_id=? ORDER BY m.position, m.id""",
                       (line_id,))
-        self.members = [MemberState(r, providers[r["account_id"]]) for r in rows]
+        locks: dict[str, threading.RLock] = {}
+        turns = {aid: _Turns(p, locks.setdefault(getattr(p, "service", ""), threading.RLock()))
+                 for aid, p in providers.items()}
+        self.members = [MemberState(r, turns[r["account_id"]]) for r in rows]
         self.sorter = Sorter(db, rows)
         self.unsorted: set[int] = set()     # songs a rule can't place yet: they need labels first
         self.moving: dict[int, set[int]] = {}   # member -> songs it lets go of, now that they are sorted
@@ -168,6 +241,7 @@ class LineSync:
         self.held: set[int] = set()         # removals waiting for confirmation
         self.policy = self.line.get("version_policy") or "closest"
         self._like_times: dict[int, float] | None = None   # see like_times
+        self._origins: dict[int, Track | None] = {}         # see _origin
         # the account being talked to: an auth error belongs to it (a shared fade can hold two
         # accounts of the same service, one per person)
         self.active_account: int | None = None
@@ -176,13 +250,68 @@ class LineSync:
         if self.should_stop():
             raise Stopped()
 
+    def _each(self, members: list[MemberState], phase: str, stop_on_error: bool = False) -> list[Any]:
+        """Read every member, the services side by side (the members of one service one after the
+        other, in order). Returns per member its tracks or the exception reading raised: Stopped
+        once the user stopped, _Skipped after an earlier error of that service (stop_on_error).
+        `phase` names what happens, "{}" standing for the collections being read."""
+        out: list[Any] = [_Skipped()] * len(members)
+        lanes: dict[str, list[int]] = {}
+        for i, m in enumerate(members):
+            lanes.setdefault(m.service, []).append(i)
+        reading: dict[int, MemberState] = {}
+        lock = threading.Lock()
+        finished = [0]
+
+        def lane(idx: list[int]) -> None:
+            for i in idx:
+                m = members[i]
+                if self.should_stop():
+                    out[i] = Stopped()
+                    return
+                with lock:
+                    reading[i] = m
+                try:
+                    out[i] = m.provider.read(m.row["kind"], m.row["collection_id"])
+                except Exception as e:  # noqa: BLE001 - handed to the caller, in order
+                    out[i] = e
+                with lock:
+                    reading.pop(i, None)
+                    finished[0] += 1
+                if stop_on_error and isinstance(out[i], Exception):
+                    return
+
+        if len(lanes) <= 1:
+            for i, m in enumerate(members):
+                self.progress(phase.format(m.label()) + " …", i, len(members))
+                lane([i])
+                if isinstance(out[i], BaseException) and (stop_on_error or isinstance(out[i], Stopped)):
+                    break
+            return out
+        with ThreadPoolExecutor(max_workers=len(lanes), thread_name_prefix="read") as pool:
+            futures = [pool.submit(lane, idx) for idx in lanes.values()]
+            while True:
+                with lock:
+                    now = [m.label() for _, m in sorted(reading.items())]
+                    n = finished[0]
+                if now:
+                    self.progress(phase.format(", ".join(now)) + " …", n, len(members))
+                done, _ = wait(futures, timeout=0.3)
+                if len(done) == len(futures):
+                    break
+            for f in futures:
+                f.result()
+        return out
+
     # ================================================================ read
     def _read(self) -> None:
-        for i, m in enumerate(self.members, 1):
-            self._check_stop()
-            self.progress(f"Reading {m.label()} …", i - 1, len(self.members))
-            self.active_account = m.row["account_id"]
-            tracks = m.provider.read(m.row["kind"], m.row["collection_id"])
+        results = self._each(self.members, "Reading {}", stop_on_error=True)
+        for m, tracks in zip(self.members, results, strict=True):
+            if isinstance(tracks, BaseException):
+                # the first problem in the fade's order counts (a _Skipped one always follows an
+                # error of the same service further up)
+                self.active_account = m.row["account_id"]
+                raise tracks
             for n, t in enumerate(tracks):
                 sid = self.ident.song_for(t)
                 m.pos.setdefault(sid, n)
@@ -211,14 +340,15 @@ class LineSync:
         if not todo:
             return
         time.sleep(RECHECK_DELAY)
-        for i, (m, missing) in enumerate(todo):
-            self._check_stop()
-            self.progress(f"Checking {m.label()} once more …", i, len(todo))
-            self.active_account = m.row["account_id"]
-            try:
-                tracks = m.provider.read(m.row["kind"], m.row["collection_id"])
-            except (AuthError, ApiError):
+        self._check_stop()
+        results = self._each([m for m, _ in todo], "Checking {} once more")
+        for (m, missing), tracks in zip(todo, results, strict=True):
+            if isinstance(tracks, Stopped):
+                raise tracks
+            if isinstance(tracks, (AuthError, ApiError, _Skipped)):
                 continue
+            if isinstance(tracks, BaseException):
+                raise tracks
             listed: dict[int, tuple[int, Track]] = {}
             for n, t in enumerate(tracks):
                 listed.setdefault(self.ident.song_for(t), (n, t))
@@ -481,64 +611,9 @@ class LineSync:
                 self.live("plan", {"member_id": m.id, "group": "pending", "track": self._track_info(None, sid)})
 
         # -- find the songs on the receivers' services
-        unmatched: list[dict] = []
-        total = sum(len(m.to_add) for m in self.members)
-        i = 0
-        deferred: set[tuple[int, int]] = set()    # missed once, waiting for the other services' results
-        while True:
-            todo = [(m, sid) for m in self.members for sid, t in m.to_add.items() if t is None]
-            if not todo:
-                break
-            m, sid = next(((m, s) for m, s in todo if (m.id, s) not in deferred), todo[0])
-            retry = (m.id, sid) in deferred
-            deferred.discard((m.id, sid))
-            i += not retry
-            self._check_stop()
-            if (m.id, sid) in ignored:
-                m.to_add.pop(sid, None)
-                continue
-            origin = self._origin(sid)
-            desc = self.ident.describe(sid, origin)
-            self.progress(f"Searching {SERVICE_NAMES[m.service]} for “{desc.label()}” …", min(i, total), total)
-            self.active_account = m.row["account_id"]
-            try:
-                match = self.ident.find(sid, m.service, m.provider, source=desc)
-            except AuthError as e:
-                return RunResult("auth_error", str(e))
-            if match.accepted(self.policy):
-                dropped = self.ident.link(sid, match.track)
-                if dropped is not None:
-                    self._remap(dropped, sid)
-                if sid in m.current or sid not in m.to_add:
-                    m.to_add.pop(sid, None)
-                    continue      # turned out to be there already under another identity
-                # YouTube: the music video or the audio track, as the user prefers
-                target, dropped = self.ident.in_format(sid, match.track, m.provider, m.row.get("yt_format"))
-                if dropped is not None:
-                    self._remap(dropped, sid)
-                if sid in m.current or sid not in m.to_add:
-                    m.to_add.pop(sid, None)
-                    continue
-                m.to_add[sid] = target
-                if match.note():
-                    m.add_notes[sid] = match.note()
-                self.live("plan", {"member_id": m.id, "group": "add",
-                                   "track": self._track_info(target, sid, m.add_notes.get(sid))})
-            elif not retry and not match.exact and any(
-                    o is not m and o.service not in (m.service, desc.service) and o.to_add.get(sid, 1) is None
-                    for o in self.members):
-                # another service still has to find this song: its result may help here (a YouTube title
-                # found on Spotify, not on Apple Music -> search Apple Music with Spotify's details)
-                deferred.add((m.id, sid))
-            else:
-                m.to_add.pop(sid, None)
-                reason = None
-                if match.track and match.score >= matcher.ACCEPT and not match.exact:
-                    reason = ("Only found under a different artist name" if matcher.RENAMED in match.notes else
-                              "Only found in a different version: " + ", ".join(match.notes or ["different"]))
-                unmatched.append({"member_id": m.id, "song_id": sid, "track": desc.to_dict(),
-                                  "candidates": match.candidates, "reason": reason})
-                self.live("issue", unmatched[-1])
+        unmatched, failed = self._find_all(ignored)
+        if failed is not None:
+            return failed
 
         for m in self.members:
             for sid in m.gave_up:
@@ -563,34 +638,52 @@ class LineSync:
         done = failures = 0
         changes: list[tuple] = []
         abort: tuple[str, str] | None = None
+        problem: BaseException | None = None
+        # the services side by side, each one part at a time (members in the fade's order, removals
+        # before additions); the answers are taken in here, one after the other
+        work: dict[str, list[tuple[MemberState, str, dict, list]]] = {}
         for m in self.members:
             for action, items in (("remove", m.to_remove), ("add", m.to_add)):
                 pending_items = list(items.items())
                 if action == "add":       # keep the sources' order (merges during the search can shuffle it)
                     pending_items.sort(key=lambda it: self._order(it[0]))
-                verb, prep = ("Removing", "from") if action == "remove" else ("Adding", "to")
-                fn = m.provider.remove if action == "remove" else m.provider.add
-                ok_set = m.removed_ok if action == "remove" else m.added_ok
                 for start in range(0, len(pending_items), APPLY_CHUNK):
-                    if abort:
-                        break
-                    if self.should_stop():
-                        abort = ("stopped", "Stopped")
-                        break
-                    part = pending_items[start:start + APPLY_CHUNK]
-                    self.progress(f"{verb} {len(items)} songs {prep} {m.label()} …", done, total)
-                    tracks = [t for _, t in part]
-                    self.active_account = m.row["account_id"]
-                    if action == "remove":     # every entry of the song, not just the first
-                        tracks += [x for sid, _ in part for x in m.extra.get(sid, [])]
+                    work.setdefault(m.service, []).append((m, action, items, pending_items[start:start + APPLY_CHUNK]))
+        lanes = _Lanes(len(work))
+        try:
+            while True:
+                if abort is None and problem is None and self.should_stop():
+                    abort = ("stopped", "Stopped")
+                if abort is None and problem is None:
+                    for svc, queue in work.items():
+                        if not queue or lanes.busy(svc):
+                            continue
+                        m, action, items, part = queue.pop(0)
+                        verb, prep = ("Removing", "from") if action == "remove" else ("Adding", "to")
+                        self.progress(f"{verb} {len(items)} songs {prep} {m.label()} …", done, total)
+                        tracks = [t for _, t in part]
+                        if action == "remove":     # every entry of the song, not just the first
+                            tracks += [x for sid, _ in part for x in m.extra.get(sid, [])]
+                        fn = m.provider.remove if action == "remove" else m.provider.add
+                        lanes.submit(svc, (m, action, part, tracks), fn, m.row["kind"], m.row["collection_id"], tracks)
+                if not lanes.flying:
+                    break
+                # every answer counts, also after a problem elsewhere: those changes happened
+                for (m, action, part, tracks), answer in lanes.answers():
                     try:
-                        failed = set(fn(m.row["kind"], m.row["collection_id"], tracks))
+                        failed = set(answer.result())
                     except AuthError as e:
-                        abort = ("auth_error", str(e))
-                        break
+                        if abort is None:
+                            abort = ("auth_error", str(e))
+                            self.active_account = m.row["account_id"]
+                        continue
                     except ApiError as e:
                         failed = {t.id for t in tracks}
                         m.error = str(e)
+                    except Exception as e:  # noqa: BLE001 - raised once the other services answered
+                        problem = problem or e
+                        continue
+                    ok_set = m.removed_ok if action == "remove" else m.added_ok
                     for sid, t in part:
                         ok = t.id not in failed
                         if ok:
@@ -606,10 +699,10 @@ class LineSync:
                             "label": ch[3], "ok": ch[4], "message": ch[5], "ts": ch[6], "note": ch[7],
                             "artwork": t.artwork, "service": m.service, "collection_name": m.row["collection_name"]})
                     done += len(part)
-                if abort:
-                    break
-            if abort:
-                break
+        finally:
+            lanes.close()
+        if problem is not None:
+            raise problem
         self.progress("Checking results …", done, total)
 
         if not abort:
@@ -625,6 +718,129 @@ class LineSync:
         else:
             res.status = "ok"
         return res
+
+    def _find_all(self, ignored: set[tuple[int, int]]) -> tuple[list[dict], RunResult | None]:
+        """Find what the receivers need on their services. The services search side by side, each
+        one song at a time (in the fade's order); every answer is taken in here, one after the
+        other. A song one service misses is searched there again once the other services have
+        answered: what they found may help (a YouTube title found on Spotify, not on Apple Music ->
+        search Apple Music with Spotify's details). Returns the songs not found, and a result when
+        a login failed."""
+        unmatched: list[dict] = []
+        total = sum(len(m.to_add) for m in self.members)
+        counted = 0
+        deferred: set[tuple[int, int]] = set()    # missed once, waiting for the other services' answers
+        flying: set[tuple[int, int]] = set()
+        services = list(dict.fromkeys(m.service for m in self.members if m.to_add))
+        lanes = _Lanes(len(services))
+        failure: tuple[MemberState, BaseException] | None = None
+
+        def others_pending(m: MemberState, sid: int, desc: Track) -> bool:
+            return any(o is not m and o.service not in (m.service, desc.service) and o.to_add.get(sid, 1) is None
+                       for o in self.members)
+
+        def pick(svc: str) -> tuple[MemberState, int, bool] | None:
+            own = [(m, sid) for m in self.members if m.service == svc
+                   for sid, t in m.to_add.items() if t is None and (m.id, sid) not in flying]
+            fresh = next(((m, sid) for m, sid in own if (m.id, sid) not in deferred), None)
+            if fresh:
+                return fresh[0], fresh[1], False
+            # a miss is searched again once nothing else is left to search for (or being searched)
+            if any(not tag[2] for _, _, tag in lanes.flying.values()) or any(
+                    t is None and (o.id, sid) not in deferred and (o.id, sid) not in flying
+                    for o in self.members for sid, t in o.to_add.items()):
+                return None
+            again = next(((m, sid) for m, sid in own if (m.id, sid) in deferred), None)
+            return (again[0], again[1], True) if again else None
+
+        try:
+            while True:
+                if failure is None:
+                    self._check_stop()
+                    for svc in services:
+                        while not lanes.busy(svc) and (item := pick(svc)) is not None:
+                            m, sid, retry = item
+                            deferred.discard((m.id, sid))
+                            counted += not retry
+                            if (m.id, sid) in ignored:
+                                m.to_add.pop(sid, None)
+                                continue
+                            origin = self._origin(sid)
+                            desc = self.ident.describe(sid, origin)
+                            self.progress(f"Searching {SERVICE_NAMES[m.service]} for “{desc.label()}” …",
+                                          min(counted, total), total)
+                            flying.add((m.id, sid))
+                            lanes.submit(m.service, (m, sid, retry, desc, others_pending(m, sid, desc)),
+                                         self._find, m, sid, desc)
+                if not lanes.flying:
+                    break
+                for (m, sid, retry, desc, waited), answer in lanes.answers():
+                    flying.discard((m.id, sid))
+                    if failure is not None:
+                        continue
+                    try:
+                        match = answer.result()
+                    except sqlite3.IntegrityError as e:
+                        # the song was merged into another one while it was searched for: that one is
+                        # searched for instead (anything else is a real problem)
+                        if m.to_add.get(sid, 1) is None:
+                            failure = (m, e)
+                        continue
+                    except Exception as e:  # noqa: BLE001 - AuthError and the unexpected, after the others
+                        failure = (m, e)
+                        continue
+                    if m.to_add.get(sid, 1) is not None:
+                        continue          # merged into another song, or settled, while it was searched for
+                    self._take(m, sid, desc, match, retry, waited or others_pending(m, sid, desc),
+                               deferred, unmatched)
+        finally:
+            lanes.close()
+        if failure is not None:
+            m, e = failure
+            self.active_account = m.row["account_id"]
+            if isinstance(e, AuthError):
+                return unmatched, RunResult("auth_error", str(e))
+            raise e
+        return unmatched, None
+
+    def _find(self, m: MemberState, sid: int, desc: Track) -> Any:
+        return self.ident.find(sid, m.service, m.provider, source=desc)
+
+    def _take(self, m: MemberState, sid: int, desc: Track, match: Any, retry: bool, waited: bool,
+              deferred: set[tuple[int, int]], unmatched: list[dict]) -> None:
+        """One search answer: the song goes to the receiver, waits for the other services, or is
+        not found."""
+        if match.accepted(self.policy):
+            dropped = self.ident.link(sid, match.track)
+            if dropped is not None:
+                self._remap(dropped, sid)
+            if sid in m.current or sid not in m.to_add:
+                m.to_add.pop(sid, None)
+                return        # turned out to be there already under another identity
+            # YouTube: the music video or the audio track, as the user prefers
+            target, dropped = self.ident.in_format(sid, match.track, m.provider, m.row.get("yt_format"))
+            if dropped is not None:
+                self._remap(dropped, sid)
+            if sid in m.current or sid not in m.to_add:
+                m.to_add.pop(sid, None)
+                return
+            m.to_add[sid] = target
+            if match.note():
+                m.add_notes[sid] = match.note()
+            self.live("plan", {"member_id": m.id, "group": "add",
+                               "track": self._track_info(target, sid, m.add_notes.get(sid))})
+        elif not retry and not match.exact and waited:
+            # another service had to find this song too: its answer may help here
+            deferred.add((m.id, sid))
+        else:
+            m.to_add.pop(sid, None)
+            reason = None
+            if match.track and match.score >= matcher.ACCEPT and not match.exact:
+                reason = ("Only found under a different artist name" if matcher.RENAMED in match.notes else
+                          "Only found in a different version: " + ", ".join(match.notes or ["different"]))
+            unmatched.append({"member_id": m.id, "song_id": sid, "track": desc.to_dict(),
+                              "candidates": match.candidates, "reason": reason})
+            self.live("issue", unmatched[-1])
 
     def _plan_moves(self, ignored: set[tuple[int, int]]) -> None:
         """A song leaves a hand-off sender once it is listed in some collection whose rule it fits
@@ -657,22 +873,29 @@ class LineSync:
 
     def _origin(self, sid: int) -> Track | None:
         """The track a song came from (a sending member that has it) – its version is the one to find.
-        YouTube music videos are replaced by their audio version (the "song" YouTube Music links)."""
+        YouTube music videos are replaced by their audio version (the "song" YouTube Music links).
+        That link is remembered (Identity.counterpart) and the answer kept for the run: a video that
+        is searched on every sync (not found elsewhere yet) costs no YouTube call each time."""
+        if sid in self._origins:
+            return self._origins[sid]
+        origin = None
         for m in self.members:
             if m.sends and sid in m.current:
-                t = m.current[sid]
-                if t.video_type in ("MUSIC_VIDEO_TYPE_OMV", "MUSIC_VIDEO_TYPE_UGC") and hasattr(m.provider, "audio_version"):
+                origin = t = m.current[sid]
+                if t.video_type in ("MUSIC_VIDEO_TYPE_OMV", "MUSIC_VIDEO_TYPE_UGC") and \
+                        getattr(m.provider, "counterpart", None) is not None:
                     try:
-                        audio = m.provider.audio_version(t.id)
+                        cp = self.ident.counterpart(t, m.provider)
                     except Exception:  # noqa: BLE001 - best effort
-                        audio = None
-                    if audio:
-                        dropped = self.ident.link(sid, audio)
+                        cp = None
+                    if cp and cp.video_type == "MUSIC_VIDEO_TYPE_ATV":
+                        dropped = self.ident.link(sid, cp)
                         if dropped is not None:
                             self._remap(dropped, sid)
-                        return audio
-                return t
-        return None
+                        origin = cp
+                break
+        self._origins[sid] = origin
+        return origin
 
     def _verify_added(self) -> None:
         """Read every member that just received songs once more. Songs already listed count as
@@ -683,14 +906,15 @@ class LineSync:
         if not todo:
             return
         time.sleep(VERIFY_DELAY)
-        for i, m in enumerate(todo):
-            if self.should_stop():
+        if self.should_stop():
+            return
+        for m, tracks in zip(todo, self._each(todo, "Checking {}"), strict=True):
+            if isinstance(tracks, Stopped):
                 return
-            self.progress(f"Checking {m.label()} …", i, len(todo))
-            try:
-                tracks = m.provider.read(m.row["kind"], m.row["collection_id"])
-            except (AuthError, ApiError):
+            if isinstance(tracks, (AuthError, ApiError, _Skipped)):
                 continue          # not fatal: they stay pending and are confirmed on a later run
+            if isinstance(tracks, BaseException):
+                raise tracks
             listed = {self.ident.song_for(t) for t in tracks}
             m.seen_after_add = m.added_ok & listed
 

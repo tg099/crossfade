@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
 from . import history, matcher
 from .db import Database
@@ -24,6 +26,29 @@ KIND_ORDER = {LIKED: 0, LIBRARY: 1, PLAYLIST: 2}
 
 class Stopped(Exception):
     pass
+
+
+class _Ahead:
+    """Calls for several services at once: each service works through its own items one at a time
+    (in order, never two calls at once), while the caller takes the answers in the order given.
+    With a single service everything runs in the caller's thread, when asked for."""
+
+    def __init__(self, items: list, service_of: Callable[[Any], str], call: Callable[[Any], Any]):
+        services = list(dict.fromkeys(service_of(x) for x in items))
+        self.items, self.call = items, call
+        self.pools = ({svc: ThreadPoolExecutor(max_workers=1, thread_name_prefix="scan") for svc in services}
+                      if len(services) > 1 else {})
+        self.futures = [self.pools[service_of(x)].submit(call, x) for x in items] if self.pools else None
+
+    def result(self, i: int) -> Any:
+        return self.call(self.items[i]) if self.futures is None else self.futures[i].result()
+
+    def __enter__(self) -> _Ahead:
+        return self
+
+    def __exit__(self, *exc) -> None:
+        for pool in self.pools.values():
+            pool.shutdown(wait=True, cancel_futures=True)
 
 
 def _source_label(src: dict) -> str:
@@ -60,27 +85,32 @@ class Catalog:
     # ================================================================ scan
     def refresh_sources(self) -> None:
         """Bring the list of collections up to date. New ones are included; gone ones are dropped."""
+        accounts = list(self.providers.items())
+        with _Ahead(accounts, lambda a: a[1].service, lambda a: a[1].collections()) as ahead:
+            for i, (acc_id, _) in enumerate(accounts):
+                self._check_stop()
+                try:
+                    cols = ahead.result(i)
+                except AuthError as e:
+                    self.auth_errors[acc_id] = str(e)
+                    continue
+                except ApiError:
+                    continue          # keep the known sources; reading them reports the error
+                self._store_sources(acc_id, cols)
+
+    def _store_sources(self, acc_id: int, cols: list) -> None:
         db = self.db
-        for acc_id, prov in self.providers.items():
-            self._check_stop()
-            try:
-                cols = prov.collections()
-            except AuthError as e:
-                self.auth_errors[acc_id] = str(e)
-                continue
-            except ApiError:
-                continue          # keep the known sources; reading them reports the error
-            seen = set()
-            for c in cols:
-                seen.add((c.kind, c.id))
-                db.run("""INSERT INTO catalog_sources(account_id,kind,collection_id,name,editable,item_count)
-                          VALUES(?,?,?,?,?,?) ON CONFLICT(account_id,kind,collection_id) DO UPDATE SET
-                          name=excluded.name, editable=excluded.editable,
-                          item_count=COALESCE(excluded.item_count, item_count)""",
-                       (acc_id, c.kind, c.id, c.name, int(c.editable), c.count))
-            for s in db.all("SELECT id, kind, collection_id FROM catalog_sources WHERE account_id=?", (acc_id,)):
-                if (s["kind"], s["collection_id"]) not in seen:
-                    db.run("DELETE FROM catalog_sources WHERE id=?", (s["id"],))
+        seen = set()
+        for c in cols:
+            seen.add((c.kind, c.id))
+            db.run("""INSERT INTO catalog_sources(account_id,kind,collection_id,name,editable,item_count)
+                      VALUES(?,?,?,?,?,?) ON CONFLICT(account_id,kind,collection_id) DO UPDATE SET
+                      name=excluded.name, editable=excluded.editable,
+                      item_count=COALESCE(excluded.item_count, item_count)""",
+                   (acc_id, c.kind, c.id, c.name, int(c.editable), c.count))
+        for s in db.all("SELECT id, kind, collection_id FROM catalog_sources WHERE account_id=?", (acc_id,)):
+            if (s["kind"], s["collection_id"]) not in seen:
+                db.run("DELETE FROM catalog_sources WHERE id=?", (s["id"],))
 
     def scan(self) -> dict:
         db, now = self.db, time.time()
@@ -92,40 +122,24 @@ class Catalog:
         by_service: dict[str, dict[int, Track]] = {}
         errors: list[str] = []
         read = 0
-        for i, src in enumerate(sources):
-            self._check_stop()
-            self.progress(f"Reading {_source_label(src)} …", i, len(sources))
-            prov = self.providers[src["account_id"]]
-            try:
-                tracks = prov.read(src["kind"], src["collection_id"])
-            except AuthError as e:
-                self.auth_errors[src["account_id"]] = str(e)
-                errors.append(f"{SERVICE_NAMES[src['service']]}: {e}")
-                continue
-            except ApiError as e:
-                db.run("UPDATE catalog_sources SET error=? WHERE id=?", (str(e), src["id"]))
-                errors.append(f"{_source_label(src)}: {e}")
-                continue
-            history.capture(db, src["account_id"], src["kind"], src["collection_id"] or "", [t.id for t in tracks],
-                            "scan")
-            rows = []
-            pool = by_service.setdefault(src["service"], {})
-            for pos, t in enumerate(tracks):
-                sid = self.ident.song_for(t)
-                pool.setdefault(sid, t)
-                rows.append((src["id"], t.id, sid, pos, now, t.handle.get("copies", 1)))
-            with db.tx() as c:
-                c.execute("CREATE TEMP TABLE IF NOT EXISTS _cat_keep(ref_id TEXT PRIMARY KEY)")
-                c.execute("DELETE FROM _cat_keep")
-                c.executemany("INSERT OR IGNORE INTO _cat_keep(ref_id) VALUES(?)", [(r[1],) for r in rows])
-                c.execute("DELETE FROM catalog_items WHERE source_id=? AND ref_id NOT IN (SELECT ref_id FROM _cat_keep)",
-                          (src["id"],))
-                c.executemany("""INSERT INTO catalog_items(source_id,ref_id,song_id,position,first_seen,copies)
-                                 VALUES(?,?,?,?,?,?) ON CONFLICT(source_id,ref_id) DO UPDATE SET
-                                 song_id=excluded.song_id, position=excluded.position, copies=excluded.copies""", rows)
-                c.execute("UPDATE catalog_sources SET item_count=?, scanned_at=?, error=NULL WHERE id=?",
-                          (len(rows), now, src["id"]))
-            read += 1
+        # the services are read side by side; what they return is taken in here, in order
+        with _Ahead(sources, lambda s: s["service"],
+                    lambda s: self.providers[s["account_id"]].read(s["kind"], s["collection_id"])) as ahead:
+            for i, src in enumerate(sources):
+                self._check_stop()
+                self.progress(f"Reading {_source_label(src)} …", i, len(sources))
+                try:
+                    tracks = ahead.result(i)
+                except AuthError as e:
+                    self.auth_errors[src["account_id"]] = str(e)
+                    errors.append(f"{SERVICE_NAMES[src['service']]}: {e}")
+                    continue
+                except ApiError as e:
+                    db.run("UPDATE catalog_sources SET error=? WHERE id=?", (str(e), src["id"]))
+                    errors.append(f"{_source_label(src)}: {e}")
+                    continue
+                self._store_items(src, tracks, by_service, now)
+                read += 1
         self._check_stop()
         merged = self._merge(by_service)
         songs = db.val("""SELECT COUNT(DISTINCT ci.song_id) FROM catalog_items ci
@@ -133,6 +147,28 @@ class Catalog:
                           WHERE a.user_id=? AND s.included=1""", (self.user_id,))
         self.progress("Done", len(sources), len(sources))
         return {"collections": read, "songs": songs, "merged": merged, "errors": errors}
+
+    def _store_items(self, src: dict, tracks: list[Track], by_service: dict[str, dict[int, Track]], now: float) -> None:
+        """Remember what a collection holds now, as songs (also for the merge across services)."""
+        db = self.db
+        history.capture(db, src["account_id"], src["kind"], src["collection_id"] or "", [t.id for t in tracks], "scan")
+        rows = []
+        pool = by_service.setdefault(src["service"], {})
+        for pos, t in enumerate(tracks):
+            sid = self.ident.song_for(t)
+            pool.setdefault(sid, t)
+            rows.append((src["id"], t.id, sid, pos, now, t.handle.get("copies", 1)))
+        with db.tx() as c:
+            c.execute("CREATE TEMP TABLE IF NOT EXISTS _cat_keep(ref_id TEXT PRIMARY KEY)")
+            c.execute("DELETE FROM _cat_keep")
+            c.executemany("INSERT OR IGNORE INTO _cat_keep(ref_id) VALUES(?)", [(r[1],) for r in rows])
+            c.execute("DELETE FROM catalog_items WHERE source_id=? AND ref_id NOT IN (SELECT ref_id FROM _cat_keep)",
+                      (src["id"],))
+            c.executemany("""INSERT INTO catalog_items(source_id,ref_id,song_id,position,first_seen,copies)
+                             VALUES(?,?,?,?,?,?) ON CONFLICT(source_id,ref_id) DO UPDATE SET
+                             song_id=excluded.song_id, position=excluded.position, copies=excluded.copies""", rows)
+            c.execute("UPDATE catalog_sources SET item_count=?, scanned_at=?, error=NULL WHERE id=?",
+                      (len(rows), now, src["id"]))
 
     def _merge(self, by_service: dict[str, dict[int, Track]]) -> int:
         """Identify the same song across services. Only identical versions are merged – the

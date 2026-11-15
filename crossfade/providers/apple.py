@@ -101,6 +101,7 @@ class AppleProvider(Provider):
         self.dev_tokens = dev_tokens
         self.http = httpx.Client(timeout=30, headers={"User-Agent": UA, "Origin": WEB, "Referer": WEB + "/",
                                                       "Accept": "application/json"})
+        self._fav_id: str | None = None      # see _favorites_id
 
     def login_expires_at(self) -> float | None:
         tok = self.credentials.get("media_user_token") or ""
@@ -214,10 +215,12 @@ class AppleProvider(Provider):
                     if p.get("type") == "library-playlists"]
 
     def _favorites_id(self) -> str | None:
-        for p in self._playlists():
-            if "favorited" in ((p.get("attributes") or {}).get("tags") or []):
-                return p["id"]
-        return None
+        """The library playlist that holds the favourites. Looked up once per provider (one job):
+        a sync reads the favourites twice (before and after adding), a scan maybe more often."""
+        if self._fav_id is None:
+            self._fav_id = next((p["id"] for p in self._playlists()
+                                 if "favorited" in ((p.get("attributes") or {}).get("tags") or [])), "")
+        return self._fav_id or None
 
     def collections(self) -> list[Collection]:
         lib_total = None

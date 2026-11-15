@@ -136,3 +136,17 @@ def test_bulk_add_into_new_playlist(env):
     assert res["added"] == 1
     assert provs[YTM][1].keys(PLAYLIST, "fresh") == ["haus"]
     assert db.val("SELECT name FROM catalog_sources WHERE collection_id='fresh'") == "Summer"
+
+
+def test_scan_reads_the_services_side_by_side_each_one_collection_at_a_time(env):
+    from test_side_by_side import Watch
+    db, _, provs = env
+    for svc in (APPLE, SPOTIFY, YTM):
+        provs[svc][1].put(LIKED, "", "lucky", "blind")
+        provs[svc][1].put(PLAYLIST, f"{svc}-pl", "hello")
+    watch = Watch()
+    for _, p in provs.values():
+        watch.wrap(p)
+    res = cat(env).scan()
+    assert res["collections"] == 6 and res["songs"] == 3 and not res["errors"]
+    assert watch.most_overall >= 2 and set(watch.most.values()) == {1}
