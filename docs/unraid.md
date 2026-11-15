@@ -17,17 +17,24 @@ Crossfade starts: database backup ─► migrations ─► running
 
 ## 1. Create the container
 
-1. Download [`unraid/crossfade.xml`](../unraid/crossfade.xml) and copy it to
-   `/boot/config/plugins/dockerMan/templates-user/my-Crossfade.xml` (e.g. via the `flash` share).
-2. **Docker → Add Container → Template: Crossfade.**
-3. Fill in:
-   - **Public URL**: `https://crossfade.yourdomain.com`
-   - **Secret key**: generate once and keep it safe (e.g. in your password manager):
+1. **Apps** tab → search for **Crossfade** → **Install**.
+
+   Not in the Apps tab yet? *Settings → Docker* (Advanced View) → *Template repositories* → add
+   `https://github.com/tg099/unraid-templates` → *Apply*, then *Docker → Add Container → Template: Crossfade*.
+2. Fill in:
+   - **Public URL**: `https://crossfade.yourdomain.com`, the address of your reverse proxy (step 2). Leave it empty
+     while you only use `http://<server-IP>:8765` on your LAN.
+   - **Secret key**: leave it empty and Crossfade creates one in its data folder (`secret.key`). Or generate your
+     own once and keep it safe, e.g. in your password manager:
      ```sh
-     python3 -c "import secrets; print(secrets.token_urlsafe(48))"
+     openssl rand -base64 48
      ```
-     or on Unraid: `openssl rand -base64 48`
-4. **Apply.** Data then lives in `/mnt/user/appdata/crossfade` (included in the Appdata Backup plugin).
+     Either way, **never change it** afterwards: the stored logins can only be read with it.
+3. **Apply.** Data then lives in `/mnt/user/appdata/crossfade` (included in the Appdata Backup plugin).
+4. Open the WebUI and create the admin account.
+
+The template lives in [tg099/unraid-templates](https://github.com/tg099/unraid-templates); Unraid updates it
+from there.
 
 ## 2. Nginx Proxy Manager
 
