@@ -19,7 +19,9 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 import httpx
+import requests
 from ytmusicapi import LikeStatus, OAuthCredentials, YTMusic
+from ytmusicapi.exceptions import YTMusicServerError, YTMusicUserError
 from ytmusicapi.helpers import initialize_headers
 
 from .. import health
@@ -30,6 +32,32 @@ from .base import Provider, chunks, iso_time, unique
 SPECIAL_PLAYLISTS = {"LM", "SE"}
 log = logging.getLogger(__name__)
 DATA_API = "https://www.googleapis.com/youtube/v3"
+SIGNED_OUT = "YouTube Music sign-in is invalid or expired. Please reconnect."
+_HTTP = re.compile(r"\bHTTP (\d{3})\b")
+
+
+def _status(e: BaseException) -> int | None:
+    m = _HTTP.search(str(e))
+    return int(m.group(1)) if m else None
+
+
+def _failure(e: BaseException) -> str:
+    """What a failed ytmusicapi call means: "auth" (the login doesn't work), "passing" (a hiccup:
+    network, overload, rate limit – worth waiting for), "final" (YouTube refused this request and
+    will again) or "unclear" (an answer that couldn't be read, e.g. for a video that's gone)."""
+    msg = str(e)
+    if re.search(r"\b(401|403)\b", msg) or any(s in msg for s in ("Sign in", "invalid_grant", "__Secure-3PAPISID")) \
+            or "not logged in" in msg.lower() or "provide authentication" in msg.lower():
+        return "auth"
+    if isinstance(e, YTMusicServerError):
+        status = _status(e)
+        return "passing" if status is None or status == 429 or status >= 500 else "final"
+    if isinstance(e, YTMusicUserError):
+        return "final"
+    if isinstance(e, (requests.ConnectionError, requests.Timeout, requests.exceptions.ChunkedEncodingError,
+                      httpx.TransportError, json.JSONDecodeError)):
+        return "passing"
+    return "unclear"
 
 
 # ---------------------------------------------------------------------- auth helpers
@@ -157,8 +185,14 @@ class DataApi:
         if int(self.token.get("expires_at") or 0) - time.time() < 60:
             self._refresh()
         for attempt in range(4):
-            r = self.http.request(method, DATA_API + path, params=params, json=body,
-                                  headers={"Authorization": f"Bearer {self.token['access_token']}"})
+            try:
+                r = self.http.request(method, DATA_API + path, params=params, json=body,
+                                      headers={"Authorization": f"Bearer {self.token['access_token']}"})
+            except httpx.TransportError as e:       # network hiccup: like an overloaded server
+                if attempt < 3:
+                    time.sleep(2 * (attempt + 1))
+                    continue
+                raise ApiError(f"YouTube is unreachable: {e}") from e
             if r.status_code == 401 and attempt == 0:
                 self._refresh()
                 continue
@@ -330,9 +364,13 @@ class YTMProvider(Provider):
             except Exception:  # noqa: BLE001
                 pass
 
+    # pauses before trying a failed call again: a hiccup is worth waiting for, an answer that
+    # couldn't be read once more, and a refusal not at all (it used to cost 20 s every time)
+    RETRY = {"passing": (2, 4, 6), "unclear": (1,), "final": ()}
+
     def _call(self, fn, *args, **kwargs) -> Any:
-        last: Exception | None = None
-        for attempt in range(4):
+        tries = 0
+        while True:
             try:
                 res = fn(*args, **kwargs)
                 self._persist_token()
@@ -340,14 +378,16 @@ class YTMProvider(Provider):
             except AuthError:
                 raise
             except Exception as e:  # noqa: BLE001
-                msg = str(e)
-                if re.search(r"\b(401|403)\b", msg) or any(s in msg for s in ("Sign in", "invalid_grant")) \
-                        or "not logged in" in msg.lower():
-                    raise AuthError("YouTube Music sign-in is invalid or expired. Please reconnect.") from e
-                
-                last = e
-                time.sleep(2 * (attempt + 1))
-        raise ApiError(f"YouTube Music: {last}")
+                kind = _failure(e)
+                if kind == "auth":
+                    raise AuthError(SIGNED_OUT) from e
+                pauses = self.RETRY[kind]
+                if tries >= len(pauses):
+                    raise ApiError(f"YouTube Music: {e}", _status(e)) from e
+                if _status(e) == 429:
+                    health.rate_limited(YTM)
+                time.sleep(pauses[tries])
+                tries += 1
 
     # ------------------------------------------------------------------ account
     def login_expires_at(self) -> float | None:
