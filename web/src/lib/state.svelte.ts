@@ -1,5 +1,5 @@
 // Data of the signed-in user: fades, services, catalog jobs, live events from the server.
-import { api, put, session } from './api.ts';
+import { api, post, put, session } from './api.ts';
 import type { Activity, AssistantWaiting, Board, CatalogFinished, CatalogJob, Friends, Job, Line, Member, ServiceInfo, User } from './types.ts';
 import { num, t, type Key } from './ui/i18n.svelte.ts';
 import { ui } from './ui/ui.svelte.ts';
@@ -89,6 +89,17 @@ class AppState {
 		await Promise.all([this.loadLines(), this.loadServices(), this.loadActivity(), this.loadFriends(), this.loadBoard(), this.loadAssistant()]);
 		if (user.is_admin) updates.load();
 		this.connectEvents();
+	}
+
+	/** An admin signs in as someone else / comes back. A fresh load, so nothing of the other
+	 * account lingers in memory. */
+	async impersonate(userId: number) {
+		await post(`/api/admin/users/${userId}/impersonate`);
+		location.href = '/';
+	}
+	async stopImpersonating() {
+		await post('/api/auth/impersonate/stop').catch(() => {});
+		location.href = '/';
 	}
 
 	signedOut() {

@@ -11,7 +11,7 @@ from .. import mcp_actions, music
 from ..config import config
 from ..db import Database
 from ..mcp_access import issue_token, record, revoke
-from .deps import current_user, db_dep
+from .deps import current_user, db_dep, own_user
 
 router = APIRouter(prefix="/api/mcp", tags=["mcp"])
 
@@ -41,7 +41,7 @@ class TokenBody(BaseModel):
 
 
 @router.post("/tokens")
-def create_token(body: TokenBody, response: Response, user: dict = Depends(current_user),
+def create_token(body: TokenBody, response: Response, user: dict = Depends(own_user),
                  db: Database = Depends(db_dep)):
     if not config.mcp_enabled:
         raise HTTPException(400, "MCP was disabled by the administrator.")

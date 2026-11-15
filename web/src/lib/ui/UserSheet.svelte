@@ -110,6 +110,22 @@
 			}
 		};
 	}
+	function visit() {
+		if (!user || isMe || user.is_admin) return;
+		const u = user;
+		ui.ask = {
+			title: t('visit.q', { name: u.display_name }),
+			message: t('visit.msg', { name: u.display_name }),
+			label: t('visit.start'),
+			run: async () => {
+				try {
+					await app.impersonate(u.id);
+				} catch (e) {
+					ui.fail(e);
+				}
+			}
+		};
+	}
 	function remove() {
 		if (!user || isMe) return;
 		const u = user;
@@ -202,6 +218,14 @@
 		{#if isNew && !startPw}
 			<p class="section-foot pre">{t('users.startPwBefore')}</p>
 		{:else if user && !isMe}
+			{#if !user.is_admin}
+				<div class="section">
+					<div class="group">
+						<button class="cell" onclick={visit}><span class="grow">{t('visit.start')}</span></button>
+					</div>
+					<p class="section-foot">{t('visit.hint', { name: user.display_name })}</p>
+				</div>
+			{/if}
 			<div class="section">
 				<div class="group">
 					<button class="cell" onclick={reset}><span class="grow">{t('users.resetPw')}</span></button>

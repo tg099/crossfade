@@ -775,6 +775,14 @@ export const en: Record<keyof typeof de, string | ((v: V) => string)> = {
 	'users.resetQ': 'Reset the password of {name}?',
 	'users.resetMsg': '{name} is signed out everywhere and gets a new start password from you.',
 	'users.startPwBefore': 'After creating the user you\'ll see a start password. Pass it on in person.',
+	'visit.start': 'Sign in as this person',
+	'visit.hint': (v: V) => `You'll see Crossfade the way ${v.name} does and can set up services, fades and settings for them. It ends by itself after two hours.`,
+	'visit.q': 'Sign in as {name}?',
+	'visit.msg': 'Everything you change now applies to {name}. Their password and AI assistants stay theirs.',
+	'visit.banner': 'You\'re signed in as {name}',
+	'visit.back': 'Back to {name}',
+	'visit.backShort': 'Back',
+	'visit.accountHint': 'Only {name} can change their password and AI assistants.',
 
 	// errors
 	'err.generic': 'That didn\'t work. Please try again.',

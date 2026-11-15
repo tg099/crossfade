@@ -274,6 +274,7 @@
 	<div class="stage" class:pushed={push > 0}>
 		<div
 			class="shell"
+			class:visiting={!!app.user?.impersonator}
 			inert={ui.sheets.length > 0}
 			style:transform={ui.phone && push > 0 ? `translate3d(0, ${push * 10}px, 0) scale(${1 - push * 0.07})` : undefined}
 			style:border-radius={ui.phone && push > 0 ? `${push * 38}px` : undefined}
@@ -426,6 +427,15 @@
 			</div>
 		</div>
 	</div>
+
+	{#if app.user?.impersonator}
+		<!-- an admin signed in as someone else: always in view, one tap back -->
+		<div class="visit glass" role="status">
+			<span class="visit-av uav" aria-hidden="true" style:--uh={userHue(String(app.user.id))}>{app.user.display_name.charAt(0).toUpperCase()}</span>
+			<span class="clip">{t('visit.banner', { name: app.user.display_name })}</span>
+			<button class="pb tint pb-small" onclick={() => app.stopImpersonating()} aria-label={t('visit.back', { name: app.user.impersonator })}>{t('visit.backShort')}</button>
+		</div>
+	{/if}
 
 	<Hearing />
 	<Editor />
@@ -697,6 +707,44 @@
 	.searching .tb-back {
 		opacity: 1;
 		pointer-events: auto;
+	}
+
+	/* ------------------------------------------------ signed in as someone else */
+	/* the pages move down under the banner */
+	.shell.visiting {
+		--safe-top: calc(env(safe-area-inset-top, 0px) + 44px);
+	}
+	.visit {
+		position: fixed;
+		z-index: 40;
+		top: calc(env(safe-area-inset-top, 0px) + 6px);
+		left: 50%;
+		transform: translateX(-50%);
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		max-width: calc(100vw - 32px);
+		padding: 4px;
+		border-radius: 999px;
+		font-size: var(--f-sub);
+		font-weight: 600;
+	}
+	.visit-av {
+		display: grid;
+		place-items: center;
+		flex: none;
+		width: 26px;
+		height: 26px;
+		border-radius: 50%;
+		font-size: 0.8rem;
+	}
+	.visit .pb {
+		flex: none;
+	}
+	@media (min-width: 721px) {
+		.visit {
+			left: calc(var(--side) + (100vw - var(--side)) / 2);
+		}
 	}
 
 	/* ------------------------------------------------ sidebar (desktop) */

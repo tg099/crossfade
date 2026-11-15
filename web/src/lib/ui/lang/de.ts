@@ -773,6 +773,14 @@ export const de = {
 	'users.resetQ': 'Passwort von {name} zurücksetzen?',
 	'users.resetMsg': '{name} wird überall abgemeldet und bekommt ein neues Startpasswort von dir.',
 	'users.startPwBefore': 'Nach dem Anlegen siehst du ein Startpasswort. Gib es persönlich weiter.',
+	'visit.start': 'Als diese Person anmelden',
+	'visit.hint': (v: V) => `Du siehst Crossfade dann so wie ${v.name} und kannst Dienste, Fades und Einstellungen für ${v.name} einrichten. Nach zwei Stunden endet das von selbst.`,
+	'visit.q': 'Als {name} anmelden?',
+	'visit.msg': 'Alles, was du jetzt änderst, gilt für {name}. Passwort und KI-Assistenten bleiben Sache von {name}.',
+	'visit.banner': 'Du bist als {name} angemeldet',
+	'visit.back': 'Zurück zu {name}',
+	'visit.backShort': 'Zurück',
+	'visit.accountHint': 'Passwort und KI-Assistenten kann nur {name} selbst ändern.',
 
 	// errors
 	'err.generic': 'Das hat nicht geklappt. Versuch es noch einmal.',

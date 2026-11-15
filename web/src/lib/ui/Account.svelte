@@ -136,11 +136,13 @@
 						{#if app.socialBadge}<span class="count" aria-hidden="true">{app.socialBadge}</span>{/if}
 						<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
 					</button>
-					<button class="cell" style:--inset="58px" onclick={() => (ui.mcpOpen = true)}>
-						<span class="tile-icon" style:background="#7c5ce6"><Glyph name="sparkle" size={19} weight={2.1} /></span>
-						<span class="grow">{t('mcp.title')}</span>
-						<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
-					</button>
+					{#if !me.impersonator}
+						<button class="cell" style:--inset="58px" onclick={() => (ui.mcpOpen = true)}>
+							<span class="tile-icon" style:background="#7c5ce6"><Glyph name="sparkle" size={19} weight={2.1} /></span>
+							<span class="grow">{t('mcp.title')}</span>
+							<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
+						</button>
+					{/if}
 				</div>
 			</div>
 
@@ -216,15 +218,24 @@
 				</div>
 			{/if}
 
-			<div class="section">
-				<div class="group">
-					<button class="cell" style:--inset="58px" onclick={() => (ui.passwordOpen = true)}>
-						<span class="tile-icon" style:background="#8e8e93"><Glyph name="key" size={18} weight={2.2} /></span>
-						<span class="grow">{t('account.password')}</span>
-						<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
-					</button>
+			{#if me.impersonator}
+				<div class="section">
+					<div class="group">
+						<button class="cell center" onclick={() => app.stopImpersonating()}><span class="grow tintc">{t('visit.back', { name: me.impersonator })}</span></button>
+					</div>
+					<p class="section-foot">{t('visit.accountHint', { name: me.display_name })}</p>
 				</div>
-			</div>
+			{:else}
+				<div class="section">
+					<div class="group">
+						<button class="cell" style:--inset="58px" onclick={() => (ui.passwordOpen = true)}>
+							<span class="tile-icon" style:background="#8e8e93"><Glyph name="key" size={18} weight={2.2} /></span>
+							<span class="grow">{t('account.password')}</span>
+							<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
+						</button>
+					</div>
+				</div>
+			{/if}
 
 			<div class="section">
 				<div class="group">

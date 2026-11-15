@@ -418,6 +418,12 @@ MIGRATIONS: list[str] = [
         PRIMARY KEY (line_id, song_id)
     );
     """,
+    # ---- 23: an admin signed in as another user to set things up for them: who did it, and the
+    #          admin's own session to go back to (see api/auth.py, impersonation)
+    """
+    ALTER TABLE sessions ADD COLUMN impersonator_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+    ALTER TABLE sessions ADD COLUMN return_hash TEXT;
+    """,
 ]
 
 

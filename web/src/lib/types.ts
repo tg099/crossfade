@@ -14,6 +14,8 @@ export interface User {
 	share_stats: boolean;
 	/** the first steps on the home page were finished or put away */
 	intro_done: boolean;
+	/** set while an admin (this name) is signed in as this user to set things up for them */
+	impersonator?: string;
 }
 
 export interface AdminUser {

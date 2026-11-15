@@ -13,7 +13,7 @@ from ..config import config
 from ..db import Database
 from ..mcp_access import revoke as revoke_mcp
 from ..security import hash_password, new_token, token_hash, verify_password
-from .deps import SESSION_COOKIE, current_user, db_dep, public_user
+from .deps import RETURN_COOKIE, SESSION_COOKIE, current_user, db_dep, own_user, public_user
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -57,17 +57,50 @@ def _validate(username: str, password: str) -> None:
         raise HTTPException(400, "The password needs at least 8 characters.")
 
 
+# an admin's visit as someone else ends by itself after this long
+IMPERSONATE_HOURS = 2
+
+
+def _set_cookie(response: Response, request: Request, name: str, tok: str, max_age: int) -> None:
+    # Secure only when this request came over HTTPS: on Unraid people also open http://IP:8765
+    # in the LAN, where a Secure cookie would silently not be stored.
+    secure = config.secure_cookies and request.url.scheme == "https"
+    response.set_cookie(name, tok, max_age=max_age, httponly=True, secure=secure, samesite="lax", path="/")
+
+
 def _login(db: Database, response: Response, request: Request, user_id: int) -> None:
     tok = new_token()
     db.run("INSERT INTO sessions(token_hash,user_id,created_at,expires_at,user_agent) VALUES(?,?,?,?,?)",
            (token_hash(tok), user_id, time.time(), time.time() + config.session_days * 86400,
             (request.headers.get("user-agent") or "")[:200]))
     db.run("DELETE FROM sessions WHERE expires_at < ?", (time.time(),))
-    # Secure only when this request came over HTTPS: on Unraid people also open http://IP:8765
-    # in the LAN, where a Secure cookie would silently not be stored.
-    secure = config.secure_cookies and request.url.scheme == "https"
-    response.set_cookie(SESSION_COOKIE, tok, max_age=config.session_days * 86400, httponly=True,
-                        secure=secure, samesite="lax", path="/")
+    _set_cookie(response, request, SESSION_COOKIE, tok, config.session_days * 86400)
+
+
+def impersonate(db: Database, response: Response, request: Request, admin: dict, user_id: int) -> None:
+    """Sign this browser in as `user_id` for a while. The admin's own session stays as it is and
+    comes back with stop_impersonating()."""
+    own = request.cookies.get(SESSION_COOKIE, "")
+    tok = new_token()
+    db.run("""INSERT INTO sessions(token_hash,user_id,created_at,expires_at,user_agent,impersonator_id,return_hash)
+              VALUES(?,?,?,?,?,?,?)""",
+           (token_hash(tok), user_id, time.time(), time.time() + IMPERSONATE_HOURS * 3600,
+            (request.headers.get("user-agent") or "")[:200], admin["id"], token_hash(own)))
+    db.run("DELETE FROM sessions WHERE expires_at < ?", (time.time(),))
+    _set_cookie(response, request, SESSION_COOKIE, tok, IMPERSONATE_HOURS * 3600)
+    _set_cookie(response, request, RETURN_COOKIE, own, config.session_days * 86400)
+
+
+def _admin_session(db: Database, tok: str | None) -> dict | None:
+    """The admin behind a return cookie, when that is still a valid session of an admin of their own."""
+    if not tok:
+        return None
+    row = db.one("""SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id
+                    WHERE s.token_hash=? AND s.expires_at>? AND s.impersonator_id IS NULL AND u.is_admin=1""",
+                 (token_hash(tok), time.time()))
+    if row:
+        row.pop("password_hash", None)
+    return row
 
 
 def browser_lang(request: Request) -> str | None:
@@ -81,6 +114,8 @@ def browser_lang(request: Request) -> str | None:
 
 def _remember_lang(db: Database, request: Request, user: dict) -> None:
     """Notifications of a user on "system" follow the browser they last opened Crossfade in."""
+    if user.get("impersonator_id"):
+        return             # that's the admin's browser, not theirs
     lang = browser_lang(request)
     if lang and lang != user.get("browser_lang"):
         db.run("UPDATE users SET browser_lang=? WHERE id=?", (lang, user["id"]))
@@ -152,11 +187,33 @@ def login(body: LoginBody, request: Request, response: Response, db: Database = 
 
 @router.post("/logout")
 def logout(request: Request, response: Response, db: Database = Depends(db_dep)):
-    tok = request.cookies.get(SESSION_COOKIE)
-    if tok:
-        db.run("DELETE FROM sessions WHERE token_hash=?", (token_hash(tok),))
-    response.delete_cookie(SESSION_COOKIE, path="/")
+    # while signed in as someone else, signing out ends the admin's own session too
+    for name in (SESSION_COOKIE, RETURN_COOKIE):
+        tok = request.cookies.get(name)
+        if tok:
+            db.run("DELETE FROM sessions WHERE token_hash=?", (token_hash(tok),))
+        response.delete_cookie(name, path="/")
     return {"ok": True}
+
+
+@router.post("/impersonate/stop")
+def stop_impersonating(request: Request, response: Response, db: Database = Depends(db_dep)):
+    """Back to the admin's own account (also works when the visit already ran out)."""
+    tok = request.cookies.get(SESSION_COOKIE)
+    ret = request.cookies.get(RETURN_COOKIE)
+    visit = db.one("SELECT impersonator_id, return_hash FROM sessions WHERE token_hash=?",
+                   (token_hash(tok),)) if tok else None
+    if visit and visit["impersonator_id"] is None:
+        raise HTTPException(400, "You're signed in as yourself.")
+    if tok:
+        db.run("DELETE FROM sessions WHERE token_hash=? AND impersonator_id IS NOT NULL", (token_hash(tok),))
+    response.delete_cookie(RETURN_COOKIE, path="/")
+    admin = _admin_session(db, ret)
+    if not admin or (visit and visit["return_hash"] != token_hash(ret or "")):
+        response.delete_cookie(SESSION_COOKIE, path="/")
+        raise HTTPException(401, "Please sign in again.")
+    _set_cookie(response, request, SESSION_COOKIE, ret, config.session_days * 86400)
+    return {"user": public_user(admin)}
 
 
 class ProfileBody(BaseModel):
@@ -184,7 +241,7 @@ class PasswordBody(BaseModel):
 
 
 @router.put("/me/password")
-def change_password(body: PasswordBody, request: Request, user: dict = Depends(current_user),
+def change_password(body: PasswordBody, request: Request, user: dict = Depends(own_user),
                     db: Database = Depends(db_dep)):
     _rate_limit("pw:" + str(user["id"]))
     u = db.one("SELECT * FROM users WHERE id=?", (user["id"],))

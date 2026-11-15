@@ -130,6 +130,81 @@ def test_admin_user_management(admin):
     assert admin.delete(f"/api/admin/users/{sam}", headers=H).status_code == 200
 
 
+def test_admin_signs_in_as_someone_else():
+    auth_api._attempts.clear()
+    db = get_db()
+    boss = TestClient(app, base_url="https://music.example.test")
+    assert boss.post("/api/auth/login", json={"username": "tristan", "password": "very-secret-123"},
+                     headers=H).status_code == 200
+    me = boss.get("/api/auth/state").json()["user"]
+    r = boss.post("/api/admin/users", json={"display_name": "Mia", "username": "mia"}, headers=H)
+    mia = r.json()["id"]
+    other = boss.post("/api/admin/users", json={"display_name": "Ole", "username": "ole", "is_admin": True},
+                      headers=H).json()["id"]
+    # not yourself, not another admin, not as a regular user
+    assert boss.post(f"/api/admin/users/{me['id']}/impersonate", headers=H).status_code == 400
+    assert boss.post(f"/api/admin/users/{other}/impersonate", headers=H).status_code == 400
+    assert boss.post("/api/admin/users/99999/impersonate", headers=H).status_code == 404
+
+    own_cookie = boss.cookies.get("cf_session")
+    assert boss.post(f"/api/admin/users/{mia}/impersonate", headers=H).status_code == 200
+    state = boss.get("/api/auth/state").json()["user"]
+    assert state["id"] == mia and state["impersonator"] == "Tristan"
+    # Mia's start password doesn't hold the admin back, and they still have to choose their own later
+    assert state["must_change_password"] is False
+    assert boss.get("/api/lines").status_code == 200
+    assert db.val("SELECT must_change_password FROM users WHERE id=?", (mia,)) == 1
+    # set up a fade for Mia
+    connect_fake(mia, "ytm")
+    connect_fake(mia, "apple")
+    body = {"name": "Mia's likes", "color": "#0072CE", "members": [
+        {"service": "ytm", "kind": "liked", "collection_name": "Likes", "role": "both"},
+        {"service": "apple", "kind": "liked", "collection_name": "Favourites", "role": "both"}]}
+    line = boss.post("/api/lines", json=body, headers=H).json()
+    assert db.val("SELECT user_id FROM lines WHERE id=?", (line["id"],)) == mia
+    # what stays theirs alone, and no admin rights while visiting
+    assert boss.put("/api/auth/me/password", json={"current": "x" * 8, "new": "y" * 8}, headers=H).status_code == 403
+    assert boss.post("/api/mcp/tokens", json={"name": "x"}, headers=H).status_code == 403
+    assert boss.get("/api/admin/users").status_code == 403
+    assert boss.post(f"/api/admin/users/{mia}/impersonate", headers=H).status_code == 403
+    # the visit doesn't slide and doesn't touch Mia's browser language
+    visit = db.one("SELECT * FROM sessions WHERE user_id=? AND impersonator_id IS NOT NULL", (mia,))
+    assert visit["expires_at"] - time.time() <= auth_api.IMPERSONATE_HOURS * 3600 + 5
+    assert db.val("SELECT browser_lang FROM users WHERE id=?", (mia,)) is None
+
+    # back to the admin's own session
+    r = boss.post("/api/auth/impersonate/stop", headers=H)
+    assert r.status_code == 200, r.text
+    assert r.json()["user"]["id"] == me["id"] and "impersonator" not in r.json()["user"]
+    assert boss.cookies.get("cf_session") == own_cookie and not boss.cookies.get("cf_return")
+    assert boss.get("/api/admin/users").status_code == 200
+    assert not db.val("SELECT COUNT(*) FROM sessions WHERE impersonator_id IS NOT NULL")
+    assert boss.post("/api/auth/impersonate/stop", headers=H).status_code == 400
+
+    # a visit ends when the admin loses their rights
+    assert boss.post(f"/api/admin/users/{mia}/impersonate", headers=H).status_code == 200
+    db.run("UPDATE users SET is_admin=0 WHERE id=?", (me["id"],))
+    try:
+        assert boss.get("/api/lines").status_code == 401
+        assert boss.post("/api/auth/impersonate/stop", headers=H).status_code == 401
+    finally:
+        db.run("UPDATE users SET is_admin=1 WHERE id=?", (me["id"],))
+
+    # signing out while visiting ends the admin's session too
+    assert boss.post("/api/auth/login", json={"username": "tristan", "password": "very-secret-123"},
+                     headers=H).status_code == 200
+    admin_tok = boss.cookies.get("cf_session")
+    assert boss.post(f"/api/admin/users/{mia}/impersonate", headers=H).status_code == 200
+    assert boss.post("/api/auth/logout", headers=H).status_code == 200
+    from crossfade.security import token_hash
+    assert not db.val("SELECT COUNT(*) FROM sessions WHERE token_hash=?", (token_hash(admin_tok),))
+    assert boss.get("/api/lines").status_code == 401
+    admin_delete = TestClient(app, base_url="https://music.example.test")
+    admin_delete.post("/api/auth/login", json={"username": "tristan", "password": "very-secret-123"}, headers=H)
+    for uid in (mia, other):
+        assert admin_delete.delete(f"/api/admin/users/{uid}", headers=H).status_code == 200
+
+
 def test_preferences_are_per_user(admin):
     r = admin.put("/api/auth/me", json={"theme": "dark", "lang": "en"}, headers=H)
     assert r.status_code == 200, r.text

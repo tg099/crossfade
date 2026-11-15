@@ -10,7 +10,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -24,6 +24,7 @@ from ..providers import APP_KEYS, app_credential, app_credential_source, set_app
 from ..security import hash_password, token_hash
 from ..sharing import notify, participants
 from ..worker import get_worker
+from .auth import impersonate as start_impersonating
 from .deps import SESSION_COOKIE, admin_user, db_dep
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -111,6 +112,19 @@ def reset_password(user_id: int, admin: dict = Depends(admin_user), db: Database
     db.run("DELETE FROM sessions WHERE user_id=?", (user_id,))   # signed out everywhere
     revoke_mcp(db, user_id)
     return {"password": password}
+
+
+@router.post("/users/{user_id}/impersonate")
+def impersonate(user_id: int, request: Request, response: Response, admin: dict = Depends(admin_user),
+                db: Database = Depends(db_dep)):
+    """Sign in as this person for a while to set things up for them (see auth.impersonate).
+    Their password and MCP connections stay theirs alone (deps.own_user)."""
+    if user_id == admin["id"]:
+        raise HTTPException(400, "That's you already.")
+    if _user_or_404(db, user_id)["is_admin"]:
+        raise HTTPException(400, "Admins can't sign in as other admins.")
+    start_impersonating(db, response, request, admin, user_id)
+    return {"ok": True}
 
 
 @router.delete("/users/{user_id}")
