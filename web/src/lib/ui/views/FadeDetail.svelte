@@ -386,8 +386,8 @@
 				{#if fade.job}
 					<section class="card progress" aria-live="polite">
 						<div class="p-row">
-							<span class="t-sub"><b>{fade.job.state === 'queued' ? t('status.queued') : fade.job.phase || status.text}</b></span>
-							{#if fade.job.total}<span class="t-foot t-2">{t('job.of', { done: num(fade.job.done), total: num(fade.job.total) })}</span>{/if}
+							<span class="p-phase t-sub"><b>{fade.job.state === 'queued' ? t('status.queued') : fade.job.phase || status.text}</b></span>
+							{#if fade.job.total}<span class="p-count t-foot t-2">{t('job.of', { done: num(fade.job.done), total: num(fade.job.total) })}</span>{/if}
 						</div>
 						<span class="bar"><span class="fill" class:indet={!fade.job.total} style:width="{fade.job.total ? (fade.job.done / fade.job.total) * 100 : 30}%"></span></span>
 					</section>
@@ -918,8 +918,31 @@
 	}
 	.progress .p-row {
 		display: flex;
+		align-items: flex-start;
 		justify-content: space-between;
+		gap: 12px;
 		margin-bottom: 10px;
+	}
+	/* the phase names the song being searched, so its length changes every few hundred ms:
+	   always two lines high (longer ones end in …) so the card and everything below stay put */
+	.p-phase {
+		flex: 1;
+		min-width: 0;
+		line-height: 1.3;
+		height: 2.6em;
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		overflow: hidden;
+		overflow-wrap: anywhere;
+	}
+	.p-count {
+		flex-shrink: 0;
+		white-space: nowrap;
+		font-variant-numeric: tabular-nums;
+		/* sits on the first line of the phase */
+		padding-top: 0.15em;
 	}
 	.bar {
 		display: block;
