@@ -299,9 +299,6 @@ export const de = {
 	'job.of': '{done} von {total}',
 
 	// home
-	'home.morning': 'Guten Morgen, {name}',
-	'home.day': 'Hallo {name}',
-	'home.evening': 'Guten Abend, {name}',
 	'home.syncing': 'Synchronisiert gerade {names} …',
 	'home.allPaused': (v: V) => (toN(v.n) === 1 ? 'Pausiert' : 'Alle Fades pausiert'),
 	'home.lastSync': 'Zuletzt synchronisiert {ago}',
@@ -320,7 +317,7 @@ export const de = {
 	'week.chart': 'Neue Songs pro Tag',
 	'week.bar': '{day}: {n} neue Songs',
 	'week.today': 'Heute',
-	'week.topArtist': 'Die meisten neuen Songs',
+	'week.topArtist': 'Meiste Songs von',
 	'week.topFade': 'Aktivster Fade',
 	'week.quiet': 'Diese Woche ist noch nichts dazugekommen.',
 	'week.more': (v: V) => `${pl(v.n, 'Song', 'Songs')} mehr als letzte Woche`,

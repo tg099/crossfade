@@ -15,6 +15,7 @@
 		backdrop,
 		avatar = false,
 		glow = [],
+		glowTop = false,
 		inline = false,
 		chrome = true,
 		top = 0,
@@ -29,6 +30,8 @@
 		backdrop?: Snippet;
 		avatar?: boolean;
 		glow?: string[];
+		/** keep the glow behind the title only, softer, so the content below sits on calm ground */
+		glowTop?: boolean;
 		/** phone: the actions sit in the large title's row (few, small ones), not in a bar above it */
 		inline?: boolean;
 		/** false: no bar at all – something else floats at the top (the search field on a phone) */
@@ -102,7 +105,7 @@
 
 <div class="pg">
 	<div class="backdrop" aria-hidden="true">
-		{#if backdrop}{@render backdrop()}{:else if glow.length}<span class="ambient" style:background={ambient(glow)}></span>{/if}
+		{#if backdrop}{@render backdrop()}{:else if glow.length}<span class="ambient" class:top={glowTop} style:background={ambient(glow)}></span>{/if}
 	</div>
 	{#if chrome}
 		<NavBar {title} solid={solid || (!large && !hero)} {back} actions={inlineActions && !solid ? undefined : actions} />

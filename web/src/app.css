@@ -815,6 +815,24 @@ a.cell:active {
 		mask-image: linear-gradient(to bottom, #000 0%, rgb(0 0 0 / 0.55) 30%, transparent 62%);
 	}
 }
+/* top only (home): behind the title, gone before the first cards, in both themes */
+.ambient.top {
+	--ambient: 16%;
+	-webkit-mask-image: linear-gradient(to bottom, #000 0, rgb(0 0 0 / 0.4) 180px, transparent 420px);
+	mask-image: linear-gradient(to bottom, #000 0, rgb(0 0 0 / 0.4) 180px, transparent 420px);
+}
+:root[data-theme='dark'] .ambient.top {
+	--ambient: 20%;
+	-webkit-mask-image: linear-gradient(to bottom, #000 0, rgb(0 0 0 / 0.4) 180px, transparent 420px);
+	mask-image: linear-gradient(to bottom, #000 0, rgb(0 0 0 / 0.4) 180px, transparent 420px);
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme='light']) .ambient.top {
+		--ambient: 20%;
+		-webkit-mask-image: linear-gradient(to bottom, #000 0, rgb(0 0 0 / 0.4) 180px, transparent 420px);
+		mask-image: linear-gradient(to bottom, #000 0, rgb(0 0 0 / 0.4) 180px, transparent 420px);
+	}
+}
 
 .sr {
 	position: absolute;

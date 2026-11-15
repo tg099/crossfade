@@ -54,6 +54,7 @@
 				type="button"
 				class="col"
 				class:on={active === i}
+				class:now={i === days.length - 1}
 				aria-label={t('week.bar', { day: days[i].long, n: v })}
 				onpointerenter={() => (active = i)}
 				onfocus={() => (active = i)}
@@ -82,7 +83,7 @@
 	{#if week.total}
 	<div class="facts">
 		{#if week.top_artist}
-			<p><span class="t-foot t-2 b">{t('week.topArtist')}</span><b class="clip b">{week.top_artist.name}</b><span class="t-foot t-2">{t('n.songs', { n: week.top_artist.songs })}</span></p>
+			<p><span class="t-foot t-2 b">{t('week.topArtist')}</span><b class="b">{week.top_artist.name}</b><span class="t-foot t-2">{t('n.songs', { n: week.top_artist.songs })}</span></p>
 		{/if}
 		{#if top}
 			<button class="fact-line tinted lq" style={tintVars(top.color)} onclick={() => nav.openFade(top.id)}>
@@ -95,16 +96,21 @@
 </section>
 
 <style>
+	/* same frame as the other home cards; inner tiles nest: 28 - 16 = 12 */
 	.week {
-		margin: 0 16px 34px;
-		padding: 18px 18px 16px;
-		border-radius: 30px;
+		margin: 0 16px 32px;
+		padding: 20px 16px 16px;
+		border-radius: 28px;
+	}
+	.head,
+	.quiet {
+		padding: 0 4px;
 	}
 	.quiet {
-		margin-top: 10px;
+		margin-top: 12px;
 	}
 	.head h2 {
-		font-weight: 700;
+		font-weight: 600;
 		color: var(--label-2);
 	}
 	.hero {
@@ -113,13 +119,13 @@
 	}
 	.num {
 		font-size: 2.6rem;
-		font-weight: 800;
+		font-weight: 600;
 		letter-spacing: -0.02em;
 		font-variant-numeric: tabular-nums;
 	}
 	.unit {
 		font-size: var(--f-t3);
-		font-weight: 700;
+		font-weight: 600;
 	}
 	.trend {
 		margin-top: 4px;
@@ -133,7 +139,7 @@
 		position: relative;
 		display: grid;
 		grid-template-columns: repeat(7, 1fr);
-		margin: 30px -4px 0;
+		margin: 32px 0 0;
 	}
 	/* recessive hairline baseline */
 	.base {
@@ -160,16 +166,19 @@
 		justify-content: center;
 		width: 100%;
 	}
-	/* thin column, 4px rounded data end, square at the baseline */
+	/* thin column, 4px rounded data end, square at the baseline; the past days in a quiet neutral,
+	   today in the accent */
 	.bar {
 		width: min(18px, 60%);
 		border-radius: 4px 4px 0 0;
-		background: var(--chart);
-		opacity: 0.85;
-		transition: opacity 150ms;
+		background: var(--label-3);
+		transition: opacity 150ms, background-color 150ms;
 	}
 	.col.on .bar {
-		opacity: 1;
+		background: var(--label-2);
+	}
+	.col.now .bar {
+		background: var(--chart);
 	}
 	.chart:has(.col.on) .col:not(.on) .bar {
 		opacity: 0.45;
@@ -179,7 +188,7 @@
 		left: 50%;
 		translate: -50% 0;
 		font-size: var(--f-foot);
-		font-weight: 700;
+		font-weight: 600;
 		color: var(--label);
 		font-variant-numeric: tabular-nums;
 	}
@@ -189,19 +198,21 @@
 	}
 	.day.today {
 		color: var(--label);
-		font-weight: 700;
+		font-weight: 600;
 	}
 	.facts {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 10px;
+		gap: 8px;
 		margin-top: 16px;
 	}
+	/* both tiles read the same way: label on top, the value right under it */
 	.facts > * {
 		display: grid;
+		align-content: start;
 		gap: 2px;
-		padding: 10px 12px;
-		border-radius: 18px;
+		padding: 12px;
+		border-radius: 12px;
 		background: var(--fill-3);
 		text-align: left;
 		min-width: 0;
@@ -209,16 +220,17 @@
 	.b {
 		display: block;
 	}
+	/* long names wrap at a syllable instead of being cut off */
+	.facts b {
+		font-weight: 600;
+		hyphens: auto;
+		overflow-wrap: break-word;
+	}
 	.ln {
 		display: flex;
 		align-items: center;
-		gap: 6px;
+		gap: 8px;
 		min-width: 0;
-	}
-	.ln b {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
 	}
 	@media (min-width: 721px) {
 		.week {

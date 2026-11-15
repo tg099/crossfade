@@ -301,9 +301,6 @@ export const en: Record<keyof typeof de, string | ((v: V) => string)> = {
 	'job.of': '{done} of {total}',
 
 	// home
-	'home.morning': 'Good morning, {name}',
-	'home.day': 'Good to see you, {name}',
-	'home.evening': 'Good evening, {name}',
 	'home.syncing': 'Syncing {names} …',
 	'home.allPaused': (v) => (toN(v.n) === 1 ? 'Paused' : 'All fades paused'),
 	'home.lastSync': 'Last synced {ago}',
@@ -322,7 +319,7 @@ export const en: Record<keyof typeof de, string | ((v: V) => string)> = {
 	'week.chart': 'New songs per day',
 	'week.bar': '{day}: {n} new songs',
 	'week.today': 'Today',
-	'week.topArtist': 'Most added',
+	'week.topArtist': 'Most songs from',
 	'week.topFade': 'Most active fade',
 	'week.quiet': 'Nothing new this week yet.',
 	'week.more': (v) => `${pl(v.n, 'song', 'songs')} more than last week`,

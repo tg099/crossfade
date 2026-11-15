@@ -19,12 +19,12 @@
 	import { tintVars } from '../tint.ts';
 	import { BRAND, ago, nav, ui } from '../ui.svelte.ts';
 
-	const hour = new Date().getHours();
-	const first = $derived(app.user?.display_name.split(' ')[0] ?? '');
-	const hello = $derived(t(hour < 11 ? 'home.morning' : hour < 18 ? 'home.day' : 'home.evening', { name: first }));
-	const today = $derived(new Date().toLocaleDateString(i18n.locale, { weekday: 'long', day: 'numeric', month: 'long' }));
+	// the title names the day: weekday small above, the date large (short enough for one line)
+	const now = new Date();
+	const weekday = $derived(now.toLocaleDateString(i18n.locale, { weekday: 'long' }));
+	const today = $derived(now.toLocaleDateString(i18n.locale, { day: 'numeric', month: 'long' }));
 
-	type Att = { key: string; text: string; sub: string; tone: 'red' | 'orange' | 'tint' | 'friend'; icon: 'key' | 'note' | 'trash' | 'users' | 'sparkle'; run: () => void; fade?: { icon: string; color: string } };
+	type Att = { key: string; text: string; sub: string; tone: 'red' | 'orange' | 'tint'; icon: 'key' | 'note' | 'trash' | 'users' | 'download'; run: () => void; fade?: { icon: string; color: string } };
 	// what needs a human, most important first
 	const attention = $derived.by(() => {
 		const out: Att[] = [];
@@ -37,7 +37,7 @@
 			if (f.issues) out.push({ key: `i${f.id}`, text: t('home.waiting', { n: f.issues }), sub: f.name, tone: 'orange', icon: 'note', run: () => ui.review(f.id), fade: f });
 			// a friend asked to join your fade
 			for (const inv of f.invites)
-				if (inv.request) out.push({ key: `q${inv.id}`, text: t('share.wants', { name: inv.user.display_name }), sub: f.name, tone: 'friend', icon: 'users', run: () => nav.openFade(f.id), fade: f });
+				if (inv.request) out.push({ key: `q${inv.id}`, text: t('share.wants', { name: inv.user.display_name }), sub: f.name, tone: 'tint', icon: 'users', run: () => nav.openFade(f.id), fade: f });
 		}
 		// friends: an invitation into their fade (not yet answered), or someone asking to be friends
 		for (const inv of app.friends.invites.filter((i) => !i.request))
@@ -46,14 +46,15 @@
 		if (asking.length) {
 			const text = asking.length === 1 ? t('friends.wants', { name: asking[0].user.display_name }) : t('friends.requestsN', { n: asking.length });
 			const sub = asking.length === 1 ? `@${asking[0].user.username}` : asking.map((r) => r.user.display_name).join(', ');
-			out.push({ key: 'fr', text, sub, tone: 'friend', icon: 'users', run: () => ((ui.accountOpen = true), (ui.friendsOpen = true)) });
+			out.push({ key: 'fr', text, sub, tone: 'tint', icon: 'users', run: () => ((ui.accountOpen = true), (ui.friendsOpen = true)) });
 		}
 		// admins: a new release, until its notes were opened from here
 		if (app.user?.is_admin && updates.fresh)
-			out.push({ key: 'upd', text: t('update.available', { version: (updates.state?.latest ?? '').toUpperCase() }), sub: t('update.whatsNew'), tone: 'tint', icon: 'sparkle', run: () => updates.open() });
+			out.push({ key: 'upd', text: t('update.available', { version: (updates.state?.latest ?? '').toUpperCase() }), sub: t('update.whatsNew'), tone: 'tint', icon: 'download', run: () => updates.open() });
 		return out;
 	});
-	const TONE_BG: Record<Att['tone'], string> = { red: 'var(--red)', orange: 'var(--orange)', tint: 'var(--tint-fill)', friend: '#30b0c7' };
+	// colour only where it means something: red broken, orange waiting; the rest takes the fade's tint
+	const TONE_BG: Record<Att['tone'], string> = { red: 'var(--red)', orange: 'var(--orange)', tint: 'var(--tint-fill)' };
 	// one honest sentence about right now: what is syncing, or how fresh everything is
 	const status = $derived.by(() => {
 		const parts: string[] = [];
@@ -187,14 +188,14 @@
 	{/if}
 {/snippet}
 
-<Page title={t('tab.home')} large={false} glow={BRAND}>
+<Page title={t('tab.home')} large={false} glow={BRAND} glowTop>
 	{#snippet hero()}
 		<header class="hello">
+			<p class="date t-sub">{weekday}</p>
 			<div class="hello-top">
-				<p class="date t-sub">{today}</p>
+				<h1 class="t-large" data-title>{today}</h1>
 				<span class="av"><Avatar /></span>
 			</div>
-			<h1 class="t-large" data-title>{hello}</h1>
 			{#if app.lines.length}
 				<p class="summary t-sub">
 					{status}
@@ -215,7 +216,7 @@
 				</div>
 				<p class="t-sub t-2">{step ? t('intro.progress', { done: stepsDone, total: steps.length }) : t('intro.allDoneText')}</p>
 				<div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax={steps.length} aria-valuenow={stepsDone} aria-label={t('intro.title')}>
-					<span style:width="{(stepsDone / steps.length) * 100}%"></span>
+					<span style:transform="scaleX({stepsDone / steps.length})"></span>
 				</div>
 				<ol class="steps">
 					{#each steps as s, i (s.id)}
@@ -332,40 +333,42 @@
 </Page>
 
 <style>
+	/* title, cards and section headings share one left edge */
 	.hello {
-		padding: 0 20px 26px;
-	}
-	/* the greeting stays on one line on a phone */
-	.hello h1 {
-		font-size: min(var(--f-large), 7.4vw);
+		padding: 0 16px 24px;
 	}
 	.hello-top {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		margin-bottom: 6px;
+		gap: 12px;
 		min-height: 40px;
 	}
 	.date {
+		margin-bottom: 4px;
 		color: var(--label-2);
-		font-weight: 600;
+		font-weight: 500;
 	}
 	.summary {
 		margin-top: 8px;
 		color: var(--label-2);
+	}
+	.section-head {
+		padding-inline: 0;
+		padding-bottom: 12px;
 	}
 	.block,
 	.b {
 		display: block;
 	}
 	.b {
-		font-weight: 700;
+		font-weight: 600;
 	}
 	.start {
 		display: grid;
 		gap: 8px;
 		padding: 20px 16px 16px;
-		border-radius: 30px;
+		border-radius: 28px;
 	}
 	.start > p {
 		padding: 0 4px;
@@ -382,22 +385,23 @@
 	}
 	.meter {
 		height: 6px;
-		margin: 6px 4px 4px;
+		margin: 4px;
 		border-radius: 999px;
 		background: var(--fill-3);
 		overflow: hidden;
 	}
+	/* solid, like the current step's mark; grows with transform, never with width */
 	.meter span {
 		display: block;
 		height: 100%;
-		border-radius: inherit;
-		background: linear-gradient(90deg, #ff3b4e, #2e6bff);
-		transition: width 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+		background: var(--label);
+		transform-origin: left;
+		transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
 	}
 	.steps {
 		display: grid;
 		gap: 4px;
-		margin: 6px 0 0;
+		margin: 4px 0 0;
 		padding: 0;
 		list-style: none;
 	}
@@ -418,7 +422,7 @@
 		background: var(--fill-3);
 		color: var(--label-2);
 		font-size: var(--f-foot);
-		font-weight: 700;
+		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 	}
 	.now .mark {
@@ -446,7 +450,7 @@
 		font-weight: 500;
 	}
 	.step-do {
-		margin-top: 6px;
+		margin-top: 8px;
 	}
 	.step-do .svc {
 		margin-top: 0;
@@ -463,12 +467,12 @@
 		color: var(--green);
 	}
 	.lead {
-		padding: 0 6px 14px;
+		padding: 0 0 12px;
 	}
 	.tpls {
 		display: grid;
 		grid-auto-rows: 1fr;
-		gap: 10px;
+		gap: 12px;
 		margin: 0;
 		padding: 0;
 		list-style: none;
@@ -482,7 +486,7 @@
 		align-items: center;
 		width: 100%;
 		height: 100%;
-		padding: 14px 16px;
+		padding: 16px;
 		border-radius: 24px;
 		text-align: left;
 	}
@@ -500,7 +504,7 @@
 	}
 	.att {
 		display: grid;
-		gap: 10px;
+		gap: 12px;
 		margin: 0;
 		padding: 0;
 		list-style: none;
@@ -511,8 +515,8 @@
 		gap: 12px;
 		width: 100%;
 		min-height: 64px;
-		padding: 12px 16px 12px 14px;
-		border-radius: 26px;
+		padding: 12px 16px;
+		border-radius: 24px;
 		text-align: left;
 		background: color-mix(in srgb, var(--glass-strong) 80%, var(--raw) 6%);
 	}
@@ -533,8 +537,8 @@
 	}
 	.fbadge {
 		position: absolute;
-		right: -5px;
-		bottom: -5px;
+		right: -4px;
+		bottom: -4px;
 		display: flex;
 		border-radius: 7px;
 		box-shadow: 0 0 0 2px var(--cell-grouped-solid, var(--bg));
@@ -550,8 +554,8 @@
 	}
 	.dot {
 		flex: none;
-		width: 7px;
-		height: 7px;
+		width: 8px;
+		height: 8px;
 		border-radius: 50%;
 	}
 	.pulse {
@@ -565,8 +569,8 @@
 	.shelf {
 		display: grid;
 		grid-auto-flow: column;
-		grid-auto-columns: 146px;
-		gap: 14px;
+		grid-auto-columns: 148px;
+		gap: 16px;
 		margin: 0 -16px;
 		padding: 0 16px 4px;
 		list-style: none;
@@ -593,8 +597,8 @@
 	}
 	.via {
 		position: absolute;
-		right: 7px;
-		bottom: 7px;
+		right: 8px;
+		bottom: 8px;
 		display: grid;
 		place-items: center;
 		width: 30px;
@@ -608,7 +612,7 @@
 	@media (min-width: 721px) {
 		.hello {
 			margin-top: calc(var(--bar) * -1 + 24px);
-			padding: 0 36px 30px;
+			padding: 0 36px 32px;
 		}
 		.av {
 			display: none;
@@ -620,8 +624,8 @@
 			grid-template-columns: minmax(0, 1fr);
 			grid-template-areas: 'main' 'week' 'fresh';
 			align-items: start;
-			gap: 20px;
-			margin: 0 36px 34px;
+			gap: 32px;
+			margin: 0 36px 32px;
 			max-width: var(--content-max);
 		}
 		.dash:empty {
@@ -633,12 +637,12 @@
 				grid-template-columns: minmax(0, 3fr) minmax(340px, 2fr);
 				grid-template-rows: auto 1fr;
 				grid-template-areas: 'main week' 'fresh week';
-				gap: 28px 28px;
+				gap: 32px;
 			}
 		}
 		.main {
 			display: grid;
-			gap: 26px;
+			gap: 32px;
 			align-content: start;
 		}
 		.main {
@@ -648,14 +652,14 @@
 			grid-area: week;
 			align-self: start;
 			display: grid;
-			gap: 26px;
+			gap: 32px;
 			min-width: 0;
 		}
 		/* side by side and the left column opens with a heading: start the week card level with the
-		   list below that heading, not with the heading itself (34px button + 10px gap) */
+		   list below that heading, not with the heading itself (34px button + 12px gap) */
 		@media (min-width: 1100px) {
 			.dash:has(> .main > .section:first-child > .section-head) > .side {
-				margin-top: 44px;
+				margin-top: 46px;
 			}
 		}
 		.fresh {
@@ -681,7 +685,7 @@
 			margin: 0 -36px;
 			padding: 0 36px 4px;
 			scroll-padding: 0 36px;
-			grid-auto-columns: 170px;
+			grid-auto-columns: 168px;
 		}
 	}
 	@media (prefers-reduced-motion: reduce) {
