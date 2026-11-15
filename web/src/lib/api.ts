@@ -1,4 +1,5 @@
 import { t } from './ui/i18n.svelte.ts';
+import { said } from './ui/said.ts';
 
 export class ApiError extends Error {
 	constructor(
@@ -48,7 +49,7 @@ export async function api<T = any>(path: string, opts: Opts = {}): Promise<T> {
 		if (lost) session.lost?.();
 		let msg = t('err.status', { status: res.status });
 		if (lost) msg = t('err.session');
-		else if (data && typeof data.detail === 'string') msg = data.detail;
+		else if (data && typeof data.detail === 'string') msg = said(data.detail);
 		else if (data && Array.isArray(data.detail)) msg = t('err.input');
 		else if (res.status >= 502 && res.status <= 504) msg = t('err.offline');
 		throw new ApiError(msg, res.status);

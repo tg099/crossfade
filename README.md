@@ -143,6 +143,8 @@ Each fade remembers which songs it knows and where it last saw them.
 3. Gone from a sending collection where it was seen before → removed everywhere
    (if *Pass on deletions* is on).
 4. Uncertain matches end up as **open songs** in the fade: pick a suggestion, paste a link or ignore them.
+   A song matched by hand (or a version picked by hand) counts everywhere: in every fade, friends' too, and
+   for library adds. Your choices are listed under **Account → Matches**, where you can change or remove them.
 
 ### Safeguards
 

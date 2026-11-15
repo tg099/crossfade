@@ -7,6 +7,7 @@
 	import SheetBar from './SheetBar.svelte';
 	import { i18n, num, t } from './i18n.svelte.ts';
 	import { ago, ui } from './ui.svelte.ts';
+	import { said } from './said.ts';
 	import { updates } from '#lib/updates.svelte.ts';
 
 	// Admin only: how the instance and the services are doing. Counts only, nothing private.
@@ -207,7 +208,7 @@
 								<ServiceMark service={e.service} size={22} />
 								<span class="grow">
 									<span class="b t-foot t-2">{e.kind === 'auth' ? t('health.kindAuth') : t((OPS[e.op] ?? 'health.op.other') as never, { op: e.op })} · {ago(e.ts)}</span>
-									<span class="b t-foot msg">{e.message}</span>
+									<span class="b t-foot msg">{said(e.message)}</span>
 								</span>
 							</li>
 						{/each}
@@ -256,8 +257,9 @@
 	.status.good .badge {
 		background: var(--green);
 	}
+	/* the list under the status card keeps the card's inset */
 	.att {
-		margin-bottom: 26px;
+		margin: 0 16px 26px;
 	}
 	.warn {
 		color: var(--orange-text);

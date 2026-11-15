@@ -653,13 +653,11 @@ def resolve_issue(line_id: int, issue_id: int, body: ResolveBody, user: dict = D
         raise HTTPException(502, str(e)) from e
     if failed:
         raise HTTPException(502, f"{SERVICE_NAMES[row['service']]} refused to add it.")
+    # the choice counts everywhere: other fades (friends' too) waiting for the song there take it
+    ident.pin(row["song_id"], t, user["id"])
     with db.tx() as c:
         c.execute("INSERT OR REPLACE INTO member_items(member_id,song_id,ref_id,confirmed,excluded,misses) "
                   "VALUES(?,?,?,0,0,0)", (row["member_id"], row["song_id"], t.id))
-        c.execute("INSERT INTO search_cache(service,song_id,best_ref,score,candidates,created_at) VALUES(?,?,?,?,?,?) "
-                  "ON CONFLICT(service,song_id) DO UPDATE SET best_ref=excluded.best_ref, score=excluded.score, "
-                  "candidates=excluded.candidates, created_at=excluded.created_at",
-                  (row["service"], row["song_id"], t.id, 1.0, json.dumps([dict(t.to_dict(), score=1.0)]), time.time()))
         c.execute("DELETE FROM issues WHERE id=?", (issue_id,))
         c.execute("INSERT INTO changes(run_id,line_id,member_id,song_id,action,label,ok,message,ts) "
                   "VALUES(NULL,?,?,?,'add',?,1,'matched by hand',?)",
@@ -714,6 +712,8 @@ def _song_detail(db: Database, line_id: int, song_id: int) -> dict:
     items = {r["member_id"]: r for r in db.all(
         "SELECT * FROM member_items WHERE song_id=? AND member_id IN (SELECT id FROM line_members WHERE line_id=?)",
         (song_id, line_id))}
+    manual = {r["service"]: r["ref_id"] for r in db.all("SELECT service, ref_id FROM manual_matches WHERE song_id=?",
+                                                         (song_id,))}
     stops = []
     for m in members:
         it = items.get(m["id"])
@@ -723,7 +723,8 @@ def _song_detail(db: Database, line_id: int, song_id: int) -> dict:
             ref = Identity._track(r) if r else None
         info = {"member_id": m["id"], "service": m["service"], "collection_name": m["collection_name"],
                 "state": ("ok" if it["confirmed"] else "excluded" if it["excluded"] else "pending") if it else "missing",
-                "track": ref.to_dict() if ref else None, "version": None, "exact": None, "notes": []}
+                "track": ref.to_dict() if ref else None, "version": None, "exact": None, "notes": [],
+                "manual": bool(ref) and manual.get(m["service"]) == ref.id}
         if ref:
             a = matcher.assess(origin, ref) if ref.id != origin.id else None
             info["version"] = matcher.version(ref).label()
@@ -756,10 +757,16 @@ def version_audit(line_id: int, user: dict = Depends(current_user), db: Database
                      JOIN accounts a ON a.id=m.account_id
                      JOIN song_refs sr ON sr.service=a.service AND sr.ref_id=mi.ref_id
                      WHERE m.line_id=? AND mi.excluded=0""", (line_id,))
+    # a version chosen by hand is what the person wanted, not a mismatch
+    manual = {(r["song_id"], r["service"], r["ref_id"]) for r in db.all(
+        "SELECT song_id, service, ref_id FROM manual_matches WHERE song_id IN "
+        "(SELECT song_id FROM line_items WHERE line_id=?)", (line_id,))}
     origins: dict[int, Track] = {}
     out: dict[int, dict] = {}
     for r in rows:
         sid = r["song_id"]
+        if (sid, r["service"], r["ref_id"]) in manual:
+            continue
         origin = origins.get(sid) or origins.setdefault(sid, ident.describe(sid))
         ref = Identity._track(r)
         if ref.service == origin.service and ref.id == origin.id:
@@ -784,23 +791,25 @@ def version_candidates(line_id: int, song_id: int, body: MemberRef, user: dict =
     _song_in_fade(db, line_id, song_id)
     m = _own_member(db, line_id, body.member_id, user["id"])
     acc = db.one("SELECT * FROM accounts WHERE id=?", (m["account_id"],))
-    ident = Identity(db)
-    origin = ident.describe(song_id)
+    origin = Identity(db).describe(song_id, away_from=m["service"])
     try:
-        prov = build_provider(db, acc)
-        # search fresh and ignore the ref the song already has on this service
-        seen: dict[str, Track] = {}
-        for q in dict.fromkeys([f"{matcher.norm_title(origin.title)} {origin.artist.split(',')[0]}",
-                                f"{origin.title} {origin.artist}"]):
-            for t in prov.search(q, limit=10):
-                seen.setdefault(t.id, t)
-        if origin.isrc:
-            for t in prov.by_isrc(origin.isrc):
-                seen.setdefault(t.id, t)
+        return versions_on(build_provider(db, acc), origin)
     except AuthError as e:
         raise HTTPException(401, str(e)) from e
     except ApiError as e:
         raise HTTPException(502, str(e)) from e
+
+
+def versions_on(prov, origin: Track) -> list[dict]:
+    """Versions of `origin` on the provider's service to choose from, searched fresh, best first."""
+    seen: dict[str, Track] = {}
+    for q in dict.fromkeys([f"{matcher.norm_title(origin.title)} {origin.artist.split(',')[0]}",
+                            f"{origin.title} {origin.artist}"]):
+        for t in prov.search(q, limit=10):
+            seen.setdefault(t.id, t)
+    if origin.isrc:
+        for t in prov.by_isrc(origin.isrc):
+            seen.setdefault(t.id, t)
     scored = sorted(((t, matcher.assess(origin, t)) for t in seen.values()), key=lambda x: x[1].rank_key, reverse=True)
     return [dict(t.to_dict(), score=a.score, exact=a.exact, notes=a.notes, version=matcher.version(t).label())
             for t, a in scored[:8] if a.score >= matcher.SUGGEST]
@@ -839,16 +848,12 @@ def replace_version(line_id: int, song_id: int, body: ReplaceBody, user: dict = 
         raise HTTPException(401, str(e)) from e
     except ApiError as e:
         raise HTTPException(502, str(e)) from e
-    # The old version stays known (other collections may contain it); the chosen one is pinned
-    # through the search cache below and wins from now on.
-    Identity(db).link(song_id, new)
+    # The old version stays known (other collections may contain it); the chosen one counts as
+    # matched by hand and wins from now on, in every fade.
+    Identity(db).pin(song_id, new, user["id"])
     with db.tx() as c:
         c.execute("INSERT OR REPLACE INTO member_items(member_id,song_id,ref_id,confirmed,excluded,misses) "
                   "VALUES(?,?,?,0,0,0)", (m["id"], song_id, new.id))
-        c.execute("INSERT INTO search_cache(service,song_id,best_ref,score,candidates,created_at,exact,notes) "
-                  "VALUES(?,?,?,1,?,?,1,'[]') ON CONFLICT(service,song_id) DO UPDATE SET best_ref=excluded.best_ref, "
-                  "score=1, candidates=excluded.candidates, created_at=excluded.created_at, exact=1, notes='[]'",
-                  (m["service"], song_id, new.id, json.dumps([dict(new.to_dict(), score=1.0, exact=True)]), time.time()))
         c.execute("INSERT INTO changes(run_id,line_id,member_id,song_id,action,label,ok,message,ts,note) "
                   "VALUES(NULL,?,?,?,'add',?,1,NULL,?,'version chosen by hand')",
                   (line_id, m["id"], song_id, new.label(), time.time()))

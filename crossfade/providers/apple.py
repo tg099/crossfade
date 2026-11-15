@@ -42,17 +42,21 @@ def jwt_expiry(token: str) -> int | None:
 
 
 def fetch_developer_token() -> str:
-    with httpx.Client(headers={"User-Agent": UA}, follow_redirects=True, timeout=30) as c:
-        html = c.get(f"{WEB}/us/browse").text
-        for src in re.findall(r'<script[^>]+src="(/assets/[^"]+\.js)"', html):
-            js = c.get(WEB + src).text
-            for m in _JWT.finditer(js):
-                tok = m.group(1)
-                try:
-                    if _b64json(tok.split(".")[0]).get("kid") == "WebPlayKid":
-                        return tok
-                except Exception:  # noqa: BLE001
-                    continue
+    try:
+        with httpx.Client(headers={"User-Agent": UA}, follow_redirects=True, timeout=30) as c:
+            html = c.get(f"{WEB}/us/browse").text
+            for src in re.findall(r'<script[^>]+src="(/assets/[^"]+\.js)"', html):
+                js = c.get(WEB + src).text
+                for m in _JWT.finditer(js):
+                    tok = m.group(1)
+                    try:
+                        if _b64json(tok.split(".")[0]).get("kid") == "WebPlayKid":
+                            return tok
+                    except Exception:  # noqa: BLE001
+                        continue
+    except httpx.HTTPError as e:
+        # music.apple.com can't be reached: a service problem like any other, not a crash
+        raise ApiError(f"Apple Music is unreachable: {e}") from e
     raise ApiError("Couldn't load the Apple Music web token from music.apple.com.")
 
 

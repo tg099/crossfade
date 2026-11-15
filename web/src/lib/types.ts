@@ -327,6 +327,21 @@ export interface VersionStop {
 	version: string | null;
 	exact: boolean | null;
 	notes: string[];
+	/** this version was chosen by hand (for every fade) */
+	manual?: boolean;
+}
+
+/** a song matched by hand on one service; counts in every fade, friends' too */
+export interface ManualMatch {
+	song_id: number;
+	service: Service;
+	created_at: number;
+	track: TrackInfo;
+	version: string;
+	origin: TrackInfo;
+	exact: boolean;
+	notes: string[];
+	fades: number;
 }
 
 export interface SongDetail {

@@ -575,3 +575,78 @@ def test_reorder_takes_your_liked_collections_and_receiving_playlists(admin, mon
     r = admin.post(f"/api/lines/{lid}/reorder", json={"member_ids": [playlist]}, headers=H)
     assert r.status_code == 400
     assert admin.delete(f"/api/lines/{lid}", headers=H).status_code == 200
+
+
+def test_matches_by_hand_are_listed_changed_and_taken_back(admin, monkeypatch):
+    from crossfade.api import lines as lines_api
+    from crossfade.api import matches as matches_api
+    from crossfade.identity import Identity
+    from crossfade.models import Track
+
+    db = get_db()
+    uid = admin.get("/api/auth/state").json()["user"]["id"]
+    connect_fake(uid, "ytm")
+    connect_fake(uid, "apple")
+
+    class Apple:
+        service = "apple"
+        added: list = []
+
+        @staticmethod
+        def parse_link(text):
+            return text.rsplit("/", 1)[-1] or None
+
+        def track(self, tid):
+            return Track("apple", tid, "Bohemian Rhapsody" + (" (Live)" if "live" in tid else ""), "Queen", duration=355)
+
+        def search(self, q, limit=10):
+            return [self.track("m_orig"), self.track("m_live")]
+
+        def by_isrc(self, isrc):
+            return []
+
+        def add(self, kind, cid, tracks):
+            self.added += tracks
+            return []
+
+    monkeypatch.setattr(matches_api, "build_provider", lambda db, acc: Apple())
+    monkeypatch.setattr(lines_api, "build_provider", lambda db, acc: Apple())
+
+    # matched by hand in a fade: the choice is kept for everyone and listed for the person who made it
+    r = admin.post("/api/lines", json={"name": "By hand", "members": [
+        {"service": "ytm", "kind": "liked", "collection_name": "Likes"},
+        {"service": "apple", "kind": "liked", "collection_name": "Favourites"}]}, headers=H)
+    lid, apple_m = r.json()["id"], r.json()["members"][1]["id"]
+    ident = Identity(db)
+    sid = ident.song_for(Track("ytm", "m_y1", "Bohemian Rhapsody (Remastered 2011)", "Queen", duration=356))
+    db.run("INSERT INTO line_items(line_id,song_id,added_at) VALUES(?,?,0)", (lid, sid))
+    iid = db.run("INSERT INTO issues(line_id,member_id,song_id,kind,data,created_at) VALUES(?,?,?,'unmatched','{}',0)",
+                 (lid, apple_m, sid))
+    r = admin.post(f"/api/lines/{lid}/issues/{iid}/resolve", json={"target": "https://music.apple.com/x/m_live"}, headers=H)
+    assert r.status_code == 200, r.text
+    items = admin.get("/api/matches").json()
+    assert [(m["song_id"], m["service"], m["track"]["id"]) for m in items] == [(sid, "apple", "m_live")]
+    assert items[0]["origin"]["id"] == "m_y1" and items[0]["fades"] == 1
+
+    # another version: searched on the service, the current one isn't offered again
+    cands = admin.post(f"/api/matches/{sid}/apple/candidates", headers=H).json()
+    assert [c["id"] for c in cands] == ["m_orig"]
+    r = admin.put(f"/api/matches/{sid}/apple", json={"target": "m_orig"}, headers=H)
+    assert r.status_code == 200 and r.json()["track"]["id"] == "m_orig"
+    assert ident.pinned(sid, "apple").id == "m_orig"
+    # the fade's collection holds the live version (it was added there), so it stays the song there
+    assert {t.id for t in ident.refs(sid, "apple")} == {"m_orig", "m_live"}
+
+    # someone else's choice isn't listed and can't be changed
+    other = db.run("INSERT INTO users(username,display_name,password_hash,created_at) VALUES('matcher','M','x',0)")
+    sid2 = ident.song_for(Track("ytm", "m_y2", "Hello", "Adele"))
+    ident.pin(sid2, Track("apple", "m_hello", "Hello", "Adele"), other)
+    assert [m["song_id"] for m in admin.get("/api/matches").json()] == [sid]
+    assert admin.delete(f"/api/matches/{sid2}/apple", headers=H).status_code == 404
+    assert admin.put(f"/api/matches/{sid2}/apple", json={"target": "x"}, headers=H).status_code == 404
+
+    # taken back: the fade searches again next time
+    assert admin.delete(f"/api/matches/{sid}/apple", headers=H).status_code == 200
+    assert admin.get("/api/matches").json() == [] and ident.pinned(sid, "apple") is None
+    assert {t.id for t in ident.refs(sid, "apple")} == {"m_live"}
+    assert admin.delete(f"/api/lines/{lid}", headers=H).status_code == 200

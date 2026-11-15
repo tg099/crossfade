@@ -18,7 +18,7 @@ from ..db import get_db
 from ..mcp_server import http_app as mcp_app
 from ..mcp_server import server as mcp_server
 from ..worker import get_worker
-from . import admin, auth, catalog, history, lines, mcp, notifications, preview, services, social
+from . import admin, auth, catalog, history, lines, matches, mcp, notifications, preview, services, social
 from .deps import current_user
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -68,7 +68,7 @@ async def guard(request: Request, call_next):
 
 
 for r in (auth.router, admin.router, services.router, lines.router, catalog.router, preview.router, social.router,
-          social.invites, notifications.router, history.router, mcp.router):
+          social.invites, notifications.router, history.router, matches.router, mcp.router):
     app.include_router(r)
 
 for path in ("/mcp", "/mcp/"):

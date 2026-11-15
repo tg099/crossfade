@@ -69,6 +69,8 @@ class UI {
 	/** an assistant's deletion to bring into view on the home page (from a notification link) */
 	approvalFocus = $state<string | null>(null);
 	healthOpen = $state(false);
+	/** songs matched by hand */
+	matchesOpen = $state(false);
 	backupOpen = $state(false);
 	historyOpen = $state(false);
 	/** time travel opened right at one collection (from a fade); null = the list of all */
@@ -194,7 +196,7 @@ class UI {
 		this.accountOpen = this.serviceOpen = this.usersOpen = this.userOpen = this.appsOpen = false;
 		this.notifyOpen = this.mcpOpen = this.healthOpen = this.backupOpen = this.historyOpen = this.reorderOpen = false;
 		this.passwordOpen = this.friendsOpen = this.joinOpen = this.editorOpen = this.planOpen = false;
-		this.reviewOpen = this.songOpen = false;
+		this.reviewOpen = this.songOpen = this.matchesOpen = false;
 		this.ctx = null;
 		this.ask = null;
 	}

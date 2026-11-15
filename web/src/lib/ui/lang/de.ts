@@ -391,7 +391,7 @@ export const de = {
 	'issue.head': (v: V) => (toN(v.n) === 1 ? '1 offener Song' : `${v.n} offene Songs`),
 	'issue.goThrough': 'Durchgehen',
 	'issue.hint': 'Mit „Durchgehen“ klärst du sie nacheinander. Oder tipp einen Song an; nach links wischen ignoriert ihn.',
-	'issue.matched': '„{title}“ zugeordnet',
+	'issue.matched': '„{title}“ zugeordnet, gilt jetzt in allen Fades',
 	'issue.ignored': '„{title}“ ignoriert',
 	'issue.pick': 'Version wählen',
 	'issue.question': 'Welche Version soll in {service} landen?',
@@ -895,6 +895,7 @@ export const de = {
 	'song.take': 'Wählen',
 	'song.swapped': 'In „{name}“ getauscht',
 	'song.loading': 'Lädt …',
+	'song.manual': 'von Hand gewählt',
 
 	// liked
 	'liked.ytm': 'Mag ich',
@@ -1365,4 +1366,50 @@ export const de = {
 	'intro.allDone': 'Alles eingerichtet!',
 	'intro.allDoneText': 'Deine Fades laufen jetzt von allein. Hier siehst du, wenn etwas deine Hilfe braucht.',
 	'intro.finish': 'Fertig',
+
+	// songs matched by hand: count in every fade, friends' too
+	'matches.title': 'Zuordnungen',
+	'matches.one': 'Zuordnung',
+	'matches.intro': 'Songs, die du selbst zugeordnet hast. Deine Wahl gilt überall: in allen Fades, auch bei deinen Freunden, und wenn du etwas zur Mediathek hinzufügst.',
+	'matches.empty': 'Noch keine. Wenn du einen Song selbst zuordnest oder eine andere Version wählst, findest du ihn hier.',
+	'matches.explain': 'Diese Version nimmt Crossfade auf {service} für den Song, in jedem Fade.',
+	'matches.keepHint': 'Eine neue Wahl gilt für alles, was ab jetzt dazukommt. Was schon in einer Sammlung liegt, bleibt, wie es ist.',
+	'matches.remove': 'Zuordnung entfernen',
+	'matches.removeQ': 'Zuordnung für „{title}“ entfernen?',
+	'matches.removeMsg': 'Crossfade sucht den Song auf {service} dann wieder selbst. Was schon in deinen Sammlungen liegt, bleibt.',
+	'matches.removed': 'Zuordnung für „{title}“ entfernt',
+	'matches.changed': '„{title}“ neu zugeordnet',
+
+	// what the server says in English, in the person's language (see said.ts)
+	'said.notConnected': 'Der Dienst ist nicht verbunden.',
+	'said.svcNotConnected': '{service} ist nicht verbunden.',
+	'said.signinExpired': 'Die Anmeldung bei {service} ist abgelaufen. Bitte verbinde dich neu.',
+	'said.signinInvalid': 'Die Anmeldung bei {service} ist ungültig. Bitte verbinde dich neu.',
+	'said.signinInvalidOrExpired': 'Die Anmeldung bei {service} ist ungültig oder abgelaufen. Bitte verbinde dich neu.',
+	'said.googleExpired': 'Die Google-Anmeldung ist abgelaufen. Bitte verbinde YouTube Music neu.',
+	'said.appleToken': 'Die Anmeldung bei Apple Music ist ungültig oder abgelaufen. Bitte gib den media-user-token neu ein.',
+	'said.deezerArl': 'Die Anmeldung bei Deezer ist ungültig oder abgelaufen. Bitte kopier das arl-Cookie neu.',
+	'said.deezerArlRejected': 'Deezer nimmt dieses arl-Cookie nicht an. Kopier es neu, während du auf deezer.com angemeldet bist.',
+	'said.spotifyPremium': 'Spotify lässt das Konto nicht rein: Es braucht Premium und muss in der Spotify-App des Admins als Nutzer eingetragen sein.',
+	'said.spotifyQuota': 'Das Spotify-Kontingent der App ist aufgebraucht. Versuch es später noch mal.',
+	'said.youtubeQuota': 'Das Tageskontingent der YouTube-API ist aufgebraucht. Der Rest kommt automatisch mit dem nächsten Sync (das Kontingent startet um Mitternacht pazifischer Zeit neu).',
+	'said.appleOverloaded': 'Apple Music und die iTunes-Suche sind gerade überlastet. Versuch es später noch mal.',
+	'said.unreachable': '{service} ist gerade nicht erreichbar ({detail}).',
+	'said.appleWebToken': 'Der Web-Token von Apple Music ließ sich nicht von music.apple.com laden.',
+	'said.noPlaylistId': '{service} hat keine Playlist-ID zurückgegeben.',
+	'said.tidalSecret': 'Die TIDAL-Suche braucht das Client-Secret der App.',
+	'said.googleClient': 'Für die Google-Anmeldung fehlen Client-ID und Secret in den Einstellungen der Instanz.',
+	'said.held': (v: V) => (toN(v.n) === 1 ? 'Eine Löschung wartet auf deine Bestätigung.' : `${v.n} Löschungen warten auf deine Bestätigung.`),
+	'said.partial': (v: V) =>
+		toN(v.n) === 1
+			? 'Eine Änderung ging nicht durch. Crossfade versucht es beim nächsten Sync noch mal.'
+			: `${v.n} Änderungen gingen nicht durch. Crossfade versucht es beim nächsten Sync noch mal.`,
+	'said.stayed': (v: V) => (toN(v.n) === 1 ? 'Ein Song ist geblieben, wo er war.' : `${v.n} Songs sind geblieben, wo sie waren.`),
+	'said.blockedEmpty': '{name} kam leer zurück, obwohl {n} Songs da sein sollten. Sicherheitshalber wurde nichts geändert. Ist die Sammlung wirklich leer, bestätige den Sync.',
+	'said.relikeFailed': 'Ein Song in {name} ließ sich nicht wieder liken. Der nächste Sync fügt ihn wieder hinzu.',
+	'said.stopped': 'Gestoppt',
+	'said.matchedByHand': 'von Hand zugeordnet',
+	'said.couldntRemove': 'ließ sich nicht entfernen',
+	'said.oldNotRemoved': 'alte Version ließ sich nicht entfernen',
+	'said.syncing': 'Der Fade synchronisiert gerade.',
 };

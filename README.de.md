@@ -143,6 +143,8 @@ Jeder Fade merkt sich, welche Songs er kennt und wo er sie zuletzt gesehen hat.
 3. Aus einer sendenden Sammlung verschwunden, in der er vorher gesehen wurde → wird überall entfernt
    (wenn *Löschungen übertragen* an ist).
 4. Unsichere Treffer landen als **offene Songs** im Fade: Vorschlag wählen, Link einfügen oder ignorieren.
+   Was du von Hand zuordnest (oder als Version wählst), gilt überall: in allen Fades, auch bei Freunden, und beim
+   Hinzufügen zur Mediathek. Deine Zuordnungen stehen unter **Konto → Zuordnungen**, dort änderst oder entfernst du sie.
 
 ### Schutzmechanismen
 

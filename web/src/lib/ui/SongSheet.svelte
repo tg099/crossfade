@@ -88,7 +88,7 @@
 					<div class="section-head">
 						<span class="caps head"><ServiceMark service={s.service} size={16} /> {s.collection_name}</span>
 						{#if s.track}
-							{#if s.exact}<span class="tag good">{t('song.same')}</span>{:else}<span class="tag warn">{s.notes.join(', ') || t('song.other')}</span>{/if}
+							{#if s.manual}<span class="tag accent">{t('song.manual')}</span>{:else if s.exact}<span class="tag good">{t('song.same')}</span>{:else}<span class="tag warn">{s.notes.join(', ') || t('song.other')}</span>{/if}
 						{/if}
 					</div>
 					<div class="group">

@@ -8,6 +8,7 @@
 	import SheetBar from '../SheetBar.svelte';
 	import Switch from '../Switch.svelte';
 	import { num, t } from '../i18n.svelte.ts';
+	import { said } from '../said.ts';
 	import { ago, ui } from '../ui.svelte.ts';
 	import { catalog as c, kindRank, SERVICES } from './catalog.svelte.ts';
 
@@ -60,7 +61,7 @@
 							<span class="grow">
 								<span class="b clip">{s.name}</span>
 								<span class="b t-foot clip" class:t-2={!s.error} class:danger={!!s.error}>
-									{s.error ?? (s.scanned_at ? `${t('n.songs', { n: num(s.item_count ?? 0) })} · ${ago(s.scanned_at)}` : t('lib.notScanned'))}
+									{said(s.error) ?? (s.scanned_at ? `${t('n.songs', { n: num(s.item_count ?? 0) })} · ${ago(s.scanned_at)}` : t('lib.notScanned'))}
 								</span>
 							</span>
 							<Switch bind:checked={() => s.included, (v) => set(s, v)} label={s.name} />

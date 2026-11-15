@@ -2,6 +2,7 @@
 import { api, post, put, session } from './api.ts';
 import type { Activity, AssistantWaiting, Board, CatalogFinished, CatalogJob, Friends, Job, Line, Member, ServiceInfo, User } from './types.ts';
 import { num, t, type Key } from './ui/i18n.svelte.ts';
+import { said } from './ui/said.ts';
 import { ui } from './ui/ui.svelte.ts';
 import { updates } from './updates.svelte.ts';
 
@@ -289,7 +290,7 @@ class AppState {
 			if (f.status === 'preview' && ui.reorder?.line_id === lineId) ui.reorder.rows = f.summary.reorder ?? [];
 			else if (f.status !== 'preview') {
 				ui.reorderOpen = false;
-				ui.say(f.message ?? t('err.generic'), 'alert', 'fault');
+				ui.say(said(f.message) ?? t('err.generic'), 'alert', 'fault');
 			}
 			return;
 		}
@@ -298,7 +299,7 @@ class AppState {
 		if (f.status === 'ok' || f.status === 'partial')
 			ui.say(t('reorder.done', { n: s.moved ?? 0, failed: s.failed ?? 0 }), 'check', f.status === 'ok' ? 'good' : 'info');
 		else if (f.status === 'stopped') ui.say(t('reorder.done', { n: s.moved ?? 0, failed: 0 }), 'pause', 'info');
-		else ui.say(f.message ?? t('err.generic'), 'alert', 'fault');
+		else ui.say(said(f.message) ?? t('err.generic'), 'alert', 'fault');
 		if (f.status === 'auth_error') this.loadServices();
 	}
 
@@ -310,7 +311,7 @@ class AppState {
 		const r = f.result ?? {};
 		let text: string;
 		if (f.status === 'stopped') text = t('lib.job.stopped');
-		else if (f.status === 'error' || f.status === 'auth_error') text = f.message ?? t('err.generic');
+		else if (f.status === 'error' || f.status === 'auth_error') text = said(f.message) ?? t('err.generic');
 		else if (f.action === 'scan') text = t('lib.job.scanned', { n: num(r.songs) });
 		else if (f.action === 'remove') text = t('lib.job.removed', { n: num(r.removed), failed: r.failed ?? 0 });
 		else if (f.action === 'dedupe') text = t('clean.done.dedupe', { n: num(r.removed), failed: r.failed ?? 0 });

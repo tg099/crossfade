@@ -3,6 +3,7 @@ import { SERVICE_NAME } from '#lib/format.ts';
 import type { Line, Member, SortRule } from '#lib/types.ts';
 import type { GlyphName } from './Glyph.svelte';
 import { t, type Key } from './i18n.svelte.ts';
+import { said } from './said.ts';
 import { ago, clock } from './ui.svelte.ts';
 
 /** symbols a fade can wear (chosen by the user instead of a number) */
@@ -57,18 +58,18 @@ export function fadeStatus(l: Line): FadeStatus {
 	if (fault) return { tone: 'fault', text: fault, detail: t('status.reconnect') };
 	switch (l.last_status) {
 		case 'auth_error':
-			return { tone: 'fault', text: t('status.authError'), detail: s.message ?? null };
+			return { tone: 'fault', text: t('status.authError'), detail: said(s.message) };
 		case 'blocked':
-			return { tone: 'fault', text: t('status.blocked'), detail: s.message ?? null };
+			return { tone: 'fault', text: t('status.blocked'), detail: said(s.message) };
 		case 'error':
-			return { tone: 'fault', text: t('status.failed'), detail: s.message ?? null };
+			return { tone: 'fault', text: t('status.failed'), detail: said(s.message) };
 		case 'needs_confirm':
 			return { tone: 'attention', text: t('status.held', { n: s.held ?? 0 }), detail: t('status.heldDetail') };
 	}
 	if (!l.last_run_at) return { tone: 'quiet', text: t('status.never'), detail: t('status.startWithPreview') };
 	const next = l.next_run_at ? t('status.next', { time: clock(l.next_run_at) }) : t('status.manual');
 	if (l.issues > 0) return { tone: 'attention', text: t('home.waiting', { n: l.issues }), detail: `${t('status.synced', { ago: ago(l.last_run_at) })} ${next}` };
-	if (l.last_status === 'partial') return { tone: 'attention', text: t('status.partial'), detail: s.message ?? next };
+	if (l.last_status === 'partial') return { tone: 'attention', text: t('status.partial'), detail: said(s.message) ?? next };
 	return { tone: 'good', text: t('status.current', { ago: ago(l.last_run_at) }), detail: next };
 }
 

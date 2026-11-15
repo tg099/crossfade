@@ -9,6 +9,7 @@
 	import { updates } from '#lib/updates.svelte.ts';
 	import BackupSheet from './BackupSheet.svelte';
 	import HealthSheet from './HealthSheet.svelte';
+	import MatchesSheet from './MatchesSheet.svelte';
 	import NotifySheet from './NotifySheet.svelte';
 	import McpSheet from './McpSheet.svelte';
 	import Segmented from './Segmented.svelte';
@@ -136,6 +137,11 @@
 						{#if app.socialBadge}<span class="count" aria-hidden="true">{app.socialBadge}</span>{/if}
 						<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
 					</button>
+					<button class="cell" style:--inset="58px" onclick={() => (ui.matchesOpen = true)}>
+						<span class="tile-icon" style:background="var(--tile-orange)"><Glyph name="link" size={18} weight={2.2} /></span>
+						<span class="grow">{t('matches.title')}</span>
+						<span class="chev"><Glyph name="chevronRight" size={18} weight={2.4} /></span>
+					</button>
 					{#if !me.impersonator}
 						<button class="cell" style:--inset="58px" onclick={() => (ui.mcpOpen = true)}>
 							<span class="tile-icon" style:background="var(--tile-violet)"><Glyph name="sparkle" size={19} weight={2.1} /></span>
@@ -254,6 +260,7 @@
 <NotifySheet />
 <McpSheet />
 <HealthSheet />
+<MatchesSheet />
 <BackupSheet />
 
 <style>

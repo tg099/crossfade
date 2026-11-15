@@ -95,6 +95,8 @@ class Identity:
                          origin=excluded.origin, updated_at=excluded.updated_at
                          WHERE music_annotations.origin<>'user' AND excluded.origin='user'""", (keep, drop))
             c.execute("UPDATE changes SET song_id=? WHERE song_id=?", (keep, drop))
+            # a choice made by hand moves along; where both songs had one for a service, keep's stays
+            c.execute("UPDATE OR IGNORE manual_matches SET song_id=? WHERE song_id=?", (keep, drop))
             c.execute("""INSERT INTO like_times(line_id,song_id,liked_at) SELECT line_id,?,liked_at FROM like_times
                          WHERE song_id=? ON CONFLICT(line_id,song_id) DO UPDATE
                          SET liked_at=MIN(like_times.liked_at, excluded.liked_at)""", (keep, drop))
@@ -115,21 +117,75 @@ class Identity:
         return [self._track(r) for r in self.db.all(
             "SELECT * FROM song_refs WHERE song_id=? AND service=?", (song_id, service))]
 
-    def describe(self, song_id: int, prefer: Track | None = None) -> Track:
+    def describe(self, song_id: int, prefer: Track | None = None, away_from: str | None = None) -> Track:
         """The version to look for. `prefer` is the track where the song came from (its version
-        counts); otherwise a ref with ISRC that is not a music video."""
+        counts); otherwise a ref with ISRC that is not a music video. `away_from`: the song as the
+        other services know it (to compare a version on that service with)."""
         if prefer is not None and not _is_video(prefer):
             return prefer
         s = self.db.one("SELECT * FROM songs WHERE id=?", (song_id,)) or {}
-        refs = self.db.all("""SELECT * FROM song_refs WHERE song_id=? ORDER BY
+        refs = self.db.all("""SELECT * FROM song_refs WHERE song_id=? AND service<>? ORDER BY
                               (video_type IN ('MUSIC_VIDEO_TYPE_OMV','MUSIC_VIDEO_TYPE_UGC')), (isrc IS NULL), service""",
-                           (song_id,))
+                           (song_id, away_from or ""))
+        if not refs and away_from:
+            return self.describe(song_id, prefer)
         if refs:
             t = self._track(refs[0])
             t.isrc = t.isrc or s.get("isrc")
             return t
         return Track(service="", id="", title=s.get("title", ""), artist=s.get("artist", ""),
                      album=s.get("album", ""), duration=s.get("duration"), isrc=s.get("isrc"))
+
+    # ------------------------------------------------------------------ matched by hand
+    def pinned(self, song_id: int, service: str) -> Track | None:
+        """The version someone chose by hand for the song on `service`. It counts for everyone."""
+        r = self.db.one("""SELECT r.* FROM manual_matches p JOIN song_refs r
+                           ON r.service=p.service AND r.ref_id=p.ref_id AND r.song_id=p.song_id
+                           WHERE p.song_id=? AND p.service=?""", (song_id, service))
+        return self._track(r) if r else None
+
+    def pin(self, song_id: int, t: Track, user_id: int | None) -> int | None:
+        """`t` is the song on its service, chosen by hand: every fade (friends' too), library add and
+        later search takes it from now on. Returns, like link(), a song id merged away."""
+        old = self.db.val("SELECT ref_id FROM manual_matches WHERE song_id=? AND service=?", (song_id, t.service))
+        dropped = self.link(song_id, t)
+        with self.db.tx() as c:
+            c.execute("INSERT INTO manual_matches(song_id,service,ref_id,user_id,created_at) VALUES(?,?,?,?,?) "
+                      "ON CONFLICT(song_id,service) DO UPDATE SET ref_id=excluded.ref_id, user_id=excluded.user_id, "
+                      "created_at=excluded.created_at", (song_id, t.service, t.id, user_id, time.time()))
+            c.execute("DELETE FROM search_cache WHERE service=? AND song_id=?", (t.service, song_id))
+            # settled on this service: fades still waiting for the song there take it with their next sync
+            c.execute("""DELETE FROM issues WHERE kind='unmatched' AND song_id=? AND member_id IN
+                         (SELECT m.id FROM line_members m JOIN accounts a ON a.id=m.account_id WHERE a.service=?)""",
+                      (song_id, t.service))
+        if old and old != t.id:
+            self._release(song_id, t.service, old)
+        return dropped
+
+    def unpin(self, song_id: int, service: str) -> bool:
+        """Take a choice back: the song is searched for again on `service` the next time it's needed."""
+        old = self.db.val("SELECT ref_id FROM manual_matches WHERE song_id=? AND service=?", (song_id, service))
+        if old is None:
+            return False
+        with self.db.tx() as c:
+            c.execute("DELETE FROM manual_matches WHERE song_id=? AND service=?", (song_id, service))
+            c.execute("DELETE FROM search_cache WHERE service=? AND song_id=?", (service, song_id))
+        self._release(song_id, service, old)
+        return True
+
+    def _release(self, song_id: int, service: str, ref_id: str) -> None:
+        """A version that was chosen by hand and no longer is stops being the song, so a search can
+        find another one. Not while a collection or the library holds it as the song: there it would
+        look as if the song had been removed."""
+        held = self.db.val("""SELECT 1 FROM member_items mi JOIN line_members m ON m.id=mi.member_id
+                              JOIN accounts a ON a.id=m.account_id
+                              WHERE mi.song_id=? AND mi.ref_id=? AND a.service=? LIMIT 1""", (song_id, ref_id, service))
+        held = held or self.db.val("""SELECT 1 FROM catalog_items ci JOIN catalog_sources s ON s.id=ci.source_id
+                                      JOIN accounts a ON a.id=s.account_id
+                                      WHERE ci.song_id=? AND ci.ref_id=? AND a.service=? LIMIT 1""",
+                                   (song_id, ref_id, service))
+        if not held:
+            self.db.run("DELETE FROM song_refs WHERE service=? AND ref_id=? AND song_id=?", (service, ref_id, song_id))
 
     # ------------------------------------------------------------------ YouTube: video or song
     COUNTERPART_RETRY = 30 * 86400
@@ -198,9 +254,13 @@ class Identity:
     def find(self, song_id: int, service: str, provider: Provider, use_cache: bool = True,
              source: Track | None = None) -> Match:
         """Find the song on `service`, version-aware. Does not link; callers decide (policy)."""
+        pinned = self.pinned(song_id, service)
+        if pinned is not None:
+            # someone chose it by hand: that is the song there, for every fade and everyone
+            return Match(pinned, 1.0, True, [], [dict(pinned.to_dict(), score=1.0, exact=True, notes=[])])
         existing = self.refs(song_id, service)
         if existing:
-            # several versions may be known on this service: a version chosen by hand (cache)
+            # several versions may be known on this service: one an earlier search settled on (cache)
             # wins, otherwise the one that fits the source best
             chosen = self.db.val("SELECT best_ref FROM search_cache WHERE service=? AND song_id=? AND exact=1",
                                  (service, song_id))

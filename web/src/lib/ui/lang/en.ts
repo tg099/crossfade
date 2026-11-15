@@ -393,7 +393,7 @@ export const en: Record<keyof typeof de, string | ((v: V) => string)> = {
 	'issue.head': (v) => (toN(v.n) === 1 ? '1 open song' : `${v.n} open songs`),
 	'issue.goThrough': 'Go through',
 	'issue.hint': '“Go through” shows them as a stack of cards. One by one: tap, or swipe left.',
-	'issue.matched': '“{title}” matched',
+	'issue.matched': '“{title}” matched, for every fade now',
 	'issue.ignored': '“{title}” ignored',
 	'issue.pick': 'Pick a version',
 	'issue.question': 'Which version should go to {service}?',
@@ -897,6 +897,7 @@ export const en: Record<keyof typeof de, string | ((v: V) => string)> = {
 	'song.take': 'Use',
 	'song.swapped': 'Swapped in “{name}”',
 	'song.loading': 'Loading …',
+	'song.manual': 'picked by hand',
 
 	// liked
 	'liked.ytm': 'Liked music',
@@ -1367,4 +1368,50 @@ export const en: Record<keyof typeof de, string | ((v: V) => string)> = {
 	'intro.allDone': "You're all set!",
 	'intro.allDoneText': 'Your fades run on their own now. This page tells you when something needs you.',
 	'intro.finish': 'Done',
+
+	// songs matched by hand: count in every fade, friends' too
+	'matches.title': 'Matches',
+	'matches.one': 'Match',
+	'matches.intro': 'Songs you matched yourself. Your choice counts everywhere: in every fade, your friends’ too, and when you add something to your library.',
+	'matches.empty': 'None yet. When you match a song yourself or pick another version, it shows up here.',
+	'matches.explain': 'Crossfade uses this version on {service} for the song, in every fade.',
+	'matches.keepHint': 'A new choice counts for everything added from now on. What’s already in a collection stays as it is.',
+	'matches.remove': 'Remove match',
+	'matches.removeQ': 'Remove the match for “{title}”?',
+	'matches.removeMsg': 'Crossfade then searches {service} for the song on its own again. What’s already in your collections stays.',
+	'matches.removed': 'Match for “{title}” removed',
+	'matches.changed': '“{title}” matched anew',
+
+	// what the server says in English, in the person's language (see said.ts)
+	'said.notConnected': 'The service is not connected.',
+	'said.svcNotConnected': '{service} is not connected.',
+	'said.signinExpired': '{service} sign-in expired. Please reconnect.',
+	'said.signinInvalid': '{service} sign-in is invalid. Please reconnect.',
+	'said.signinInvalidOrExpired': '{service} sign-in is invalid or expired. Please reconnect.',
+	'said.googleExpired': 'The Google sign-in expired. Please reconnect YouTube Music.',
+	'said.appleToken': 'Apple Music sign-in is invalid or expired. Please enter the media-user-token again.',
+	'said.deezerArl': 'Deezer sign-in is invalid or expired. Please copy the arl cookie again.',
+	'said.deezerArlRejected': 'Deezer doesn’t accept this arl cookie. Copy it again while you’re signed in on deezer.com.',
+	'said.spotifyPremium': 'Spotify denied access: the account needs Premium and must be added as a user in the admin’s Spotify app.',
+	'said.spotifyQuota': 'The app’s Spotify quota is used up. Try again later.',
+	'said.youtubeQuota': 'The daily quota of the YouTube API is used up. The rest follows automatically with the next sync (the quota resets at midnight Pacific time).',
+	'said.appleOverloaded': 'Apple Music and iTunes Search are overloaded right now. Try again later.',
+	'said.unreachable': '{service} can’t be reached right now ({detail}).',
+	'said.appleWebToken': 'Couldn’t load the Apple Music web token from music.apple.com.',
+	'said.noPlaylistId': '{service} didn’t return a playlist ID.',
+	'said.tidalSecret': 'TIDAL search needs the app’s client secret.',
+	'said.googleClient': 'Google sign-in needs a client ID and secret in the instance settings.',
+	'said.held': (v) => (toN(v.n) === 1 ? 'One deletion is waiting for your confirmation.' : `${v.n} deletions are waiting for your confirmation.`),
+	'said.partial': (v) =>
+		toN(v.n) === 1
+			? 'One change didn’t go through. Crossfade will try again on the next sync.'
+			: `${v.n} changes didn’t go through. Crossfade will try again on the next sync.`,
+	'said.stayed': (v) => (toN(v.n) === 1 ? 'One song stayed where it was.' : `${v.n} songs stayed where they were.`),
+	'said.blockedEmpty': '{name} came back empty although {n} songs should be there. To be safe, nothing was changed. If the collection really is empty, confirm the sync.',
+	'said.relikeFailed': 'Couldn’t like a song in {name} again. The next sync adds it again.',
+	'said.stopped': 'Stopped',
+	'said.matchedByHand': 'matched by hand',
+	'said.couldntRemove': 'couldn’t be removed',
+	'said.oldNotRemoved': 'couldn’t remove the old version',
+	'said.syncing': 'The fade is syncing right now.',
 };

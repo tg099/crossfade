@@ -338,6 +338,64 @@ def test_exact_policy_keeps_other_versions_for_review(env):
     assert "Remaster" in issue["data"]
 
 
+def test_a_song_matched_by_hand_counts_in_every_fade(env):
+    """Matched by hand once (Apple's original for YouTube's remaster), every other fade takes that
+    version, also one that only takes the exact version, and its open issue for the song goes away."""
+    db = env[0]
+    y, a = P(env, YTM), P(env, APPLE)
+    y.put(LIKED, "", "bohem")
+    y.put(PLAYLIST, "mix", "bohem")
+    l1 = _policy_line(env, "exact")
+    l2 = make_line(env, [(YTM, PLAYLIST, "mix", "send"), (APPLE, PLAYLIST, "amix", "receive")])
+    db.run("UPDATE lines SET version_policy='exact' WHERE id=?", (l2,))
+    sync(env, l1)
+    sync(env, l2)
+    assert db.val("SELECT COUNT(*) FROM issues WHERE kind='unmatched'") == 2
+    sid = db.val("SELECT song_id FROM song_refs WHERE service=? AND ref_id='ytm_bohem'", (YTM,))
+    Identity(db).pin(sid, track(APPLE, "bohem"), env[1])
+    assert db.val("SELECT COUNT(*) FROM issues WHERE kind='unmatched'") == 0
+    for lid, kind, cid in ((l1, LIKED, ""), (l2, PLAYLIST, "amix")):
+        r = sync(env, lid)
+        assert r.status == "ok", r.message
+        assert a.keys(kind, cid) == ["bohem"] and r.summary["unmatched"] == 0
+
+
+def test_a_match_by_hand_can_be_changed_and_taken_back(env):
+    db, uid, _ = env
+    ident = Identity(db)
+    a = P(env, APPLE)
+    sid = ident.song_for(track(YTM, "bohem"))
+    live = Track(APPLE, "apple_live", "Bohemian Rhapsody (Live Aid)", "Queen", duration=300)
+    ident.pin(sid, live, uid)
+    m = ident.find(sid, APPLE, a)
+    assert m.track.id == "apple_live" and m.exact and m.accepted("exact")
+    # another version: the old one isn't held anywhere, so it stops being the song
+    ident.pin(sid, track(APPLE, "bohem"), uid)
+    assert [t.id for t in ident.refs(sid, APPLE)] == ["apple_bohem"]
+    assert db.val("SELECT user_id FROM manual_matches WHERE song_id=?", (sid,)) == uid
+    # taken back while a collection holds it: it stays the song there, the choice itself is gone
+    lid = make_line(env, [(APPLE, LIKED, "", "both")])
+    mid = db.val("SELECT id FROM line_members WHERE line_id=?", (lid,))
+    db.run("INSERT INTO member_items(member_id,song_id,ref_id,confirmed) VALUES(?,?,'apple_bohem',1)", (mid, sid))
+    assert ident.unpin(sid, APPLE) and not ident.unpin(sid, APPLE)
+    assert [t.id for t in ident.refs(sid, APPLE)] == ["apple_bohem"]
+    assert ident.pinned(sid, APPLE) is None
+    # taken back with nothing holding it: searched afresh next time
+    ident.pin(sid, live, uid)
+    assert ident.unpin(sid, APPLE)
+    assert "apple_live" not in [t.id for t in ident.refs(sid, APPLE)]
+
+
+def test_a_match_by_hand_survives_merging_songs(env):
+    db, uid, _ = env
+    ident = Identity(db)
+    keep = ident.song_for(track(YTM, "bohem"))
+    drop = ident.song_for(Track(SPOTIFY, "sp_bohem", "Bohemian Rhapsody", "Queen", duration=355))
+    ident.pin(drop, track(APPLE, "bohem"), uid)
+    ident.merge(keep, drop)
+    assert ident.pinned(keep, APPLE).id == "apple_bohem"
+
+
 def test_closest_policy_adds_and_marks_the_difference(env):
     y, a = P(env, YTM), P(env, APPLE)
     y.put(LIKED, "", "bohem")

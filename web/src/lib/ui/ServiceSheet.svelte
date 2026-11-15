@@ -8,6 +8,7 @@
 	import Sheet from './Sheet.svelte';
 	import SheetBar from './SheetBar.svelte';
 	import { i18n, t } from './i18n.svelte.ts';
+	import { said } from './said.ts';
 	import { devtoolsKeys } from './keys.ts';
 	import { ago, ui } from './ui.svelte.ts';
 
@@ -173,7 +174,7 @@
 				{#if s.connected}
 					<p class="t-headline">{bad ? t('services.expiredShort') : t('services.as', { account: s.display_name ?? '' })}</p>
 					<p class="t-sub t-2">
-						{bad && s.status_message ? s.status_message : t('services.usage', { n: s.lines, ago: ago(s.updated_at) })}
+						{bad && s.status_message ? said(s.status_message) : t('services.usage', { n: s.lines, ago: ago(s.updated_at) })}
 					</p>
 				{:else}
 					<p class="t-headline">{t('services.notConnected')}</p>

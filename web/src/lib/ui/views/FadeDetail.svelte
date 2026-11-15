@@ -19,6 +19,7 @@
 	import { askLeaveFade, hold, runFade, stopFade, trackMenu } from '../ctx.ts';
 	import { changeNote, fadeCovers, fadeIcon, fadeStatus, memberFault, ruleText, toneColor } from '../fade.ts';
 	import { i18n, num, t } from '../i18n.svelte.ts';
+	import { said } from '../said.ts';
 	import { ignoreIssue, loadIssues, resolveIssue, restoreIssue, unignore } from '../issues.ts';
 	import { tintVars } from '../tint.ts';
 	import { flowIcon, intervalLabel, ui } from '../ui.svelte.ts';
@@ -672,7 +673,7 @@
 											<p class="clip">{c.label}</p>
 											<p class="t-foot t-2 clip where">
 												{#if c.service}<ServiceMark service={c.service} size={13} title={false} />{/if}
-												{c.collection_name ?? t('history.removedCollection')}{c.message ? ` · ${c.message}` : ''}
+												{c.collection_name ?? t('history.removedCollection')}{c.message ? ` · ${said(c.message)}` : ''}
 											</p>
 											{#if c.note}<p class="t-foot note">{changeNote(c.note)}</p>{/if}
 										</div>

@@ -451,6 +451,28 @@ MIGRATIONS: list[str] = [
         WHEN '#A3744C' THEN '#B86838'
         ELSE color END;
     """,
+    # 26: songs matched by hand count everywhere: in every fade (friends' too), in library adds and in
+    #     every later search. One choice per song and service; the person who made it can change it
+    #     or take it back. Earlier choices are taken over from the history of changes.
+    """
+    CREATE TABLE manual_matches (
+        song_id INTEGER NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+        service TEXT NOT NULL,
+        ref_id TEXT NOT NULL,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at REAL NOT NULL,
+        PRIMARY KEY (song_id, service)
+    );
+    CREATE INDEX manual_matches_user ON manual_matches(user_id);
+    INSERT OR IGNORE INTO manual_matches(song_id,service,ref_id,user_id,created_at)
+        SELECT ch.song_id, a.service, mi.ref_id, a.user_id, MAX(ch.ts)
+        FROM changes ch JOIN line_members m ON m.id=ch.member_id JOIN accounts a ON a.id=m.account_id
+        JOIN member_items mi ON mi.member_id=ch.member_id AND mi.song_id=ch.song_id
+        JOIN song_refs r ON r.service=a.service AND r.ref_id=mi.ref_id AND r.song_id=ch.song_id
+        WHERE ch.action='add' AND ch.ok=1
+          AND (ch.note='version chosen by hand' OR ch.message='matched by hand')
+        GROUP BY ch.song_id, a.service;
+    """,
 ]
 
 
