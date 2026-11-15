@@ -58,7 +58,7 @@
 	}
 	.name {
 		font-size: var(--f-t1);
-		font-weight: 800;
+		font-weight: 600;
 		letter-spacing: var(--tr-t1);
 	}
 	.card {

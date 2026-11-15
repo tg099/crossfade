@@ -419,7 +419,7 @@
 	}
 	.code {
 		font-size: 2.4rem;
-		font-weight: 700;
+		font-weight: 600;
 		letter-spacing: 0.12em;
 		user-select: all;
 	}

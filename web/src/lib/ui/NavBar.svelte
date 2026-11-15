@@ -93,7 +93,7 @@
 	.title {
 		max-width: calc(100vw - 260px);
 		font-size: var(--f-body);
-		font-weight: 700;
+		font-weight: 600;
 		opacity: 0;
 		transform: translateY(8px) scale(0.96);
 		transition:

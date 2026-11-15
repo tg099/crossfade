@@ -188,7 +188,7 @@
 	{/if}
 {/snippet}
 
-<Page title={t('tab.home')} large={false} glow={BRAND} glowTop>
+<Page title={t('tab.home')} large={false} glow={BRAND}>
 	{#snippet hero()}
 		<header class="hello">
 			<p class="date t-sub">{weekday}</p>
@@ -352,10 +352,6 @@
 	.summary {
 		margin-top: 8px;
 		color: var(--label-2);
-	}
-	.section-head {
-		padding-inline: 0;
-		padding-bottom: 12px;
 	}
 	.block,
 	.b {

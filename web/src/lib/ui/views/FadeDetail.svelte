@@ -853,8 +853,6 @@
 		gap: 6px;
 		color: var(--tint);
 		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
 	}
 	.sub {
 		color: var(--label-2);
@@ -1163,7 +1161,7 @@
 		border-radius: 50%;
 		background: var(--green);
 		color: #fff;
-		font-weight: 800;
+		font-weight: 600;
 		font-size: 13px;
 		line-height: 1;
 		box-shadow: 0 0 0 2px var(--bg);

@@ -56,7 +56,7 @@
 		gap: 10px;
 	}
 	.rank {
-		font-weight: 700;
+		font-weight: 600;
 		color: var(--label-2);
 		text-align: center;
 		font-variant-numeric: tabular-nums;
@@ -68,7 +68,7 @@
 		height: 32px;
 		border-radius: 50%;
 		font-size: var(--f-foot);
-		font-weight: 700;
+		font-weight: 600;
 	}
 	.body {
 		display: grid;
@@ -89,7 +89,7 @@
 		white-space: nowrap;
 	}
 	.me .nm {
-		font-weight: 700;
+		font-weight: 600;
 	}
 	.n {
 		font-variant-numeric: tabular-nums;

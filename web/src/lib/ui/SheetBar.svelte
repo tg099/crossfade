@@ -48,7 +48,7 @@
 	.title {
 		text-align: center;
 		font-size: var(--f-body);
-		font-weight: 700;
+		font-weight: 600;
 	}
 	.sbar :global(.gbtn:disabled) {
 		opacity: 1;

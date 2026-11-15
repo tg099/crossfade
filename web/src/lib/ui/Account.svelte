@@ -320,6 +320,6 @@
 		background: var(--red);
 		color: #fff;
 		font-size: var(--f-foot);
-		font-weight: 700;
+		font-weight: 600;
 	}
 </style>

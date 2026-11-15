@@ -213,7 +213,7 @@
 		width: 42px;
 		height: 42px;
 		border-radius: 50%;
-		font-weight: 700;
+		font-weight: 600;
 	}
 	.av.muted {
 		background: var(--fill-3);

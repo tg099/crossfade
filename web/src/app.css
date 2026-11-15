@@ -54,9 +54,7 @@
 	--well-shadow: inset 0 1px 3px rgb(60 40 30 / 0.1), inset 0 0 0 0.5px rgb(60 40 30 / 0.1), 0 1px 0 rgb(255 255 255 / 0.8);
 	/* a filled (tinted) button catches light too */
 	--fill-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), inset 0 -2px 6px -2px rgb(0 0 0 / 0.18);
-	--fill-glow: 55%;
-	/* colour behind the pages: stronger in light, a pale wash gives the glass nothing to bend */
-	--ambient: 34%;
+	--fill-drop: 0 6px 14px -8px rgb(40 30 20 / 0.3);
 
 	/* labels */
 	--label: #1c1a19;
@@ -104,7 +102,7 @@
 	--tr-sub: 0;
 	--tr-foot: 0;
 
-	--r-group: 26px;
+	--r-group: 24px;
 	--safe-top: env(safe-area-inset-top, 0px);
 	--safe-bottom: env(safe-area-inset-bottom, 0px);
 	--bar: 56px;
@@ -172,7 +170,7 @@
 	--well: var(--fill-3);
 	--well-shadow: inset 0 0 0 0.5px var(--rim-edge);
 	--fill-shadow: 0 0 0 0 transparent;
-	--fill-glow: 0%;
+	--fill-drop: 0 0 0 transparent;
 	--group-rim: inset 0 1px 0 rgb(255 255 255 / 0.35);
 	--group-shadow: 0 1px 2px rgb(40 30 20 / 0.04);
 	--lens: rgb(255 255 255 / 0.14);
@@ -227,7 +225,7 @@
 		--well: var(--fill-3);
 		--well-shadow: inset 0 0 0 0.5px var(--rim-edge);
 		--fill-shadow: 0 0 0 0 transparent;
-		--fill-glow: 0%;
+		--fill-drop: 0 0 0 transparent;
 		--group-rim: inset 0 1px 0 rgb(255 255 255 / 0.35);
 		--group-shadow: 0 1px 2px rgb(40 30 20 / 0.04);
 		--lens: rgb(255 255 255 / 0.14);
@@ -452,25 +450,25 @@ button {
 /* ------------------------------------------------------------ type */
 .t-large {
 	font-size: var(--f-large);
-	font-weight: 800;
+	font-weight: 700;
 	letter-spacing: var(--tr-large);
 	line-height: 1.1;
 }
 .t-title1 {
 	font-size: var(--f-t1);
-	font-weight: 800;
+	font-weight: 700;
 	letter-spacing: var(--tr-t1);
 	line-height: 1.15;
 }
 .t-title2 {
 	font-size: var(--f-t2);
-	font-weight: 700;
+	font-weight: 600;
 	letter-spacing: var(--tr-t2);
 	line-height: 1.2;
 }
 .t-title3 {
 	font-size: var(--f-t3);
-	font-weight: 700;
+	font-weight: 600;
 	letter-spacing: var(--tr-t3);
 	line-height: 1.25;
 }
@@ -509,7 +507,7 @@ button {
 	justify-content: center;
 	gap: 8px;
 	min-height: 50px;
-	padding: 0 22px;
+	padding: 0 24px;
 	border-radius: 999px;
 	font-size: var(--f-body);
 	font-weight: 600;
@@ -523,10 +521,10 @@ button {
 .pb-fill {
 	background: var(--tint-fill);
 	color: var(--on-tint);
-	/* the glow takes the colour of this button's line, so it is resolved here, not in :root */
+	/* a soft neutral drop, never a coloured glow */
 	box-shadow:
 		var(--fill-shadow),
-		0 6px 14px -6px color-mix(in srgb, var(--tint-fill) var(--fill-glow), transparent);
+		var(--fill-drop);
 }
 .pb-small {
 	min-height: 34px;
@@ -579,7 +577,7 @@ button {
 
 /* ------------------------------------------------------------ grouped lists */
 .section {
-	margin: 0 16px 34px;
+	margin: 0 16px 32px;
 }
 @media (min-width: 721px) {
 	/* one content column on every page: starts under the large title, same width everywhere
@@ -595,7 +593,11 @@ button {
 	align-items: center;
 	justify-content: space-between;
 	gap: 12px;
-	padding: 0 6px 10px;
+	padding: 0 6px 12px;
+}
+/* on pages the heading shares the left edge of the title and the cards */
+.view .section-head {
+	padding-inline: 0;
 }
 /* the one button a section head may carry ("All", "Go through"): compact, never squeezes the title */
 .section-head .gbtn {
@@ -606,7 +608,7 @@ button {
 }
 .section-head h2 {
 	font-size: var(--f-t2);
-	font-weight: 800;
+	font-weight: 600;
 	letter-spacing: var(--tr-t2);
 }
 .section-head .caps {
@@ -616,7 +618,7 @@ button {
 	color: var(--label-2);
 }
 .section-foot {
-	padding: 8px 18px 0;
+	padding: 8px 16px 0;
 	font-size: var(--f-foot);
 	color: var(--label-2);
 	line-height: 1.35;
@@ -799,38 +801,20 @@ a.cell:active {
 	position: absolute;
 	inset: 0;
 	pointer-events: none;
-}
-/* dark: colour lives at the top and fades into clean black – a full-page wash looks murky */
-:root[data-theme='dark'] .ambient {
-	--ambient: 26%;
-	filter: saturate(1.15);
-	-webkit-mask-image: linear-gradient(to bottom, #000 0%, rgb(0 0 0 / 0.55) 30%, transparent 62%);
-	mask-image: linear-gradient(to bottom, #000 0%, rgb(0 0 0 / 0.55) 30%, transparent 62%);
-}
-@media (prefers-color-scheme: dark) {
-	:root:not([data-theme='light']) .ambient {
-		--ambient: 26%;
-		filter: saturate(1.15);
-		-webkit-mask-image: linear-gradient(to bottom, #000 0%, rgb(0 0 0 / 0.55) 30%, transparent 62%);
-		mask-image: linear-gradient(to bottom, #000 0%, rgb(0 0 0 / 0.55) 30%, transparent 62%);
-	}
-}
-/* top only (home): behind the title, gone before the first cards, in both themes */
-.ambient.top {
+	/* colour lives behind the title and is gone before the content: the cards sit on calm ground,
+	   the covers carry the colour below */
 	--ambient: 16%;
 	-webkit-mask-image: linear-gradient(to bottom, #000 0, rgb(0 0 0 / 0.4) 180px, transparent 420px);
 	mask-image: linear-gradient(to bottom, #000 0, rgb(0 0 0 / 0.4) 180px, transparent 420px);
 }
-:root[data-theme='dark'] .ambient.top {
+:root[data-theme='dark'] .ambient {
 	--ambient: 20%;
-	-webkit-mask-image: linear-gradient(to bottom, #000 0, rgb(0 0 0 / 0.4) 180px, transparent 420px);
-	mask-image: linear-gradient(to bottom, #000 0, rgb(0 0 0 / 0.4) 180px, transparent 420px);
+	filter: saturate(1.15);
 }
 @media (prefers-color-scheme: dark) {
-	:root:not([data-theme='light']) .ambient.top {
+	:root:not([data-theme='light']) .ambient {
 		--ambient: 20%;
-		-webkit-mask-image: linear-gradient(to bottom, #000 0, rgb(0 0 0 / 0.4) 180px, transparent 420px);
-		mask-image: linear-gradient(to bottom, #000 0, rgb(0 0 0 / 0.4) 180px, transparent 420px);
+		filter: saturate(1.15);
 	}
 }
 

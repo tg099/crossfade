@@ -105,7 +105,7 @@
 		padding: 6px 12px;
 		border-radius: 999px;
 		font-size: var(--f-sub);
-		font-weight: 700;
+		font-weight: 600;
 	}
 	.pchip.add {
 		background: color-mix(in srgb, var(--green) 16%, transparent);

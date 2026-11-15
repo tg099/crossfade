@@ -666,7 +666,7 @@
 		transition: opacity 220ms ease;
 	}
 	.tb[aria-current='page'] {
-		font-weight: 700;
+		font-weight: 600;
 	}
 	/* something waits on the home page (an assistant's deletion) */
 	.tb-dot {
@@ -734,7 +734,7 @@
 			gap: 9px;
 			padding: 2px 8px 14px;
 			font-size: var(--f-body);
-			font-weight: 800;
+			font-weight: 600;
 		}
 		.side-search {
 			display: flex;
@@ -775,7 +775,7 @@
 		.side-head {
 			padding: 16px 12px 4px;
 			font-size: var(--f-foot);
-			font-weight: 700;
+			font-weight: 600;
 			color: var(--label-2);
 		}
 		.side-head.side-row {
@@ -883,7 +883,7 @@
 			width: 32px;
 			height: 32px;
 			border-radius: 50%;
-				font-weight: 700;
+				font-weight: 600;
 		}
 		.b {
 			display: block;

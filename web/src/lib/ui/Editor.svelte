@@ -784,7 +784,7 @@
 	}
 	.pv-name {
 		font-size: var(--f-t3);
-		font-weight: 700;
+		font-weight: 600;
 		letter-spacing: var(--tr-t3);
 	}
 	.pv-route {

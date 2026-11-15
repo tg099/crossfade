@@ -121,7 +121,7 @@
 	.counts {
 		display: flex;
 		gap: 8px;
-		font-weight: 700;
+		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 	}
 	.plus {
@@ -162,7 +162,7 @@
 	.mark {
 		width: 16px;
 		text-align: center;
-		font-weight: 800;
+		font-weight: 600;
 		color: var(--label-2);
 	}
 	.mark.plus {

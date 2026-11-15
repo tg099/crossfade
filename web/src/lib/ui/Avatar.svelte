@@ -31,7 +31,7 @@
 		height: var(--s);
 		border-radius: 50%;
 		font-size: calc(var(--s) * 0.42);
-		font-weight: 700;
+		font-weight: 600;
 		box-shadow:
 			0 4px 14px -4px rgb(0 0 0 / 0.3);
 	}

@@ -27,7 +27,7 @@
 		background: color-mix(in srgb, var(--c) 30%, var(--fill-3));
 		box-shadow:
 			0 1px 2px rgb(0 0 0 / 0.08),
-			0 8px 24px -10px color-mix(in srgb, var(--c) 60%, transparent);
+			0 8px 20px -12px rgb(0 0 0 / 0.35);
 	}
 	/* the fade's colour runs along the bottom of the cover */
 	.edge {

@@ -162,7 +162,7 @@
 		align-items: center;
 		gap: 8px;
 		margin: 10px 4px 0;
-		font-weight: 700;
+		font-weight: 600;
 	}
 	.pv-s {
 		display: flex;

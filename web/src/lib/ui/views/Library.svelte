@@ -505,7 +505,7 @@
 		border-radius: 9px;
 		background: color-mix(in srgb, var(--on-tint) 25%, transparent);
 		font-size: 11px;
-		font-weight: 700;
+		font-weight: 600;
 		line-height: 18px;
 		text-align: center;
 	}
@@ -603,7 +603,7 @@
 		background: var(--fill-2);
 		color: var(--label-2);
 		font-size: 9px;
-		font-weight: 800;
+		font-weight: 600;
 		vertical-align: 2px;
 	}
 	mark {

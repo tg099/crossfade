@@ -111,7 +111,7 @@
 	}
 	.title {
 		font-size: var(--f-body);
-		font-weight: 700;
+		font-weight: 600;
 	}
 	.msg {
 		margin-top: 4px;

@@ -133,10 +133,8 @@
 	}
 	.lbl {
 		font-size: var(--f-cap);
-		font-weight: 700;
+		font-weight: 500;
 		color: var(--label-2);
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
 	}
 	/* a sentence, not a label: calm case, at most two lines */
 	.lbl.err {

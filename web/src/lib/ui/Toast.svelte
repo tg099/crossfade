@@ -82,7 +82,7 @@
 		border-radius: 999px;
 		background: var(--label);
 		color: var(--bg);
-		font-weight: 700;
+		font-weight: 600;
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.toast {

@@ -88,7 +88,7 @@
 	}
 	.val {
 		font-size: var(--f-t2);
-		font-weight: 800;
+		font-weight: 600;
 		letter-spacing: -0.01em;
 		font-variant-numeric: tabular-nums;
 		line-height: 1.2;
@@ -138,7 +138,7 @@
 		background: var(--tint-fill);
 	}
 	.n {
-		font-weight: 700;
+		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 		text-align: right;
 	}
