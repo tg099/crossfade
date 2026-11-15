@@ -45,10 +45,10 @@
 	let tags = $state('');
 
 	const OPS = ['playlist', 'add_songs', 'sync', 'fade_create', 'fade_update', 'fade_delete', 'fade_pause', 'member_role', 'resolve_issue', 'ignore_issue', 'restore_issue', 'replace_version', 'remove_songs', 'dedupe', 'playlists', 'restore'];
-	const STATES = ['pending', 'queued', 'executing', 'ok', 'partial', 'error', 'stopped', 'cancelled', 'expired', 'blocked', 'auth_error', 'needs_confirm'];
+	const STATES = ['pending', 'queued', 'executing', 'ok', 'partial', 'error', 'stopped', 'cancelled', 'expired', 'blocked', 'auth_error', 'needs_confirm', 'waiting'];
 	const operation = (op: string) => (OPS.includes(op) ? t(`mcp.op.${op}` as Key) : op);
 	const stateLabel = (s: string) => (STATES.includes(s) ? t(`mcp.state.${s}` as Key) : s);
-	const stateTone = (s: string) => (s === 'ok' ? 'good' : s === 'error' ? 'bad' : ['partial', 'blocked', 'auth_error', 'needs_confirm'].includes(s) ? 'warn' : ['pending', 'queued', 'executing'].includes(s) ? 'accent' : '');
+	const stateTone = (s: string) => (s === 'ok' ? 'good' : s === 'error' ? 'bad' : ['partial', 'blocked', 'auth_error', 'needs_confirm', 'waiting'].includes(s) ? 'warn' : ['pending', 'queued', 'executing'].includes(s) ? 'accent' : '');
 	const date = (ts: number) => new Date(ts * 1000).toLocaleDateString(i18n.locale, { day: 'numeric', month: 'long', year: 'numeric' });
 	const scopes = (tk: Token) => tk.scopes.map((s) => t(`mcp.permission.${s}` as Key)).join(' · ');
 	const expired = (tk: Token) => tk.expires_at < Date.now() / 1000;

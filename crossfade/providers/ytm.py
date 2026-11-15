@@ -24,14 +24,15 @@ from ytmusicapi import LikeStatus, OAuthCredentials, YTMusic
 from ytmusicapi.exceptions import YTMusicServerError, YTMusicUserError
 from ytmusicapi.helpers import initialize_headers
 
-from .. import health
+from .. import health, limits
 from ..matcher import tidy_video
-from ..models import LIBRARY, LIKED, PLAYLIST, YTM, ApiError, AuthError, Collection, NotSupported, Track
+from ..models import LIBRARY, LIKED, PLAYLIST, YTM, ApiError, AuthError, Collection, NotSupported, RateLimited, Track
 from .base import Provider, chunks, iso_time, unique
 
 SPECIAL_PLAYLISTS = {"LM", "SE"}
 log = logging.getLogger(__name__)
 DATA_API = "https://www.googleapis.com/youtube/v3"
+DATA_SCOPE = "data-api"     # limits.py scope: the Data API has its own quota (Google sign-in)
 SIGNED_OUT = "YouTube Music sign-in is invalid or expired. Please reconnect."
 _HTTP = re.compile(r"\bHTTP (\d{3})\b")
 
@@ -182,6 +183,9 @@ class DataApi:
         self.on_refresh()
 
     def req(self, method: str, path: str, params: dict | None = None, body: Any = None) -> dict:
+        # the Data API has its own quota (the instance's Google project): a break there leaves the
+        # rest of YouTube Music alone
+        limits.check(YTM, DATA_SCOPE)
         if int(self.token.get("expires_at") or 0) - time.time() < 60:
             self._refresh()
         for attempt in range(4):
@@ -211,9 +215,11 @@ class DataApi:
                 msg = err.get("message") or r.text[:200]
             except ValueError:
                 reason, msg = "", r.text[:200]
-            if reason in ("quotaExceeded", "dailyLimitExceeded", "rateLimitExceeded"):
-                raise ApiError("The daily quota of the YouTube API is used up. The rest follows "
-                               "automatically with the next sync (the quota resets at midnight Pacific time).", 403)
+            if reason in ("quotaExceeded", "dailyLimitExceeded"):
+                # starts over at midnight Pacific time: until then the next syncs wait
+                raise limits.pause(YTM, limits.to_pacific_midnight(), limits.YT_QUOTA, scope=DATA_SCOPE)
+            if reason in ("rateLimitExceeded", "userRateLimitExceeded") or r.status_code == 429:
+                raise limits.pause(YTM, limits.retry_after(r.headers), scope=DATA_SCOPE)
             if r.status_code == 403 and reason in ("insufficientPermissions", "forbidden", "accessNotConfigured"):
                 raise AuthError(f"Google denied access ({reason}). Is the YouTube Data API v3 "
                                 "enabled and the sign-in still valid?")
@@ -369,6 +375,7 @@ class YTMProvider(Provider):
     RETRY = {"passing": (2, 4, 6), "unclear": (1,), "final": ()}
 
     def _call(self, fn, *args, **kwargs) -> Any:
+        limits.check(YTM)
         tries = 0
         while True:
             try:
@@ -382,10 +389,12 @@ class YTMProvider(Provider):
                 if kind == "auth":
                     raise AuthError(SIGNED_OUT) from e
                 pauses = self.RETRY[kind]
-                if tries >= len(pauses):
-                    raise ApiError(f"YouTube Music: {e}", _status(e)) from e
                 if _status(e) == 429:
                     health.rate_limited(YTM)
+                if tries >= len(pauses):
+                    if _status(e) == 429:      # still "too many requests" after waiting: a break
+                        raise limits.pause(YTM) from e
+                    raise ApiError(f"YouTube Music: {e}", _status(e)) from e
                 time.sleep(pauses[tries])
                 tries += 1
 
@@ -515,11 +524,13 @@ class YTMProvider(Provider):
         for i, t in enumerate(tracks):
             try:
                 fn(t)
+            except RateLimited:
+                if i == 0:
+                    raise                                           # nothing done: the sync waits
+                return failed + [x.id for x in tracks[i:]]          # no point trying the rest now
             except ApiError as e:
                 log.warning("YouTube Data API: %s failed: %s", t.id, e)
                 failed.append(t.id)
-                if e.status == 403 and "daily quota" in str(e):
-                    return failed + [x.id for x in tracks[i + 1:]]   # no point trying the rest today
             time.sleep(0.1)
         return failed
 

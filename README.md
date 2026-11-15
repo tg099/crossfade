@@ -155,6 +155,9 @@ Each fade remembers which songs it knows and where it last saw them.
 - **Safety limit** per fade (default: more than 10 songs or 20 %): more deletions than allowed → waits for confirmation.
   Automatic syncs never confirm. Asking can be switched off per fade.
 - Failed deletions are retried on the next sync instead of being reverted.
+- When a service asks for a **break** (its quota is used up, or it wants Crossfade to wait longer than a minute),
+  Crossfade sends it nothing until then. Fades wait instead of failing, songs that still need a search there
+  aren't marked as not found, and the sync carries on by itself once the break is over. The health page shows it.
 - **Preview** shows every sync without changing anything.
 
 ## Beyond syncing

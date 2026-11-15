@@ -19,9 +19,12 @@ export const SAID: [RegExp, Key][] = [
 	[/^Deezer sign-in is invalid or expired\. Please copy the arl cookie again\.$/, 'said.deezerArl'],
 	[/^Deezer doesn't accept this arl cookie\./, 'said.deezerArlRejected'],
 	[/^Spotify denied access: the account needs Premium/, 'said.spotifyPremium'],
-	[/^The app's Spotify quota is used up\. Try again later\.$/, 'said.spotifyQuota'],
-	[/^The daily quota of the YouTube API is used up\./, 'said.youtubeQuota'],
-	[/^Apple Music and iTunes Search are overloaded right now/, 'said.appleOverloaded'],
+	// a break the service asked for (crossfade/limits.py); the reason is said on its own
+	[new RegExp(`^${SVC} needs a break \\((?<reason>.+)\\)\\. Crossfade tries again in (?<n>\\d+) min\\.$`), 'said.break'],
+	[new RegExp(`^${SVC} needs a break \\((?<reason>.+)\\)\\. Crossfade tries again in (?<n>\\d+) h\\.$`), 'said.breakH'],
+	[/^the app's quota is used up$/, 'said.r.quota'],
+	[/^the daily quota of the YouTube API is used up$/, 'said.r.ytQuota'],
+	[/^too many requests$/, 'said.r.tooMany'],
 	[new RegExp(`^${SVC} is unreachable: (?<detail>.+)$`, 's'), 'said.unreachable'],
 	[/^Couldn't load the Apple Music web token/, 'said.appleWebToken'],
 	[new RegExp(`^${SVC} didn't return a playlist ID\\.$`), 'said.noPlaylistId'],
@@ -46,7 +49,11 @@ export function said(msg: string | null | undefined): string | null {
 	if (!msg) return msg ?? null;
 	for (const [re, key] of SAID) {
 		const m = re.exec(msg);
-		if (m) return t(key, { ...(m.groups ?? {}) });
+		if (m) {
+			const vars: Record<string, string> = { ...(m.groups ?? {}) };
+			if (vars.reason) vars.reason = said(vars.reason);
+			return t(key, vars);
+		}
 	}
 	return msg;
 }

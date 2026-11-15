@@ -23,3 +23,12 @@ REAL_DATA = (Path(__file__).resolve().parent.parent / "data").resolve()
 def _never_the_real_data():
     from crossfade.config import config
     assert config.data_dir.resolve() != REAL_DATA, "tests must not run against ./data"
+
+
+@pytest.fixture(autouse=True)
+def _no_service_breaks():
+    """A break a service asked for (crossfade/limits.py) is kept in memory: never across tests."""
+    from crossfade import limits
+    limits.clear()
+    yield
+    limits.clear()

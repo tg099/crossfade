@@ -16,7 +16,7 @@ from urllib.parse import quote, urlencode, urlparse
 
 import httpx
 
-from .. import health
+from .. import health, limits
 from ..models import LIKED, PLAYLIST, TIDAL, ApiError, AuthError, Collection, NotSupported, Track
 from .base import Provider, chunks, unique
 from .spotify import pkce_pair  # noqa: F401 – same PKCE pair, re-exported for the services API
@@ -123,6 +123,7 @@ class TidalProvider(Provider):
     def _req(self, method: str, path: str, params: dict | list | None = None, body: Any = None,
              _attempt: int = 0) -> Any:
         url = path if path.startswith("http") else API + path
+        limits.check(TIDAL)
         headers = {"Authorization": f"Bearer {self._token()}", "Accept": JSONAPI}
         if body is not None:
             headers["Content-Type"] = JSONAPI
@@ -140,9 +141,11 @@ class TidalProvider(Provider):
             raise AuthError("TIDAL sign-in is invalid. Please reconnect.")
         if r.status_code == 429:
             health.rate_limited(TIDAL)
-            if _attempt < 5:
-                time.sleep(min(int(r.headers.get("Retry-After", "3") or 3), 60) + 1)
-                return self._req(method, path, params, body, _attempt + 1)
+            wait = limits.retry_after(r.headers)
+            if wait is not None and wait > 60 or _attempt >= 5:
+                raise limits.pause(TIDAL, wait if wait and wait > 60 else None)
+            time.sleep((3 if wait is None else wait) + 1)
+            return self._req(method, path, params, body, _attempt + 1)
         if r.status_code >= 500 and _attempt < 3:
             time.sleep(3 * (_attempt + 1))
             return self._req(method, path, params, body, _attempt + 1)

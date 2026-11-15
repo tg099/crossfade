@@ -415,6 +415,8 @@ class Worker:
             status, message = "stopped", "Stopped"
         except AuthError as e:
             status, message = "auth_error", str(e)
+        except ApiError as e:       # e.g. the service asked for a break
+            status, message = "error", str(e)
         except Exception as e:  # noqa: BLE001
             log.error("reorder failed: %s", traceback.format_exc())
             status, message = "error", f"{type(e).__name__}: {e}"
@@ -471,10 +473,12 @@ class Worker:
               AND ((l.interval_minutes>0 AND (l.last_run_at IS NULL OR l.last_run_at + l.interval_minutes*60 <= ?))
                    -- a removal waiting to be confirmed: look again as soon as it can be
                    OR json_extract(l.last_summary, '$.recheck_at') <= ?)
+              -- waiting for a service's break: it runs again once the break is over (recheck_at)
+              AND NOT (l.last_status='waiting' AND COALESCE(json_extract(l.last_summary, '$.recheck_at'), 0) > ?)
               AND (SELECT COUNT(*) FROM line_members m WHERE m.line_id=l.id) >= 2
               AND NOT EXISTS (SELECT 1 FROM line_members m JOIN accounts a ON a.id=m.account_id
                               WHERE m.line_id=l.id AND (a.status='error' OR a.credentials IS NULL))
-            ORDER BY l.last_run_at IS NOT NULL, l.last_run_at""", (now, now))
+            ORDER BY l.last_run_at IS NOT NULL, l.last_run_at""", (now, now, now))
         for row in due:
             self.start(row["id"], trigger="schedule")
 

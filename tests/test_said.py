@@ -16,7 +16,7 @@ def _server_text() -> str:
 
 
 def _rules() -> list[tuple[str, str]]:
-    rules = re.findall(r"^\t\[(.+), '(said\.\w+)'\],?$", SAID.read_text(), re.M)
+    rules = re.findall(r"^\t\[(.+), '(said\.[\w.]+)'\],?$", SAID.read_text(), re.M)
     assert len(rules) >= 20
     return rules
 

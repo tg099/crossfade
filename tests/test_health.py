@@ -77,5 +77,5 @@ def test_health_page_is_admin_only_and_aggregated():
     assert apple["day"]["calls"] >= 1 and len(apple["hours"]) == 24 and apple["hours"][-1]["calls"] >= 1
     assert apple["accounts"]["connected"] >= 1
     assert d["instance"]["schema"] >= 16 and d["instance"]["database_bytes"] > 0
-    assert set(d["syncs"]["fades"]) == {"total", "paused", "failing", "waiting"}
+    assert set(d["syncs"]["fades"]) == {"total", "paused", "failing", "waiting", "on_break"}
     db.run("UPDATE users SET is_admin=0 WHERE id=?", (uid,))

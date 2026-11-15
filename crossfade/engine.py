@@ -32,10 +32,10 @@ from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from typing import Any
 
-from . import history, matcher
+from . import history, limits, matcher
 from .db import Database
 from .identity import Identity
-from .models import APPLE, LIKED, PLAYLIST, SERVICE_NAMES, ApiError, AuthError, Track
+from .models import APPLE, LIKED, PLAYLIST, SERVICE_NAMES, ApiError, AuthError, RateLimited, Track
 from .providers.base import Provider
 from .sorting import Sorter
 
@@ -205,7 +205,7 @@ class MemberState:
 
 @dataclass
 class RunResult:
-    status: str = "ok"                 # ok | partial | needs_confirm | blocked | auth_error | error | preview
+    status: str = "ok"                 # ok | partial | needs_confirm | blocked | waiting | auth_error | error | preview
     message: str | None = None
     summary: dict = field(default_factory=dict)
     plan: dict = field(default_factory=dict)
@@ -245,6 +245,8 @@ class LineSync:
         # the account being talked to: an auth error belongs to it (a shared fade can hold two
         # accounts of the same service, one per person)
         self.active_account: int | None = None
+        # a service asked for a break during this run: what it couldn't do waits for the next one
+        self.waiting: RateLimited | None = None
 
     def _check_stop(self):
         if self.should_stop():
@@ -485,6 +487,9 @@ class LineSync:
             "follow_deletions": bool(m.row.get("follow_deletions")), "count": 0} for m in self.members]})
         try:
             self._read()
+        except RateLimited as e:
+            self._wait(e)       # without every collection read, nothing can be compared
+            return self._waiting(RunResult())
         except AuthError as e:
             return RunResult("auth_error", str(e))
         except ApiError as e:   # includes NotSupported
@@ -670,8 +675,20 @@ class LineSync:
                     break
                 # every answer counts, also after a problem elsewhere: those changes happened
                 for (m, action, part, tracks), answer in lanes.answers():
+                    # A service that asks for a break: the rest of its changes wait for the next sync
+                    # (removals stay in the fade and are tried again, additions are planned anew) and
+                    # don't count as failed.
                     try:
                         failed = set(answer.result())
+                        if failed and (brk := limits.current(m.service)):
+                            self._wait(brk)              # it went on a break during this part
+                            work[m.service] = []
+                            part = [(sid, t) for sid, t in part if t.id not in failed]
+                            failed = set()
+                    except RateLimited as e:
+                        self._wait(e)                    # nothing of this part was done
+                        work[m.service] = []
+                        continue
                     except AuthError as e:
                         if abort is None:
                             abort = ("auth_error", str(e))
@@ -713,10 +730,26 @@ class LineSync:
             res.status, res.message = abort
         elif needs_confirm:
             res.status, res.message = "needs_confirm", f"{len(self.held)} deletions are waiting for your confirmation."
+        elif self.waiting:
+            return self._waiting(res)
         elif failures:
             res.status, res.message = "partial", f"{failures} changes didn't go through. Crossfade will try again on the next sync."
         else:
             res.status = "ok"
+        return res
+
+    def _wait(self, e: RateLimited) -> None:
+        """Remember the break that ends last."""
+        if self.waiting is None or e.until > self.waiting.until:
+            self.waiting = e
+
+    def _waiting(self, res: RunResult) -> RunResult:
+        """The run ends waiting for a service's break: the fade runs again when it is over."""
+        e = self.waiting
+        assert e is not None
+        res.status, res.message = "waiting", str(e)
+        res.summary = dict(res.summary or {}, recheck_at=e.until,
+                           pause={"service": e.service, "until": e.until, "reason": e.reason, "scope": e.scope})
         return res
 
     def _find_all(self, ignored: set[tuple[int, int]]) -> tuple[list[dict], RunResult | None]:
@@ -780,6 +813,17 @@ class LineSync:
                         continue
                     try:
                         match = answer.result()
+                    except RateLimited as e:
+                        # the service asked for a break: its songs that still need a search wait
+                        # for the next sync (they are no "not found")
+                        self._wait(e)
+                        for o in self.members:
+                            if o.service == m.service:
+                                for k in [k for k, t in o.to_add.items() if t is None and (o.id, k) not in flying]:
+                                    o.to_add.pop(k, None)
+                                    deferred.discard((o.id, k))
+                        m.to_add.pop(sid, None)
+                        continue
                     except sqlite3.IntegrityError as e:
                         # the song was merged into another one while it was searched for: that one is
                         # searched for instead (anything else is a real problem)

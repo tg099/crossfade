@@ -1,9 +1,10 @@
 // Data of the signed-in user: fades, services, catalog jobs, live events from the server.
 import { api, post, put, session } from './api.ts';
-import type { Activity, AssistantWaiting, Board, CatalogFinished, CatalogJob, Friends, Job, Line, Member, ServiceInfo, User } from './types.ts';
+import { SERVICE_NAME } from './format.ts';
+import type { Activity, AssistantWaiting, Board, CatalogFinished, CatalogJob, Friends, Job, Line, Member, Service, ServiceInfo, User } from './types.ts';
 import { num, t, type Key } from './ui/i18n.svelte.ts';
 import { said } from './ui/said.ts';
-import { ui } from './ui/ui.svelte.ts';
+import { clock, ui } from './ui/ui.svelte.ts';
 import { updates } from './updates.svelte.ts';
 
 const FINISH: Record<string, Key> = {
@@ -14,7 +15,8 @@ const FINISH: Record<string, Key> = {
 	blocked: 'run.blocked',
 	auth_error: 'run.auth_error',
 	error: 'run.error',
-	stopped: 'run.stopped'
+	stopped: 'run.stopped',
+	waiting: 'run.waiting'
 };
 
 export const memberKey = (m: Pick<Member, 'account_id' | 'kind' | 'collection_id'>) =>
@@ -253,8 +255,13 @@ class AppState {
 			if (ev.finished?.reorder) return this.#onReorder(ev.line_id, ev.finished);
 			if (ev.finished) {
 				const st = ev.finished.status as string;
-				const tone = ['ok', 'preview'].includes(st) ? 'good' : st === 'stopped' ? 'info' : 'fault';
-				const text = t(FINISH[st] ?? 'run.error', { name: line?.name ?? t('fade.one') });
+				const tone = ['ok', 'preview'].includes(st) ? 'good' : st === 'stopped' || st === 'waiting' ? 'info' : 'fault';
+				const pause = ev.finished.summary?.pause;
+				const text = t(FINISH[st] ?? 'run.error', {
+					name: line?.name ?? t('fade.one'),
+					service: pause ? (SERVICE_NAME[pause.service as Service] ?? pause.service) : '',
+					time: pause ? clock(pause.until) : ''
+				});
 				ui.say(text, tone === 'good' ? 'check' : tone === 'info' ? 'pause' : 'alert', tone);
 				this.finished = { line_id: ev.line_id, status: st, at: Date.now() };
 				// a preview you started opens right away; held deletions wait in the overview
@@ -320,6 +327,8 @@ class AppState {
 		else if (f.action === 'undo') text = t('clean.done.undo', { n: num(r.restored) });
 		else if (f.action === 'restore') text = t('tt.done', { n: num(r.added ?? 0), removed: r.removed ?? 0, failed: r.failed ?? 0 });
 		else text = t('lib.job.added', { n: num(r.added), target: r.target ?? '', missing: r.missing?.length ?? 0 });
+		// a service asked for a break while songs were searched: the rest waits
+		if (f.action === 'add' && r.pause) text = `${text}. ${said(r.pause)}`;
 		const tone = f.status === 'ok' ? 'good' : f.status === 'stopped' || f.status === 'partial' ? 'info' : 'fault';
 		ui.say(text, tone === 'fault' ? 'alert' : 'check', tone);
 		if (f.status === 'auth_error' || f.status === 'partial') this.loadServices();

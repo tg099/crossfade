@@ -8,7 +8,7 @@ import unicodedata
 
 from . import matcher, versions
 from .db import Database
-from .models import ApiError, AuthError, Track
+from .models import ApiError, AuthError, RateLimited, Track
 from .providers.base import Provider
 
 SEARCH_RETRY_DAYS = 7
@@ -311,8 +311,8 @@ class Identity:
                     break                                 # the title alone only when nothing came close
                 try:
                     res = provider.by_isrc(q) if kind == "isrc" else provider.search(q, limit=10)
-                except AuthError:
-                    raise
+                except (AuthError, RateLimited):
+                    raise           # a break says nothing about the song: it waits
                 except ApiError as e:
                     last_error = e
                     continue
@@ -343,8 +343,8 @@ class Identity:
             for artist in _artists_to_browse(src) if browse else []:
                 try:
                     res = browse(artist)
-                except AuthError:
-                    raise
+                except (AuthError, RateLimited):
+                    raise           # a break says nothing about the song: it waits
                 except ApiError as e:
                     last_error = e
                     continue
@@ -360,8 +360,8 @@ class Identity:
             for q in dict.fromkeys(q for g in guides for q in alt_queries(g)):
                 try:
                     res = alt(q, limit=10)
-                except AuthError:
-                    raise
+                except (AuthError, RateLimited):
+                    raise           # a break says nothing about the song: it waits
                 except ApiError as e:
                     last_error = e
                     continue

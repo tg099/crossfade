@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from .. import health
+from .. import health, limits
 from ..models import DEEZER, LIKED, PLAYLIST, ApiError, AuthError, Collection, NotSupported, Track
 from .base import Provider, chunks, unique
 
@@ -69,6 +69,7 @@ class DeezerProvider(Provider):
     def _gw(self, method: str, payload: dict | None = None, token: bool = True, _attempt: int = 0) -> Any:
         if not self.credentials.get("arl"):
             raise AuthError("Deezer is not connected.")
+        limits.check(DEEZER, limits.LIBRARY)
         params = {"method": method, "input": "3", "api_version": "1.0",
                   "api_token": self._csrf() if token else ""}
         try:
@@ -79,8 +80,11 @@ class DeezerProvider(Provider):
                 return self._gw(method, payload, token, _attempt + 1)
             raise ApiError(f"Deezer is unreachable: {e}") from e
         if r.status_code == 429 or r.status_code >= 500:
+            wait = limits.retry_after(r.headers) if r.status_code == 429 else None
             if r.status_code == 429:
                 health.rate_limited(DEEZER)
+                if wait is not None and wait > 60 or _attempt >= 4:
+                    raise limits.pause(DEEZER, wait if wait and wait > 60 else None, scope=limits.LIBRARY)
             if _attempt < 4:
                 time.sleep(3 * (_attempt + 1))
                 return self._gw(method, payload, token, _attempt + 1)
@@ -98,8 +102,10 @@ class DeezerProvider(Provider):
                 return self._gw(method, payload, token, _attempt + 1)
             if any(c in _AUTH_CODES for c in codes):
                 raise AuthError("Deezer sign-in is invalid or expired. Please copy the arl cookie again.")
-            if any("QUOTA" in c for c in codes) and _attempt < 4:
+            if any("QUOTA" in c for c in codes):
                 health.rate_limited(DEEZER)
+                if _attempt >= 4:
+                    raise limits.pause(DEEZER, None, scope=limits.LIBRARY)
                 time.sleep(4 * (_attempt + 1))
                 return self._gw(method, payload, token, _attempt + 1)
             raise ApiError(f"Deezer {method}: {err}")
@@ -128,6 +134,7 @@ class DeezerProvider(Provider):
 
     # ------------------------------------------------------------------ public API
     def _public(self, path: str, params: dict | None = None, _attempt: int = 0) -> dict:
+        limits.check(DEEZER, limits.SEARCH)
         with DeezerProvider._public_lock:
             wait = DeezerProvider._public_last + self.PUBLIC_GAP - time.monotonic()
             if wait > 0:
@@ -143,13 +150,22 @@ class DeezerProvider(Provider):
         if r.status_code >= 500 and _attempt < 3:
             time.sleep(2 * (_attempt + 1))
             return self._public(path, params, _attempt + 1)
+        if r.status_code == 429:
+            health.rate_limited(DEEZER)
+            wait = limits.retry_after(r.headers)
+            if wait is not None and wait > 60 or _attempt >= 4:
+                raise limits.pause(DEEZER, wait if wait and wait > 60 else None, scope=limits.SEARCH)
+            time.sleep((5 if wait is None else wait) + 1)
+            return self._public(path, params, _attempt + 1)
         if r.status_code >= 400:
             raise ApiError(f"Deezer {path}: HTTP {r.status_code}", r.status_code)
         d = r.json()
         err = d.get("error") if isinstance(d, dict) else None
         if err:
-            if err.get("code") == 4 and _attempt < 4:          # "Quota limit exceeded"
+            if err.get("code") == 4:                           # "Quota limit exceeded"
                 health.rate_limited(DEEZER)
+                if _attempt >= 4:
+                    raise limits.pause(DEEZER, None, scope=limits.SEARCH)
                 time.sleep(5)
                 return self._public(path, params, _attempt + 1)
             if err.get("code") == 800:                         # no data (unknown id / ISRC)

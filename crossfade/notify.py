@@ -423,7 +423,7 @@ def run_finished(db: Database, line_id: int, status: str, message: str | None, t
             emit(db, owner, "errors", f"errors:{line_id}", "errors", path=path, fade=name, detail=message or "–")
     elif status in ("ok", "partial", "needs_confirm"):
         resolve(db, owner, f"errors:{line_id}")
-    if status in ("ok", "partial", "needs_confirm"):
+    if status in ("ok", "partial", "needs_confirm", "waiting"):
         rows = db.all("""SELECT a.user_id, COUNT(*) AS n FROM issues i JOIN line_members m ON m.id=i.member_id
                          JOIN accounts a ON a.id=m.account_id WHERE i.line_id=? AND i.kind='unmatched'
                          GROUP BY a.user_id""", (line_id,))

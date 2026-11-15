@@ -11,7 +11,7 @@ from urllib.parse import urlencode, urlparse
 
 import httpx
 
-from .. import health
+from .. import health, limits
 from ..models import LIKED, PLAYLIST, SPOTIFY, ApiError, AuthError, Collection, NotSupported, Track
 from .base import Provider, chunks, iso_time, unique
 
@@ -93,6 +93,7 @@ class SpotifyProvider(Provider):
     def _req(self, method: str, path: str, params: dict | None = None, body: Any = None,
              _attempt: int = 0) -> Any:
         url = path if path.startswith("http") else API + path
+        limits.check(SPOTIFY)             # a page of a long read while Spotify asked for a break
         try:
             r = self.http.request(method, url, params=params, json=body,
                                   headers={"Authorization": f"Bearer {self._token()}"})
@@ -113,18 +114,20 @@ class SpotifyProvider(Provider):
                                 "in the admin's Spotify app.")
             raise ApiError(f"Spotify {method} {path}: access denied ({msg})", 403)
         if r.status_code == 429:
+            health.rate_limited(SPOTIFY)
             body_json = {}
             try:
                 body_json = r.json()
             except ValueError:
                 pass
+            wait = limits.retry_after(r.headers)
             if (body_json.get("error") or {}).get("reason") == "QUOTA_EXCEEDED":
-                health.rate_limited(SPOTIFY)
-                raise ApiError("The app's Spotify quota is used up. Try again later.", 429)
-            if _attempt < 5:
-                health.rate_limited(SPOTIFY)
-                time.sleep(min(int(r.headers.get("Retry-After", "5")), 60) + 1)
-                return self._req(method, path, params, body, _attempt + 1)
+                # the instance's Spotify app may not ask for a while: a break for every account
+                raise limits.pause(SPOTIFY, wait, limits.QUOTA)
+            if wait is not None and wait > 60 or _attempt >= 5:
+                raise limits.pause(SPOTIFY, wait if wait and wait > 60 else None)
+            time.sleep((5 if wait is None else wait) + 1)
+            return self._req(method, path, params, body, _attempt + 1)
         if r.status_code >= 500 and _attempt < 3:
             time.sleep(3 * (_attempt + 1))
             return self._req(method, path, params, body, _attempt + 1)

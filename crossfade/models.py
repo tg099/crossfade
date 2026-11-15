@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -74,6 +75,18 @@ class ApiError(Exception):
     def __init__(self, message: str, status: int | None = None):
         super().__init__(message)
         self.status = status
+
+
+class RateLimited(ApiError):
+    """The service asked for a break (a used-up quota, too many requests): nothing is sent to it
+    before `until`. Not a failure of the sync – it waits (see crossfade/limits.py)."""
+
+    def __init__(self, service: str, until: float, reason: str, scope: str = "all"):
+        mins = max(1, round((until - time.time()) / 60))
+        when = f"{mins} min" if mins < 120 else f"{round(mins / 60)} h"
+        super().__init__(f"{SERVICE_NAMES.get(service, service)} needs a break ({reason}). "
+                         f"Crossfade tries again in {when}.", 429)
+        self.service, self.until, self.reason, self.scope = service, until, reason, scope
 
 
 class NotSupported(ApiError):

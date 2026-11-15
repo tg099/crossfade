@@ -155,6 +155,9 @@ Jeder Fade merkt sich, welche Songs er kennt und wo er sie zuletzt gesehen hat.
 - **Sicherheitsgrenze** pro Fade (Standard: mehr als 10 Songs bzw. 20 %): mehr Löschungen als erlaubt → wartet auf
   Bestätigung. Automatische Syncs bestätigen nie. Die Rückfrage lässt sich pro Fade abschalten.
 - Fehlgeschlagene Löschungen werden beim nächsten Sync erneut versucht, statt rückgängig gemacht zu werden.
+- Bittet ein Dienst um eine **Pause** (Kontingent aufgebraucht oder länger als eine Minute warten), schickt Crossfade
+  ihm bis dahin nichts. Fades warten statt zu scheitern, Songs, die dort noch gesucht werden müssen, gelten nicht als
+  „nicht gefunden“, und nach der Pause geht der Sync von allein weiter. Der Systemzustand zeigt die Pause an.
 - Die **Vorschau** zeigt jeden Sync, ohne etwas zu ändern.
 
 ## Mehr als Sync

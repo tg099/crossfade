@@ -17,7 +17,7 @@ from typing import Any
 from . import history, matcher
 from .db import Database
 from .identity import Identity
-from .models import LIBRARY, LIKED, PLAYLIST, SERVICE_NAMES, ApiError, AuthError, Track
+from .models import LIBRARY, LIKED, PLAYLIST, SERVICE_NAMES, ApiError, AuthError, RateLimited, Track
 from .providers.base import Provider
 
 Progress = Callable[[str, int, int], None]
@@ -274,11 +274,16 @@ class Catalog:
         todo = [sid for sid in dict.fromkeys(song_ids) if sid not in there]
         found: dict[int, Track] = {}
         missing: list[dict] = []
+        paused: RateLimited | None = None
         for i, sid in enumerate(todo):
             self._check_stop()
             desc = self.ident.describe(sid)
             self.progress(f"Searching {SERVICE_NAMES[service]} for “{desc.label()}” …", i, len(todo))
-            match = self.ident.find(sid, service, prov)
+            try:
+                match = self.ident.find(sid, service, prov)
+            except RateLimited as e:
+                paused, left = e, len(todo) - i      # the rest waits: what was found is added now
+                break
             if match.accepted("closest"):
                 found[sid], _ = self.ident.in_format(sid, match.track, prov, src.get("yt_format"))
             else:
@@ -299,5 +304,8 @@ class Catalog:
             added += 1
         db.run("UPDATE catalog_sources SET item_count=(SELECT COUNT(*) FROM catalog_items WHERE source_id=?) "
                "WHERE id=?", (src["id"], src["id"]))
-        return {"added": added, "already": len(song_ids) - len(todo), "failed": len(failed),
-                "missing": missing, "target": _source_label(src), "source_id": src["id"]}
+        out = {"added": added, "already": len(song_ids) - len(todo), "failed": len(failed),
+               "missing": missing, "target": _source_label(src), "source_id": src["id"]}
+        if paused:
+            out.update(waiting=left, pause=str(paused), errors=[str(paused)])
+        return out

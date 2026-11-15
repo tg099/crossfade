@@ -11,15 +11,16 @@ import time
 from collections import deque
 from typing import Any
 
+from . import limits
 from .db import Database
-from .models import AuthError
+from .models import AuthError, RateLimited
 
 KEEP_DAYS = 14
 STARTED_AT = time.time()
 
 # the provider methods that talk to the service
 MEASURED = frozenset({"whoami", "collections", "read", "add", "remove", "create_playlist", "delete_playlist",
-                      "remove_copies", "search", "by_isrc", "artist_tracks", "track", "counterpart",
+                      "remove_copies", "search", "search_alt", "by_isrc", "artist_tracks", "track", "counterpart",
                       "audio_version"})
 FIELDS = ("calls", "errors", "auth_errors", "rate_limited", "failed_items", "ms")
 
@@ -42,7 +43,9 @@ def record(service: str, op: str, ms: float, error: BaseException | None = None,
         row["failed_items"] += failed_items
         if rate_limited:
             row["rate_limited"] += 1
-        if isinstance(error, AuthError):
+        if isinstance(error, RateLimited):
+            row["rate_limited"] += 1          # a break the service asked for, not a broken call
+        elif isinstance(error, AuthError):
             row["auth_errors"] += 1
         elif error is not None:
             row["errors"] += 1
@@ -76,7 +79,8 @@ def recent_errors() -> list[dict]:
 
 
 class Measured:
-    """A provider whose service calls are counted. Everything else passes straight through."""
+    """A provider whose service calls are counted. While the service is on a break (limits.py) they
+    stop before anything is sent. Everything else passes straight through."""
 
     __slots__ = ("_inner",)
 
@@ -89,7 +93,10 @@ class Measured:
             return value
         service = self._inner.service
 
+        scope = limits.scope_of(name)
+
         def call(*args, **kwargs):
+            limits.check(service, scope)          # on a break: not asked at all, so not counted
             start = time.monotonic()
             try:
                 out = value(*args, **kwargs)
@@ -99,6 +106,7 @@ class Measured:
                 raise
             failed = len(out) if name in ("add", "remove") and isinstance(out, list) else 0
             record(service, name, (time.monotonic() - start) * 1000, failed_items=failed)
+            limits.went_through(service, scope)
             return out
         return call
 

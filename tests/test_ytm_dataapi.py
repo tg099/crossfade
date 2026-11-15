@@ -1,10 +1,12 @@
 """YouTube Music via the official Data API (Google-code login), and when a failed call is tried again."""
+import time
+
 import httpx
 import pytest
 import requests
 from ytmusicapi.exceptions import YTMusicServerError, YTMusicUserError
 
-from crossfade.models import LIKED, ApiError, AuthError, Track
+from crossfade.models import LIKED, ApiError, AuthError, RateLimited, Track
 from crossfade.providers.ytm import DataApi, YTMProvider, _iso_duration
 
 
@@ -21,7 +23,7 @@ class FakeApi(DataApi):
     def req(self, method, path, params=None, body=None):
         self.calls.append((method, path, params))
         if self.fail_after is not None and len(self.calls) > self.fail_after:
-            raise ApiError("The daily quota of the YouTube API is used up.", 403)
+            raise RateLimited("ytm", time.time() + 3600, "the daily quota of the YouTube API is used up", "data-api")
         return self.responses.get(path, {})
 
 
@@ -55,6 +57,13 @@ def test_like_uses_rate_and_stops_when_quota_is_gone(monkeypatch):
     assert failed == ["v2", "v3", "v4"]
     assert len(api.calls) == 3          # stopped after the quota error
     assert api.calls[0] == ("POST", "/videos/rate", {"id": "v0", "rating": "like"})
+
+
+def test_quota_gone_before_anything_was_done_lets_the_sync_wait(monkeypatch):
+    monkeypatch.setattr("crossfade.providers.ytm.time.sleep", lambda s: None)
+    api = FakeApi(fail_after=0)
+    with pytest.raises(RateLimited):
+        _provider(api).add(LIKED, "", [Track(service="ytm", id="v0", title="t")])
 
 
 # ---------------------------------------------------------------- trying again (or not)

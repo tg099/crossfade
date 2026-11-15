@@ -1,6 +1,6 @@
 // How a fade is doing, in words: the status line, notes per collection, its cover.
 import { SERVICE_NAME } from '#lib/format.ts';
-import type { Line, Member, SortRule } from '#lib/types.ts';
+import type { Line, Member, Service, SortRule } from '#lib/types.ts';
 import type { GlyphName } from './Glyph.svelte';
 import { t, type Key } from './i18n.svelte.ts';
 import { said } from './said.ts';
@@ -65,6 +65,14 @@ export function fadeStatus(l: Line): FadeStatus {
 			return { tone: 'fault', text: t('status.failed'), detail: said(s.message) };
 		case 'needs_confirm':
 			return { tone: 'attention', text: t('status.held', { n: s.held ?? 0 }), detail: t('status.heldDetail') };
+		case 'waiting': {
+			// a service asked for a break: the fade carries on by itself once it is over
+			const p = s.pause;
+			if (p?.until > Date.now() / 1000) {
+				const service = SERVICE_NAME[p.service as Service] ?? p.service;
+				return { tone: 'quiet', text: t('status.waiting', { service }), detail: t('status.waitingDetail', { time: clock(p.until), reason: said(p.reason) }) };
+			}
+		}
 	}
 	if (!l.last_run_at) return { tone: 'quiet', text: t('status.never'), detail: t('status.startWithPreview') };
 	const next = l.next_run_at ? t('status.next', { time: clock(l.next_run_at) }) : t('status.manual');

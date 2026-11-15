@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from .. import backup, updates
+from .. import backup, limits, updates
 from .. import notify as alert
 from ..config import config
 from ..db import Database
@@ -255,6 +255,7 @@ def instance_health(_: dict = Depends(admin_user), db: Database = Depends(db_dep
     hour = health._hour(now)
     w = get_worker()
 
+    breaks = limits.active()
     services = []
     for svc in SERVICES:
         rows = {r["hour"]: r for r in db.all("SELECT * FROM service_stats WHERE service=? AND hour>?",
@@ -276,6 +277,8 @@ def instance_health(_: dict = Depends(admin_user), db: Database = Depends(db_dep
                       for h in range(hour - 23, hour + 1)],
             "accounts": {"connected": acc["connected"] or 0, "failing": acc["failing"] or 0,
                          "expiring": acc["expiring"] or 0, "oldest_check": acc["oldest_check"]},
+            # a break the service asked for (limits.py): nothing is sent to it until then
+            "pause": breaks.get(svc),
         })
     apple = next(s for s in services if s["service"] == APPLE)
     dev = db.setting("apple_dev_token")
@@ -288,9 +291,10 @@ def instance_health(_: dict = Depends(admin_user), db: Database = Depends(db_dep
                   (now - 86400,))
     fades = db.one("""SELECT COUNT(*) AS total, SUM(paused) AS paused,
                       SUM(paused=0 AND last_status IN ('error','auth_error')) AS failing,
-                      SUM(paused=0 AND last_status IN ('needs_confirm','blocked')) AS waiting FROM lines""")
+                      SUM(paused=0 AND last_status IN ('needs_confirm','blocked')) AS waiting,
+                      SUM(paused=0 AND last_status='waiting') AS on_break FROM lines""")
     overdue = db.val("""SELECT COUNT(*) FROM lines WHERE paused=0 AND interval_minutes>0 AND last_run_at IS NOT NULL
-                        AND last_run_at + interval_minutes*60*3 < ?""", (now,))
+                        AND last_status IS NOT 'waiting' AND last_run_at + interval_minutes*60*3 < ?""", (now,))
 
     files = {p.name: p.stat().st_size for p in config.data_dir.glob("crossfade.sqlite3*") if p.is_file()}
     backups = sorted((config.data_dir / "backups").glob("crossfade-*.sqlite3"), key=lambda p: p.stat().st_mtime)
@@ -313,7 +317,7 @@ def instance_health(_: dict = Depends(admin_user), db: Database = Depends(db_dep
                   "running": sum(1 for j in list(w.jobs.values()) if j.get("state") == "running"),
                   "queued": sum(1 for j in list(w.jobs.values()) if j.get("state") == "queued"),
                   "library_jobs": len(w.catalog_jobs),
-                  "fades": {k: fades[k] or 0 for k in ("total", "paused", "failing", "waiting")},
+                  "fades": {k: fades[k] or 0 for k in ("total", "paused", "failing", "waiting", "on_break")},
                   "overdue": overdue or 0},
         "errors": health.recent_errors(),
     }

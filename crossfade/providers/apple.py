@@ -17,7 +17,7 @@ from urllib.parse import parse_qs, urlparse
 
 import httpx
 
-from .. import health
+from .. import health, limits
 from ..models import APPLE, LIBRARY, LIKED, PLAYLIST, ApiError, AuthError, Collection, NotSupported, Track
 from .base import Provider, chunks, unique
 
@@ -114,6 +114,9 @@ class AppleProvider(Provider):
     # ------------------------------------------------------------------ transport
     def _req(self, method: str, path: str, params: dict | None = None, body: Any = None,
              user: bool = True, _attempt: int = 0, patient: bool = True) -> dict:
+        # catalogue calls (without the account) and the library are limited apart
+        scope = limits.LIBRARY if user else limits.SEARCH
+        limits.check(APPLE, scope)
         headers = {"Authorization": f"Bearer {self.dev_tokens.get(force=_attempt == 1)}"}
         if user:
             headers["Media-User-Token"] = self.credentials["media_user_token"]
@@ -131,6 +134,11 @@ class AppleProvider(Provider):
                             "again.")
         if r.status_code == 429:
             health.rate_limited(APPLE)
+            wait = limits.retry_after(r.headers)
+            # an impatient call (a search) has somewhere else to go; the rest waits a little, then
+            # Apple gets a break
+            if patient and (wait is not None and wait > 60 or _attempt >= 5):
+                raise limits.pause(APPLE, wait if wait and wait > 60 else None, scope=scope)
         if (r.status_code >= 500 or (r.status_code == 429 and patient)) and _attempt < 5:
             time.sleep(3 * (_attempt + 1))
             return self._req(method, path, params, body, user, _attempt + 2, patient)
@@ -423,6 +431,7 @@ class AppleProvider(Provider):
         return out
 
     def _itunes_get(self, url: str, params: dict) -> list[dict]:
+        limits.check(APPLE, limits.SEARCH)
         for attempt in range(4):
             with AppleProvider._itunes_lock:
                 wait = AppleProvider._itunes_last + self.ITUNES_GAP - time.time()
@@ -444,7 +453,8 @@ class AppleProvider(Provider):
                 return r.json().get("results") or []
             except ValueError:
                 return []
-        raise ApiError("Apple Music and iTunes Search are overloaded right now (429).", 429)
+        # the catalogue search and the iTunes search both refuse: searching waits, the library doesn't
+        raise limits.pause(APPLE, None, scope=limits.SEARCH)
 
     def _hydrate(self, tracks: list[Track]) -> list[Track]:
         """iTunes results lack the ISRC – fetch the catalog entries (one lookup by id, not throttled)."""

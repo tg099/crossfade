@@ -5,8 +5,8 @@
 	import Glyph from './Glyph.svelte';
 	import Sheet from './Sheet.svelte';
 	import SheetBar from './SheetBar.svelte';
-	import { i18n, num, t } from './i18n.svelte.ts';
-	import { ago, ui } from './ui.svelte.ts';
+	import { i18n, num, t, type Key } from './i18n.svelte.ts';
+	import { ago, clock, ui } from './ui.svelte.ts';
 	import { said } from './said.ts';
 	import { updates } from '#lib/updates.svelte.ts';
 
@@ -20,6 +20,8 @@
 		hours: { hour: number; calls: number; errors: number }[];
 		accounts: { connected: number; failing: number; expiring: number; oldest_check: number | null };
 		notes?: { search_blocked_until: number | null; web_token_expires: number | null };
+		/** a break the service asked for: nothing is sent to it until then */
+		pause: { until: number; reason: string; scope: 'all' | 'search' | 'library' | 'data-api' } | null;
 	};
 	type Health = {
 		now: number;
@@ -43,7 +45,7 @@
 			running: number;
 			queued: number;
 			library_jobs: number;
-			fades: { total: number; paused: number; failing: number; waiting: number };
+			fades: { total: number; paused: number; failing: number; waiting: number; on_break: number };
 			overdue: number;
 		};
 		errors: { ts: number; service: Service; op: string; kind: 'auth' | 'error'; message: string }[];
@@ -88,6 +90,7 @@
 			const fails = s.day.errors;
 			if (s.day.calls >= 20 && fails / s.day.calls > 0.1) out.push(t('health.att.errors', { service: s.name, pct: pct(fails, s.day.calls) }));
 			if (s.notes?.search_blocked_until) out.push(t('health.att.appleBlock', { time: hourLabel(s.notes.search_blocked_until) }));
+			if (s.pause) out.push(t(BREAK[s.pause.scope] ?? 'health.att.break', { service: s.name, time: clock(s.pause.until), reason: said(s.pause.reason) }));
 		}
 		if (h.syncs.fades.failing) out.push(t('health.att.fades', { n: h.syncs.fades.failing }));
 		if (h.syncs.overdue) out.push(t('health.att.overdue', { n: h.syncs.overdue }));
@@ -105,6 +108,7 @@
 		return n ? all.reduce((a, v) => a + v.avg_secs * v.n, 0) / n : null;
 	});
 	const secs = (s: number | null) => (s == null ? '–' : s < 60 ? `${Math.round(s)} s` : `${Math.round(s / 60)} min`);
+	const BREAK: Record<string, Key> = { all: 'health.att.break', search: 'health.att.breakSearch', library: 'health.att.breakLibrary', 'data-api': 'health.att.breakData' };
 	const OPS: Record<string, string> = { read: 'health.op.read', add: 'health.op.add', remove: 'health.op.remove', search: 'health.op.search', whoami: 'health.op.whoami' };
 </script>
 
@@ -178,7 +182,7 @@
 				</dl>
 				<ul class="group spaced">
 					<li class="cell"><span class="grow">{t('health.running')}</span><span class="t-2">{num(h.syncs.running)}{h.syncs.queued ? ` · ${t('health.queued', { n: h.syncs.queued })}` : ''}</span></li>
-					<li class="cell"><span class="grow">{t('health.fades')}</span><span class="t-2">{num(h.syncs.fades.total)}{h.syncs.fades.paused ? ` · ${t('health.paused', { n: h.syncs.fades.paused })}` : ''}</span></li>
+					<li class="cell"><span class="grow">{t('health.fades')}</span><span class="t-2">{num(h.syncs.fades.total)}{h.syncs.fades.paused ? ` · ${t('health.paused', { n: h.syncs.fades.paused })}` : ''}{h.syncs.fades.on_break ? ` · ${t('health.onBreak', { n: h.syncs.fades.on_break })}` : ''}</span></li>
 					<li class="cell"><span class="grow">{t('health.waiting')}</span><span class="t-2">{num(h.syncs.fades.waiting)}</span></li>
 					<li class="cell"><span class="grow">{t('health.libraryJobs')}</span><span class="t-2">{num(h.syncs.library_jobs)}</span></li>
 				</ul>
