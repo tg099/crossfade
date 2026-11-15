@@ -3,25 +3,30 @@
    Colour comes from the music and the lines; one tint: the colour of the line you're looking at. */
 
 :root {
-	/* brand mark (logo + avatars): flat, no gradients; light = white tile, dark = ink tile */
+	/* brand mark (logo + avatars): flat, no gradients; light = white tile, dark = ink tile.
+	   The outgoing curve is grey, the incoming one carries the accent: the fade itself */
 	--mark-bg: #ffffff;
 	--mark-rim: rgb(0 0 0 / 0.09);
-	--mark-a: #c9924a;
-	--mark-b: #4f8c64;
-	--avatar-ink: 46% 44%; /* saturation + lightness of the initial, hue comes per user */
+	--mark-out: #c4c4ca;
+	--mark-in: var(--accent);
+	--avatar-ink: 58% 46%; /* saturation + lightness of the initial, hue comes per user */
+	/* the one accent of the app: logo, focus, today's bar. Everything else stays neutral,
+	   the covers and the fades' own colours carry the colour */
+	--accent: #2b7de1;
+	--accent-text: #1f6fd1;
 	--content-max: 1440px; /* pages grow with the window up to here, then stay centred-left */
-	/* surfaces: sand, a soft paper white instead of clinical grey */
-	--bg: #f7f6f1;
-	--bg-grouped: #efeee7;
+	/* surfaces: one neutral grey ramp, no tint */
+	--bg: #f5f5f7;
+	--bg-grouped: #efeff2;
 	--cell: transparent;
 	/* grouped lists are glass too: the colour behind them shows through, no white boxes */
-	--cell-grouped: rgb(255 255 255 / 0.2);
-	--sheet: rgb(250 249 244 / 0.58);
-	--sheet-solid: #f4f3ed;
-	--sheet-cell: rgb(255 255 255 / 0.42);
+	--cell-grouped: rgb(255 255 255 / 0.5);
+	--sheet: rgb(248 248 250 / 0.6);
+	--sheet-solid: #f5f5f7;
+	--sheet-cell: rgb(255 255 255 / 0.5);
 	--elevated: #ffffff;
-	/* light: a soft warm dim, so the colour behind still shows through the sheet's glass */
-	--scrim: rgb(30 32 26 / 0.5);
+	/* light: a soft dim, so what's behind still shows through the sheet's glass */
+	--scrim: rgb(20 20 26 / 0.42);
 
 	/* glass. On a light page white-on-white disappears, so light glass is clearer (more of the
 	   colour behind comes through) and its edge is drawn by a soft dark rim at the bottom and
@@ -35,64 +40,64 @@
 	--rim-mid: rgb(255 255 255 / 0.55);
 	--rim-lo: rgb(255 255 255 / 0.95);
 	--rim-w: 1.5px;
-	--rim-edge: rgb(52 54 44 / 0.05);
+	--rim-edge: rgb(40 40 48 / 0.05);
 	--sheen: rgb(255 255 255 / 0.32);
 	/* a fine dark line outside the bright rim: that pair is what reads as a glass edge on white */
-	--glass-shadow: 0 0 0 0.5px rgb(52 54 44 / 0.1), 0 1px 2px rgb(34 36 28 / 0.06), 0 12px 30px -10px rgb(34 36 28 / 0.28);
-	--group-rim: inset 0 0 0 1px rgb(255 255 255 / 0.75), 0 0 0 0.5px rgb(52 54 44 / 0.08);
+	--glass-shadow: 0 0 0 0.5px rgb(40 40 48 / 0.1), 0 1px 2px rgb(24 24 30 / 0.06), 0 12px 30px -10px rgb(24 24 30 / 0.28);
+	--group-rim: inset 0 0 0 1px rgb(255 255 255 / 0.75), 0 0 0 0.5px rgb(40 40 48 / 0.08);
 	/* thickness: light caught along the top, a faint shade pooling at the bottom */
-	--glass-depth: inset 0 1.5px 1px -0.5px rgb(255 255 255 / 0.9), inset 0 -8px 16px -10px rgb(52 54 44 / 0.16);
-	--group-shadow: 0 1px 2px rgb(34 36 28 / 0.05), 0 8px 24px -14px rgb(34 36 28 / 0.22);
+	--glass-depth: inset 0 1.5px 1px -0.5px rgb(255 255 255 / 0.9), inset 0 -8px 16px -10px rgb(40 40 48 / 0.16);
+	--group-shadow: 0 1px 2px rgb(24 24 30 / 0.05), 0 8px 24px -14px rgb(24 24 30 / 0.22);
 	--lens: rgb(255 255 255 / 0.7);
 	--thumb: rgb(255 255 255 / 0.92);
 	--sidebar: rgb(255 255 255 / 0.2);
 	/* controls on light glass: buttons and pills are small pieces of glass themselves (raised,
 	   bright rim); fields, search and segmented tracks are wells pressed into the glass */
 	--ctl: rgb(255 255 255 / 0.5);
-	--ctl-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.85), inset 0 -3px 6px -4px rgb(52 54 44 / 0.12), 0 0 0 0.5px rgb(52 54 44 / 0.1), 0 2px 6px -2px rgb(34 36 28 / 0.14);
+	--ctl-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.85), inset 0 -3px 6px -4px rgb(40 40 48 / 0.12), 0 0 0 0.5px rgb(40 40 48 / 0.1), 0 2px 6px -2px rgb(24 24 30 / 0.14);
 	--well: rgb(255 255 255 / 0.28);
-	--well-shadow: inset 0 1px 3px rgb(52 54 44 / 0.1), inset 0 0 0 0.5px rgb(52 54 44 / 0.1), 0 1px 0 rgb(255 255 255 / 0.8);
+	--well-shadow: inset 0 1px 3px rgb(40 40 48 / 0.1), inset 0 0 0 0.5px rgb(40 40 48 / 0.1), 0 1px 0 rgb(255 255 255 / 0.8);
 	/* a filled (tinted) button catches light too */
 	--fill-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), inset 0 -2px 6px -2px rgb(0 0 0 / 0.18);
-	--fill-drop: 0 6px 14px -8px rgb(34 36 28 / 0.3);
+	--fill-drop: 0 6px 14px -8px rgb(24 24 30 / 0.3);
 
 	/* labels */
-	--label: #1d1f1b;
-	--label-2: rgb(54 58 50 / 0.62);
-	--label-3: rgb(54 58 50 / 0.32);
-	--sep: rgb(54 58 50 / 0.14);
-	--fill: rgb(116 120 110 / 0.2);
-	--fill-2: rgb(116 120 110 / 0.15);
-	--fill-3: rgb(116 120 110 / 0.11);
+	--label: #1d1d1f;
+	--label-2: rgb(60 60 67 / 0.64);
+	--label-3: rgb(60 60 67 / 0.32);
+	--sep: rgb(60 60 67 / 0.14);
+	--fill: rgb(120 120 128 / 0.2);
+	--fill-2: rgb(120 120 128 / 0.15);
+	--fill-3: rgb(120 120 128 / 0.11);
 
 	/* system colours */
-	--red: #d95a4e;
-	--red-text: #b23a2f;
-	--orange: #e09a3e;
-	--orange-text: #9c5a12;
-	--green: #3c9a9e;
-	--green-text: #24716f;
+	--red: #e5484d;
+	--red-text: #c42b30;
+	--orange: #f29b26;
+	--orange-text: #a85400;
+	--green: #30a46c;
+	--green-text: #1f7a4d;
 
 	/* tint: neutral until a line provides one */
 	--tint: var(--label);
 	--tint-fill: var(--label);
 	--on-tint: #ffffff;
 	--raw: #8e8e93;
-	/* icon tiles in settings lists: soft, dusty hues that sit with sage and sand */
-	--tile-red: #d0685c;
-	--tile-orange: #cf9346;
-	--tile-green: #5e9a72;
-	--tile-cyan: #4f9aa2;
-	--tile-blue: #5a82b8;
-	--tile-indigo: #7274b4;
-	--tile-violet: #8a74b6;
-	--tile-pink: #c7657f;
-	--tile-grey: #8b8d86;
-	--tile-slate: #696c66;
-	/* single-series chart mark (validated: lightness band + contrast on both surfaces) */
-	--chart: #5e9a72;
+	/* icon tiles in settings lists: clear hues of one lightness, like the fade colours */
+	--tile-red: #e0574f;
+	--tile-orange: #ec962c;
+	--tile-green: #34a35e;
+	--tile-cyan: #1fa2bf;
+	--tile-blue: #2f80df;
+	--tile-indigo: #5b63d3;
+	--tile-violet: #8a5fcc;
+	--tile-pink: #d94f80;
+	--tile-grey: #8e8e93;
+	--tile-slate: #636366;
+	/* single-series chart mark: the accent */
+	--chart: var(--accent);
 
-	--shadow-sheet: 0 0 0 0.5px rgb(52 54 44 / 0.1), 0 20px 60px -12px rgb(34 36 28 / 0.35);
+	--shadow-sheet: 0 0 0 0.5px rgb(40 40 48 / 0.1), 0 20px 60px -12px rgb(24 24 30 / 0.35);
 
 	/* type scale (17px body, Apple text styles) */
 	--f-large: 2.06rem; /* 35 */
@@ -152,26 +157,28 @@
 
 /* dark: follows the system unless the user picked a theme (html[data-theme]) */
 :root[data-theme='dark'] {
-	/* one graphite ramp with a breath of sage: surfaces, lines, fills and text all come from it */
-	--mark-bg: #1a1d1b;
+	/* one neutral graphite ramp: surfaces, lines, fills and text all come from it */
+	--mark-bg: #1c1c1f;
 	--mark-rim: rgb(255 255 255 / 0.1);
-	--mark-a: #ddb06e;
-	--mark-b: #7cb48e;
-	--avatar-ink: 50% 70%;
-	--bg: #121413;
-	--bg-grouped: #121413;
+	--mark-out: #5a5a61;
+	--mark-in: var(--accent);
+	--accent: #5fa1f3;
+	--accent-text: #7ab2f5;
+	--avatar-ink: 66% 70%;
+	--bg: #111113;
+	--bg-grouped: #111113;
 	--cell: transparent;
-	--cell-grouped: rgb(233 236 230 / 0.05);
-	--sheet: rgb(28 31 29 / 0.86);
-	--sheet-solid: #1c1f1d;
-	--sheet-cell: rgb(233 236 230 / 0.05);
-	--elevated: #262a27;
-	--glass-bg: rgb(40 44 41 / 0.5);
-	--glass-strong: rgb(34 37 35 / 0.78);
-	--rim-hi: rgb(233 236 230 / 0.18);
-	--rim-lo: rgb(233 236 230 / 0.06);
-	--rim-edge: rgb(233 236 230 / 0.08);
-	--sheen: rgb(233 236 230 / 0.06);
+	--cell-grouped: rgb(235 235 245 / 0.06);
+	--sheet: rgb(30 30 33 / 0.86);
+	--sheet-solid: #1e1e21;
+	--sheet-cell: rgb(235 235 245 / 0.06);
+	--elevated: #28282c;
+	--glass-bg: rgb(44 44 48 / 0.5);
+	--glass-strong: rgb(36 36 40 / 0.78);
+	--rim-hi: rgb(235 235 245 / 0.18);
+	--rim-lo: rgb(235 235 245 / 0.06);
+	--rim-edge: rgb(235 235 245 / 0.08);
+	--sheen: rgb(235 235 245 / 0.06);
 	--glass-shadow: 0 1px 2px rgb(0 0 0 / 0.28), 0 12px 32px -14px rgb(0 0 0 / 0.5);
 	--glass-depth: inset 0 0 0 0 transparent;
 	--rim-mid: transparent;
@@ -183,50 +190,52 @@
 	--well-shadow: inset 0 0 0 0.5px var(--rim-edge);
 	--fill-shadow: 0 0 0 0 transparent;
 	--fill-drop: 0 0 0 transparent;
-	--group-rim: inset 0 0 0 1px rgb(233 236 230 / 0.07);
+	--group-rim: inset 0 0 0 1px rgb(235 235 245 / 0.07);
 	--group-shadow: 0 0 0 transparent;
-	--lens: rgb(233 236 230 / 0.12);
-	--thumb: rgb(233 236 230 / 0.22);
-	--sidebar: rgb(24 27 25 / 0.55);
-	--label: #e9ebe6;
-	--label-2: rgb(233 236 230 / 0.6);
-	--label-3: rgb(233 236 230 / 0.32);
-	--sep: rgb(233 236 230 / 0.09);
-	--fill: rgb(128 136 130 / 0.32);
-	--fill-2: rgb(128 136 130 / 0.26);
-	--fill-3: rgb(128 136 130 / 0.18);
-	--red: #e8695d;
-	--red-text: #f08a7f;
-	--orange: #e8a650;
-	--orange-text: #f0bb73;
-	--green: #55b2b5;
-	--green-text: #72c6c8;
+	--lens: rgb(235 235 245 / 0.12);
+	--thumb: rgb(235 235 245 / 0.22);
+	--sidebar: rgb(26 26 29 / 0.55);
+	--label: #f2f2f4;
+	--label-2: rgb(235 235 245 / 0.62);
+	--label-3: rgb(235 235 245 / 0.32);
+	--sep: rgb(235 235 245 / 0.1);
+	--fill: rgb(120 120 128 / 0.32);
+	--fill-2: rgb(120 120 128 / 0.26);
+	--fill-3: rgb(120 120 128 / 0.18);
+	--red: #ec5a5e;
+	--red-text: #ff8b8e;
+	--orange: #f5a524;
+	--orange-text: #ffc061;
+	--green: #3dbf7f;
+	--green-text: #5fd49c;
 	--on-tint: #000000;
-	--chart: #7cb48e;
-	--shadow-sheet: 0 0 0 0.5px rgb(233 236 230 / 0.06), 0 20px 60px -12px rgb(0 0 0 / 0.6);
+	--chart: var(--accent);
+	--shadow-sheet: 0 0 0 0.5px rgb(235 235 245 / 0.06), 0 20px 60px -12px rgb(0 0 0 / 0.6);
 	color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
 	:root:not([data-theme='light']) {
-		--mark-bg: #1a1d1b;
+		--mark-bg: #1c1c1f;
 		--mark-rim: rgb(255 255 255 / 0.1);
-		--mark-a: #ddb06e;
-		--mark-b: #7cb48e;
-		--avatar-ink: 50% 70%;
-		--bg: #121413;
-		--bg-grouped: #121413;
+		--mark-out: #5a5a61;
+		--mark-in: var(--accent);
+		--accent: #5fa1f3;
+		--accent-text: #7ab2f5;
+		--avatar-ink: 66% 70%;
+		--bg: #111113;
+		--bg-grouped: #111113;
 		--cell: transparent;
-		--cell-grouped: rgb(233 236 230 / 0.05);
-		--sheet: rgb(28 31 29 / 0.86);
-		--sheet-solid: #1c1f1d;
-		--sheet-cell: rgb(233 236 230 / 0.05);
-		--elevated: #262a27;
-		--glass-bg: rgb(40 44 41 / 0.5);
-		--glass-strong: rgb(34 37 35 / 0.78);
-		--rim-hi: rgb(233 236 230 / 0.18);
-		--rim-lo: rgb(233 236 230 / 0.06);
-		--rim-edge: rgb(233 236 230 / 0.08);
-		--sheen: rgb(233 236 230 / 0.06);
+		--cell-grouped: rgb(235 235 245 / 0.06);
+		--sheet: rgb(30 30 33 / 0.86);
+		--sheet-solid: #1e1e21;
+		--sheet-cell: rgb(235 235 245 / 0.06);
+		--elevated: #28282c;
+		--glass-bg: rgb(44 44 48 / 0.5);
+		--glass-strong: rgb(36 36 40 / 0.78);
+		--rim-hi: rgb(235 235 245 / 0.18);
+		--rim-lo: rgb(235 235 245 / 0.06);
+		--rim-edge: rgb(235 235 245 / 0.08);
+		--sheen: rgb(235 235 245 / 0.06);
 		--glass-shadow: 0 1px 2px rgb(0 0 0 / 0.28), 0 12px 32px -14px rgb(0 0 0 / 0.5);
 		--glass-depth: inset 0 0 0 0 transparent;
 		--rim-mid: transparent;
@@ -238,27 +247,27 @@
 		--well-shadow: inset 0 0 0 0.5px var(--rim-edge);
 		--fill-shadow: 0 0 0 0 transparent;
 		--fill-drop: 0 0 0 transparent;
-		--group-rim: inset 0 0 0 1px rgb(233 236 230 / 0.07);
+		--group-rim: inset 0 0 0 1px rgb(235 235 245 / 0.07);
 		--group-shadow: 0 0 0 transparent;
-		--lens: rgb(233 236 230 / 0.12);
-		--thumb: rgb(233 236 230 / 0.22);
-		--sidebar: rgb(24 27 25 / 0.55);
-		--label: #e9ebe6;
-		--label-2: rgb(233 236 230 / 0.6);
-		--label-3: rgb(233 236 230 / 0.32);
-		--sep: rgb(233 236 230 / 0.09);
-		--fill: rgb(128 136 130 / 0.32);
-		--fill-2: rgb(128 136 130 / 0.26);
-		--fill-3: rgb(128 136 130 / 0.18);
-		--red: #e8695d;
-		--red-text: #f08a7f;
-		--orange: #e8a650;
-		--orange-text: #f0bb73;
-		--green: #55b2b5;
-		--green-text: #72c6c8;
+		--lens: rgb(235 235 245 / 0.12);
+		--thumb: rgb(235 235 245 / 0.22);
+		--sidebar: rgb(26 26 29 / 0.55);
+		--label: #f2f2f4;
+		--label-2: rgb(235 235 245 / 0.62);
+		--label-3: rgb(235 235 245 / 0.32);
+		--sep: rgb(235 235 245 / 0.1);
+		--fill: rgb(120 120 128 / 0.32);
+		--fill-2: rgb(120 120 128 / 0.26);
+		--fill-3: rgb(120 120 128 / 0.18);
+		--red: #ec5a5e;
+		--red-text: #ff8b8e;
+		--orange: #f5a524;
+		--orange-text: #ffc061;
+		--green: #3dbf7f;
+		--green-text: #5fd49c;
 		--on-tint: #000000;
-		--chart: #7cb48e;
-		--shadow-sheet: 0 0 0 0.5px rgb(233 236 230 / 0.06), 0 20px 60px -12px rgb(0 0 0 / 0.6);
+		--chart: var(--accent);
+		--shadow-sheet: 0 0 0 0.5px rgb(235 235 245 / 0.06), 0 20px 60px -12px rgb(0 0 0 / 0.6);
 		color-scheme: dark;
 	}
 }
@@ -387,7 +396,7 @@ button {
 	-webkit-tap-highlight-color: transparent;
 }
 :focus-visible {
-	outline: 3px solid color-mix(in srgb, var(--tint-fill) 70%, var(--mark-b));
+	outline: 3px solid color-mix(in srgb, var(--tint-fill) 70%, var(--accent));
 	outline-offset: 2px;
 	border-radius: 999px;
 }
@@ -757,8 +766,8 @@ a.cell:active {
 	color: var(--orange-text);
 }
 .tag.accent {
-	background: color-mix(in srgb, var(--chart) 16%, transparent);
-	color: color-mix(in srgb, var(--chart) 70%, var(--label));
+	background: color-mix(in srgb, var(--accent) 14%, transparent);
+	color: var(--accent-text);
 }
 .tag.bad {
 	background: color-mix(in srgb, var(--red) 14%, transparent);
@@ -806,27 +815,6 @@ a.cell:active {
 	color: var(--tint);
 	font-size: var(--f-sub);
 	font-weight: 600;
-}
-
-/* ------------------------------------------------------------ ambient colour behind a page */
-.ambient {
-	position: absolute;
-	inset: 0;
-	pointer-events: none;
-	/* colour lives behind the title and is gone before the content: the cards sit on calm ground,
-	   the covers carry the colour below */
-	--ambient: 16%;
-	-webkit-mask-image: linear-gradient(to bottom, #000 0, rgb(0 0 0 / 0.4) 180px, transparent 420px);
-	mask-image: linear-gradient(to bottom, #000 0, rgb(0 0 0 / 0.4) 180px, transparent 420px);
-}
-:root[data-theme='dark'] .ambient {
-	/* on dark the two hues mix to olive quickly: keep it a faint light, not a wash */
-	--ambient: 12%;
-}
-@media (prefers-color-scheme: dark) {
-	:root:not([data-theme='light']) .ambient {
-		--ambient: 12%;
-	}
 }
 
 .sr {

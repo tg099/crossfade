@@ -19,7 +19,7 @@ export const TABS: { id: Tab; label: Key; icon: GlyphName; path: string }[] = [
 
 // ---------------------------------------------------------------- appearance
 export type Theme = 'system' | 'light' | 'dark';
-const BG = { light: '#f7f6f1', dark: '#121413' };
+const BG = { light: '#f5f5f7', dark: '#111113' };
 const CACHE = 'crossfade.prefs'; // last known theme/lang, so the first paint is right before the user is loaded
 
 /** html[data-theme] forces a scheme; without it the CSS follows prefers-color-scheme */
@@ -430,30 +430,6 @@ export function flowIcon(a: { role: string }, b: { role: string }): 'right' | 'l
 	const fwd = a.role !== 'receive' && b.role !== 'send';
 	const back = b.role !== 'receive' && a.role !== 'send';
 	return fwd && !back ? 'right' : back && !fwd ? 'left' : 'both';
-}
-
-/** brand colours (logo + background of every page that isn't about one fade) */
-/** sage and sand: the two colours of the logo and the soft glow behind page titles */
-export const BRAND = ['#5e9a72', '#e0b77a'];
-
-/** soft colour fields behind a page, from a few colours */
-export function ambient(colors: string[]): string {
-	// spread over the whole window (it stays put while the page scrolls)
-	const spots = [
-		['16%', '6%', '62%'],
-		['86%', '10%', '56%'],
-		['62%', '62%', '64%'],
-		['10%', '92%', '58%']
-	];
-	// fewer colours than spots: repeat the given ones instead of mixing in unrelated hues –
-	// three or four clashing colours at once is what makes a page look like a rainbow
-	const base = colors.length ? colors : BRAND;
-	return (
-		spots
-			.map((_, i) => base[i % base.length])
-			.map((c, i) => `radial-gradient(${spots[i][2]} 46% at ${spots[i][0]} ${spots[i][1]}, color-mix(in srgb, ${c} var(--ambient, 22%), transparent), transparent 70%)`)
-			.join(', ') || 'none'
-	);
 }
 
 export async function copyText(text: string) {

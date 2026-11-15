@@ -17,7 +17,7 @@
 	import RemoveSheet from '../library/RemoveSheet.svelte';
 	import SourcesSheet from '../library/SourcesSheet.svelte';
 	import { catalog as c, type Avail, type Facet, type Sort, type Special } from '../library/catalog.svelte.ts';
-	import { BRAND, ago, mmss, nav, ui } from '../ui.svelte.ts';
+	import { ago, mmss, nav, ui } from '../ui.svelte.ts';
 
 	// Everything in your collections on all services, as one list: search, filter, find gaps, and
 	// add or remove songs in bulk. A scan reads the collections; Crossfade never changes anything
@@ -166,7 +166,7 @@
 {/snippet}
 
 <div class="lib" bind:this={root}>
-	<Page title={t('tab.library')} {actions} inline glow={BRAND}>
+	<Page title={t('tab.library')} {actions} inline>
 		<div class="body">
 			{#if job}
 				<div class="card glass job" style:--p={pct}>

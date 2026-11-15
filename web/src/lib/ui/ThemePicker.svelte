@@ -122,22 +122,16 @@
 		overflow: hidden;
 	}
 	.screen.light {
-		background:
-			radial-gradient(80% 40% at 20% 0%, rgb(120 175 135 / 0.42), transparent 70%),
-			radial-gradient(70% 40% at 100% 10%, rgb(235 195 135 / 0.45), transparent 70%),
-			#f7f6f1;
-		--ink: rgb(28 26 25 / 0.75);
-		--soft: rgb(28 26 25 / 0.14);
+		background: #f5f5f7;
+		--ink: rgb(29 29 31 / 0.75);
+		--soft: rgb(29 29 31 / 0.12);
 		--glass: rgb(255 255 255 / 0.75);
 	}
 	.screen.dark {
-		background:
-			radial-gradient(80% 40% at 20% 0%, rgb(110 170 130 / 0.32), transparent 70%),
-			radial-gradient(70% 40% at 100% 10%, rgb(225 180 115 / 0.26), transparent 70%),
-			#121413;
-		--ink: rgb(246 244 241 / 0.8);
-		--soft: rgb(246 244 241 / 0.16);
-		--glass: rgb(70 68 68 / 0.75);
+		background: #111113;
+		--ink: rgb(242 242 244 / 0.8);
+		--soft: rgb(242 242 244 / 0.14);
+		--glass: rgb(58 58 62 / 0.75);
 	}
 	.bar {
 		width: 55%;
@@ -148,7 +142,7 @@
 	.card {
 		aspect-ratio: 2.1;
 		border-radius: 8px;
-		background: #5e9a72;
+		background: #2b7de1;
 	}
 	.trow {
 		display: flex;

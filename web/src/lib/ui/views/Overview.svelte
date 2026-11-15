@@ -17,7 +17,7 @@
 	import { fadeCovers, fadeIcon, fadeStatus, toneColor } from '../fade.ts';
 	import { i18n, num, t, type Key } from '../i18n.svelte.ts';
 	import { tintVars } from '../tint.ts';
-	import { BRAND, ago, nav, ui } from '../ui.svelte.ts';
+	import { ago, nav, ui } from '../ui.svelte.ts';
 
 	// the title names the day: weekday small above, the date large (short enough for one line)
 	const now = new Date();
@@ -188,7 +188,7 @@
 	{/if}
 {/snippet}
 
-<Page title={t('tab.home')} large={false} glow={BRAND}>
+<Page title={t('tab.home')} large={false}>
 	{#snippet hero()}
 		<header class="hello">
 			<p class="date t-sub">{weekday}</p>

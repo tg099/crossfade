@@ -14,7 +14,7 @@
 	import { fadeCovers, fadeIcon, fadeStatus } from '../fade.ts';
 	import { t } from '../i18n.svelte.ts';
 	import { Reorder } from '../reorder.svelte.ts';
-	import { BRAND, flowIcon, nav, ui } from '../ui.svelte.ts';
+	import { flowIcon, nav, ui } from '../ui.svelte.ts';
 
 	// Your fades in your own order ("Reorder" shows handles; the first fade comes first everywhere),
 	// and the fades friends share with you on a tab of their own.
@@ -67,7 +67,7 @@
 	</span>
 {/snippet}
 
-<Page title={t('tab.fades')} avatar inline glow={BRAND}>
+<Page title={t('tab.fades')} avatar inline>
 	{#snippet actions()}
 		{#if own.length > 1 && tab === 'mine'}
 			<button class="gbtn glass lq" class:tint={ordering} onclick={() => (ordering = !ordering)} aria-pressed={ordering}>

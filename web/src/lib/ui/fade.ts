@@ -89,14 +89,14 @@ export const toneColor: Record<Tone, string> = {
 
 /** accessible names of the fade colours (format.ts LINE_COLORS) */
 export const COLOR_KEY: Record<string, Key> = {
-	'#4A7FB8': 'color.blue',
-	'#CF9F3E': 'color.mustard',
-	'#BC5E8C': 'color.magenta',
-	'#5E9A72': 'color.green',
-	'#8A9449': 'color.olive',
-	'#3F999B': 'color.teal',
-	'#8270B4': 'color.violet',
-	'#A3744C': 'color.brown'
+	'#2F82D6': 'color.blue',
+	'#E8A127': 'color.mustard',
+	'#CD4686': 'color.magenta',
+	'#32A155': 'color.green',
+	'#849F2E': 'color.olive',
+	'#00A0A6': 'color.teal',
+	'#805FCA': 'color.violet',
+	'#B86838': 'color.brown'
 };
 
 /** what a receiving collection takes, in one line: "Only: relaxed, calm · Adele" */

@@ -2,7 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import Avatar from './Avatar.svelte';
 	import NavBar from './NavBar.svelte';
-	import { ambient, ui } from './ui.svelte.ts';
+	import { ui } from './ui.svelte.ts';
 
 	// A page that scrolls edge to edge under floating glass. Large title (or a custom hero, its
 	// title marked with data-title) hands over to the floating title as it scrolls away.
@@ -12,9 +12,7 @@
 		back,
 		actions,
 		hero,
-		backdrop,
 		avatar = false,
-		glow = [],
 		inline = false,
 		chrome = true,
 		top = 0,
@@ -25,10 +23,7 @@
 		back?: { label: string; run: () => void };
 		actions?: Snippet;
 		hero?: Snippet;
-		/** colour that stays put behind the scrolling content, so the glass always has something to bend */
-		backdrop?: Snippet;
 		avatar?: boolean;
-		glow?: string[];
 		/** phone: the actions sit in the large title's row (few, small ones), not in a bar above it */
 		inline?: boolean;
 		/** false: no bar at all – something else floats at the top (the search field on a phone) */
@@ -101,9 +96,6 @@
 </script>
 
 <div class="pg">
-	<div class="backdrop" aria-hidden="true">
-		{#if backdrop}{@render backdrop()}{:else if glow.length}<span class="ambient" style:background={ambient(glow)}></span>{/if}
-	</div>
 	{#if chrome}
 		<NavBar {title} solid={solid || (!large && !hero)} {back} actions={inlineActions && !solid ? undefined : actions} />
 	{:else}
@@ -129,13 +121,6 @@
 		position: absolute;
 		inset: 0;
 		background: var(--bg);
-	}
-	/* fixed to the page, not the content: scrolling never runs out of colour */
-	.backdrop {
-		position: absolute;
-		inset: 0;
-		overflow: hidden;
-		pointer-events: none;
 	}
 	.scroller {
 		position: absolute;

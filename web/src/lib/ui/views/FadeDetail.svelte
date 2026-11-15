@@ -21,7 +21,7 @@
 	import { i18n, num, t } from '../i18n.svelte.ts';
 	import { ignoreIssue, loadIssues, resolveIssue, restoreIssue, unignore } from '../issues.ts';
 	import { tintVars } from '../tint.ts';
-	import { BRAND, flowIcon, intervalLabel, ui } from '../ui.svelte.ts';
+	import { flowIcon, intervalLabel, ui } from '../ui.svelte.ts';
 
 	let { id, back }: { id: number; back?: { label: string; run: () => void } } = $props();
 
@@ -351,7 +351,7 @@
 
 {#if fade && status}
 	<div class="tinted wrap" style={tintVars(fade.color)}>
-		<Page title={fade.name} large={false} {back} glow={BRAND}>
+		<Page title={fade.name} large={false} {back}>
 			{#snippet actions()}
 				{#if fade.mine}
 					<button class="gbtn glass lq" onclick={() => ui.edit(fade.id)}>{t('common.edit')}</button>

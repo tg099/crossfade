@@ -437,6 +437,20 @@ MIGRATIONS: list[str] = [
         WHEN '#8C5A2B' THEN '#A3744C'
         ELSE color END;
     """,
+    # 25: clear fade colours on neutral surfaces (the dusty ones of 24 looked muddy); move stored
+    #     fades along again. Own picks stay as they are.
+    """
+    UPDATE lines SET color = CASE upper(color)
+        WHEN '#4A7FB8' THEN '#2F82D6'
+        WHEN '#CF9F3E' THEN '#E8A127'
+        WHEN '#BC5E8C' THEN '#CD4686'
+        WHEN '#5E9A72' THEN '#32A155'
+        WHEN '#8A9449' THEN '#849F2E'
+        WHEN '#3F999B' THEN '#00A0A6'
+        WHEN '#8270B4' THEN '#805FCA'
+        WHEN '#A3744C' THEN '#B86838'
+        ELSE color END;
+    """,
 ]
 
 

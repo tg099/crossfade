@@ -2,8 +2,8 @@
 	let { size = 32 }: { size?: number } = $props();
 </script>
 
-<!-- Crossfade: a sand curve fades out while a sage one fades in; flat colours, no gradients.
-     The wide tile-coloured stroke under the sage curve cuts a gap into the sand one where they cross.
+<!-- Crossfade: a grey curve fades out while one in the accent fades in; flat colours, no gradients.
+     The wide tile-coloured stroke under the incoming curve cuts a gap into the outgoing one where they cross.
      Colours follow the theme (--mark-* in app.css): white tile in light mode, ink tile in dark mode. -->
 <svg class="logo" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
 	<rect class="tile" x="0.25" y="0.25" width="31.5" height="31.5" rx="8.75"/>
@@ -29,13 +29,13 @@
 		stroke-linecap: round;
 	}
 	.out {
-		stroke: var(--mark-a);
+		stroke: var(--mark-out);
 	}
 	.gap {
 		stroke: var(--mark-bg);
 		stroke-width: 6.6;
 	}
 	.in {
-		stroke: var(--mark-b);
+		stroke: var(--mark-in);
 	}
 </style>

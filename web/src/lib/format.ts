@@ -12,17 +12,17 @@ export const SERVICE_NAME: Record<Service, string> = {
 	deezer: 'Deezer'
 };
 
-/** the fade colours, soft and dusty so they sit with sage and sand; names in fade.ts COLOR_KEY.
- *  Changing them needs a migration that moves stored fades along (db.py, schema 24). */
+/** the fade colours: clear hues of one lightness, so no fade looks louder than another; names in
+ *  fade.ts COLOR_KEY. Changing them needs a migration that moves stored fades along (db.py, schema 25). */
 export const LINE_COLORS = [
-	{ hex: '#4A7FB8' },
-	{ hex: '#CF9F3E' },
-	{ hex: '#BC5E8C' },
-	{ hex: '#5E9A72' },
-	{ hex: '#8A9449' },
-	{ hex: '#3F999B' },
-	{ hex: '#8270B4' },
-	{ hex: '#A3744C' }
+	{ hex: '#2F82D6' },
+	{ hex: '#E8A127' },
+	{ hex: '#CD4686' },
+	{ hex: '#32A155' },
+	{ hex: '#849F2E' },
+	{ hex: '#00A0A6' },
+	{ hex: '#805FCA' },
+	{ hex: '#B86838' }
 ];
 
 /** a link to a track in its service */

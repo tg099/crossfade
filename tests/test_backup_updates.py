@@ -237,15 +237,21 @@ def test_restore_waits_while_something_runs():
     w.end_restore()
 
 
-def test_fades_move_to_the_softer_colours(tmp_path):
+@pytest.mark.parametrize("version, fades", [
+    # from before the dusty colours: both moves run, one after the other
+    (23, (("Old blue", "#0072CE"), ("Lower case", "#c4007a"), ("Own pick", "#123456"))),
+    # from the dusty colours
+    (24, (("Old blue", "#4A7FB8"), ("Lower case", "#bc5e8c"), ("Own pick", "#123456"))),
+])
+def test_fades_move_to_the_clear_colours(tmp_path, version, fades):
     f = tmp_path / "crossfade.sqlite3"
     c = sqlite3.connect(f)
-    c.executescript("".join(MIGRATIONS[:23]) + "PRAGMA user_version=23;")
+    c.executescript("".join(MIGRATIONS[:version]) + f"PRAGMA user_version={version};")
     c.execute("INSERT INTO users(username,display_name,password_hash,is_admin,created_at) VALUES('u','U','x',1,0)")
-    for name, color in (("Old blue", "#0072CE"), ("Lower case", "#c4007a"), ("Own pick", "#123456")):
+    for name, color in fades:
         c.execute("INSERT INTO lines(user_id,name,color,created_at,updated_at) VALUES(1,?,?,0,0)", (name, color))
     c.commit()
     c.close()
     db = Database(f)
     assert dict((r["name"], r["color"]) for r in db.all("SELECT name, color FROM lines")) == {
-        "Old blue": "#4A7FB8", "Lower case": "#BC5E8C", "Own pick": "#123456"}
+        "Old blue": "#2F82D6", "Lower case": "#CD4686", "Own pick": "#123456"}

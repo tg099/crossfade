@@ -11,7 +11,7 @@
 	import { fadeCovers, fadeIcon } from '../fade.ts';
 	import { num, t } from '../i18n.svelte.ts';
 	import { catalog as c } from '../library/catalog.svelte.ts';
-	import { BRAND, nav, ui } from '../ui.svelte.ts';
+	import { nav, ui } from '../ui.svelte.ts';
 
 	// Results only. You type in the search field of the tab bar (phone) or the sidebar (desktop),
 	// which is focused the moment you tap it. Songs come from your library.
@@ -45,7 +45,7 @@
 
 <!-- phone: the search field floats at the top while you search (the keyboard never covers it);
      results start right below it -->
-<Page title={t('tab.search')} avatar glow={BRAND} large={!ui.phone} chrome={!ui.phone} top={68}>
+<Page title={t('tab.search')} avatar large={!ui.phone} chrome={!ui.phone} top={68}>
 	{#if !q}
 		<div class="empty">
 			<span class="ic glass"><Glyph name="search" size={30} weight={1.8} /></span>
