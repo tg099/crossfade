@@ -171,6 +171,9 @@ Jeder Fade merkt sich, welche Songs er kennt und wo er sie zuletzt gesehen hat.
   geratene Likes lassen sich im Fade geraderücken (**Likes in Like-Reihenfolge bringen**): Crossfade zeigt pro
   Like-Sammlung, wie viele Songs anders stehen, und verschiebt die ausgewählten, indem es sie einzeln entliked und
   gleich wieder liked, ohne dass einer verloren geht.
+  Eine Playlist, die nur Likes empfängt (auch deine eigene im Fade eines Freundes), lässt sich genauso ordnen, der
+  früheste Like oben: Songs, die falsch stehen, werden entfernt und hinten wieder angefügt. Das kann nur, wem die
+  Playlist gehört.
 - **Zeitreise:** Jedes Mal, wenn Crossfade eine Sammlung komplett liest, merkt es sich ihren Inhalt, aber nur wenn
   sich etwas geändert hat. In der Mediathek (Uhr-Symbol) oder bei einer Sammlung im Fade wählst du einen Zeitpunkt,
   siehst, was seitdem verschwunden und dazugekommen ist, und holst einzelne Songs zurück oder setzt die Sammlung

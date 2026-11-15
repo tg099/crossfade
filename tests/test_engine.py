@@ -784,7 +784,7 @@ def test_reorder_likes_by_like_date_moving_as_few_as_possible(env, monkeypatch):
     lid, apple, a = reorder_env(env, monkeypatch)
     r = reorder(env, lid, False, {apple})
     assert r.status == "preview" and r.summary["reorder"] == [
-        {"member_id": apple, "service": APPLE, "name": "apple-liked", "count": 4, "moves": 2}]
+        {"member_id": apple, "service": APPLE, "kind": LIKED, "name": "apple-liked", "count": 4, "moves": 2}]
     assert a.keys() == ["blind", "bohem", "hello", "lucky"] and not [c for c in a.calls if c[0] == "remove"]
     a.calls.clear()
     r = reorder(env, lid, True, {apple})
@@ -811,6 +811,35 @@ def test_reorder_never_loses_a_song(env, monkeypatch):
     r = sync(env, lid)
     assert r.status == "ok", r.message
     assert "hello" in a.keys() and P(env, YTM).keys() == ["blind", "bohem", "hello", "lucky"]
+
+
+def test_reorder_a_receiving_playlist_by_like_date(env, monkeypatch):
+    """A playlist that receives likes reads oldest like first, like songs are added to it. Songs the
+    person put there themselves stay after the song above them."""
+    monkeypatch.setattr("crossfade.engine.time.sleep", lambda s: None)
+    s, y, a = P(env, SPOTIFY), P(env, YTM), P(env, APPLE)
+    s.put(LIKED, "", "lucky", "blind")
+    s.dates = {"spotify_lucky": 50, "spotify_blind": 30}
+    y.put(LIKED, "", "hello", "bohem")
+    y.dates = {"ytm_hello": 40, "ytm_bohem": 20}
+    a.put(PLAYLIST, "pl", "lucky", "blind", "levit", "hello", "bohem")
+    lid = make_line(env, [(YTM, LIKED, "", "both"), (SPOTIFY, LIKED, "", "both"), (APPLE, PLAYLIST, "pl", "receive")])
+    assert sync(env, lid).status == "ok"
+    pl = env[0].val("SELECT id FROM line_members WHERE line_id=? AND kind=?", (lid, PLAYLIST))
+    r = reorder(env, lid, False, None)
+    assert [x["kind"] for x in r.summary["reorder"]] == [LIKED, LIKED, PLAYLIST]
+    assert r.summary["reorder"][2]["moves"] == 4
+    a.calls.clear()
+    r = reorder(env, lid, True, {pl})
+    assert r.status == "ok", r.message
+    assert [key_of(t) for t in a.cols[(PLAYLIST, "pl")].values()] == ["bohem", "blind", "levit", "hello", "lucky"]
+    assert ("remove", PLAYLIST, "pl", ["bohem"]) not in a.calls and r.summary["moved"] == 4
+    assert reorder(env, lid, False, {pl}).summary["reorder"][0]["moves"] == 0
+    r = sync(env, lid)
+    assert r.status == "ok" and r.summary["remove"] == 0 and r.summary["add"] == 0
+    # a playlist that sends keeps the person's own order
+    env[0].run("UPDATE line_members SET role='both' WHERE id=?", (pl,))
+    assert [x["kind"] for x in reorder(env, lid, False, None).summary["reorder"]] == [LIKED, LIKED]
 
 
 def test_like_dates_are_kept_when_a_service_dates_a_like_anew(env):

@@ -12,8 +12,9 @@ from pydantic import BaseModel, Field, field_validator
 from .. import matcher, sorting
 from .. import notify as alert
 from ..db import Database
+from ..engine import LineSync
 from ..identity import Identity
-from ..models import LIKED, PLAYLIST, SERVICE_NAMES, SERVICES, ApiError, AuthError, Track
+from ..models import PLAYLIST, SERVICE_NAMES, SERVICES, ApiError, AuthError, Track
 from ..providers import build_provider
 from ..sharing import VISIBLE, are_friends, notify, participants, public_person, visible_line
 from ..worker import get_worker
@@ -440,22 +441,24 @@ def run_line(line_id: int, body: RunBody, user: dict = Depends(current_user), db
 
 class ReorderBody(BaseModel):
     preview: bool = True
-    member_ids: list[int] | None = None   # default: all of the person's liked collections in the fade
+    member_ids: list[int] | None = None   # default: all of the person's collections in the fade that can be put in order
 
 
 @router.post("/{line_id}/reorder")
 def reorder_line(line_id: int, body: ReorderBody, user: dict = Depends(current_user), db: Database = Depends(db_dep)):
-    """Put the person's liked collections of this fade in the order the songs were liked. The result
+    """Put the person's liked collections (and receiving playlists) of this fade in the order the
+    songs were liked. The result
     (preview or done) comes as a "job" event with `finished.reorder`."""
     _visible_or_404(db, line_id, user["id"])
     members = _members(db, line_id)
     for m in members:
         if not m["account_connected"]:
             raise HTTPException(400, f"{SERVICE_NAMES[m['service']]} is not connected.")
-    own = {m["id"] for m in members if m["kind"] == LIKED and m["user_id"] == user["id"]}
+    # only the person's own collections, also in a friend's fade; never a friend's playlist
+    own = {m["id"] for m in members if m["user_id"] == user["id"] and LineSync.reorderable(m, members)}
     wanted = own if body.member_ids is None else own & set(body.member_ids)
     if not wanted:
-        raise HTTPException(400, "This fade has none of your liked collections.")
+        raise HTTPException(400, "This fade has none of your collections that can be put in order.")
     if not get_worker().start_reorder(line_id, user["id"], apply=not body.preview, member_ids=wanted):
         raise HTTPException(409, "This fade is syncing right now.")
     return {"ok": True}

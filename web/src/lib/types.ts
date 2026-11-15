@@ -139,10 +139,11 @@ export interface Job {
 	live_n?: number;
 }
 
-/** A liked collection in "put likes in order": how many of its songs stand elsewhere than liked */
+/** A liked collection (or receiving playlist) in "put likes in order": how many of its songs stand elsewhere than liked */
 export interface ReorderRow {
 	member_id: number;
 	service: Service;
+	kind: Kind;
 	name: string;
 	count: number;
 	moves: number;

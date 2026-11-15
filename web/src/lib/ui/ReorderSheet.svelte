@@ -24,6 +24,7 @@
 	// one song: unliked, liked again a little more than a second after the one before
 	const minutes = (n: number) => Math.max(1, Math.round((n * 1.6) / 60));
 	const total = $derived((rows ?? []).filter((r) => picked.has(r.member_id)).reduce((a, r) => a + r.moves, 0));
+	const playlists = $derived((rows ?? []).some((r) => r.kind === 'playlist'));
 	const youtube = $derived((rows ?? []).some((r) => r.service === 'ytm' && r.moves && picked.has(r.member_id)));
 
 	function toggle(id: number) {
@@ -85,7 +86,7 @@
 						{total ? t('reorder.go', { n: num(total) }) : t('reorder.pick')}
 					</button>
 				</div>
-				<p class="section-foot">{t('reorder.foot')}{youtube ? ` ${t('reorder.youtube')}` : ''}</p>
+				<p class="section-foot">{t('reorder.foot')}{playlists ? ` ${t('reorder.playlist')}` : ''}{youtube ? ` ${t('reorder.youtube')}` : ''}</p>
 			</div>
 		{/if}
 	</div>

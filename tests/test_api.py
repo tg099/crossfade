@@ -542,7 +542,7 @@ def test_new_fade_keeps_its_deletion_settings(admin):
     assert (row["delete_confirm"], row["delete_guard_min"], row["delete_guard_ratio"]) == (0, 7, 0.3)
 
 
-def test_reorder_takes_only_your_liked_collections(admin, monkeypatch):
+def test_reorder_takes_your_liked_collections_and_receiving_playlists(admin, monkeypatch):
     from crossfade.api import lines as lines_api
     uid = get_db().val("SELECT id FROM users WHERE username='tristan'")
     connect_fake(uid, "spotify")
@@ -569,7 +569,9 @@ def test_reorder_takes_only_your_liked_collections(admin, monkeypatch):
     assert admin.post(f"/api/lines/{lid}/reorder", json={}, headers=H).status_code == 200
     assert admin.post(f"/api/lines/{lid}/reorder", json={"preview": False, "member_ids": [liked, playlist]},
                       headers=H).status_code == 200
-    assert started == [(lid, uid, False, {liked}), (lid, uid, True, {liked})]
+    assert started == [(lid, uid, False, {liked, playlist}), (lid, uid, True, {liked, playlist})]
+    # a playlist that sends keeps its own order
+    get_db().run("UPDATE line_members SET role='both' WHERE id=?", (playlist,))
     r = admin.post(f"/api/lines/{lid}/reorder", json={"member_ids": [playlist]}, headers=H)
     assert r.status_code == 400
     assert admin.delete(f"/api/lines/{lid}", headers=H).status_code == 200

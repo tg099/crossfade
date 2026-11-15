@@ -298,3 +298,33 @@ def test_friends_board_counts_brought_songs_and_respects_opt_out():
     assert emil.put("/api/auth/me", json={"share_stats": False}, headers=H).json()["user"]["share_stats"] is False
     assert dana.get("/api/friends/board").json()["people"] == []
     assert emil.get("/api/friends/board").json() == {"enabled": False, "days": 7, "people": []}
+
+
+def test_friend_puts_their_own_playlist_in_a_fade_in_order(monkeypatch):
+    """A friend's receiving playlist in someone's fade: the friend can put it in like order, the
+    fade's owner can't touch it."""
+    from crossfade.api import lines as lines_api
+    suffix = str(int(time.time() * 1000) % 100000)
+    (owner, owner_id), (guest, guest_id) = person(f"ida{suffix}", "Ida"), person(f"jon{suffix}", "Jon")
+    befriend(owner, guest, f"jon{suffix}")
+    f = fade(owner, "Ida's likes", [{"service": "ytm", "kind": "liked", "collection_name": "Likes", "role": "send"}])
+    owner.post(f"/api/lines/{f['id']}/invites", json={"user_id": guest_id}, headers=H)
+    inv = guest.get("/api/friends").json()["invites"][0]
+    assert guest.post(f"/api/invites/{inv['id']}/accept", json={
+        "service": "apple", "kind": "playlist", "collection_id": "pl.jon", "collection_name": "From Ida",
+        "role": "receive"}, headers=H).status_code == 200
+    line = approve(owner, f["id"], guest_id)
+    own_likes = next(m["id"] for m in line["members"] if m["kind"] == "liked")
+    jons = next(m["id"] for m in line["members"] if m["kind"] == "playlist")
+    started = []
+
+    class W:
+        def start_reorder(self, line_id, user_id, apply, member_ids):
+            started.append((user_id, member_ids))
+            return True
+
+    monkeypatch.setattr(lines_api, "get_worker", lambda: W())
+    assert guest.post(f"/api/lines/{f['id']}/reorder", json={}, headers=H).status_code == 200
+    assert owner.post(f"/api/lines/{f['id']}/reorder", json={"member_ids": [jons]}, headers=H).status_code == 400
+    assert owner.post(f"/api/lines/{f['id']}/reorder", json={}, headers=H).status_code == 200
+    assert started == [(guest_id, {jons}), (owner_id, {own_likes})]

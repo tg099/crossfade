@@ -168,6 +168,9 @@ Each fade remembers which songs it knows and where it last saw them.
   date where a service tells it, otherwise by the songs around them. Likes already out of order can be put right
   on the fade (**Put likes in the order you liked them**): Crossfade shows per liked collection how many songs
   stand elsewhere and moves the ones you pick by unliking and liking them again, one at a time, never losing one.
+  A playlist that only receives likes (yours, or your own playlist in a friend's fade) can be put in order the same
+  way, earliest like first: songs out of place are removed and added again at the end. Only the playlist's owner can
+  do that.
 - **Time travel:** every time Crossfade reads a whole collection it remembers its content, only when something
   changed. In the library (clock icon) or on a collection in a fade you pick a point in time, see what is gone and
   what came in since, and bring back single songs or reset the collection to exactly that state. The last 7 days

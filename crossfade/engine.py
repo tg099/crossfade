@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 from . import history, matcher
 from .db import Database
 from .identity import Identity
-from .models import APPLE, LIKED, SERVICE_NAMES, ApiError, AuthError, Track
+from .models import APPLE, LIKED, PLAYLIST, SERVICE_NAMES, ApiError, AuthError, Track
 from .providers.base import Provider
 from .sorting import Sorter
 
@@ -825,10 +825,23 @@ class LineSync:
                 "unmatched": [{"member_id": u["member_id"], "song_id": u["song_id"], **u["track"]} for u in unmatched]}
 
     # ================================================================ order of liked songs
+    @staticmethod
+    def reorderable(row: dict, members: list[dict] | None = None) -> bool:
+        """Liked collections, and playlists that only receive (their order is the fade's, not the
+        person's own). With `members`: a playlist only in a fade where liked songs send."""
+        if row["kind"] == LIKED:
+            return True
+        if row["kind"] != PLAYLIST or row["role"] != "receive":
+            return False
+        return members is None or any(m["kind"] == LIKED and m["role"] in ("both", "send") for m in members)
+
     def reorder(self, apply: bool, member_ids: set[int] | None = None) -> RunResult:
         """Bring liked collections into the order the songs were liked (like_times). Services only
         put a liked song on top (by liking it again), so every song out of place is unliked and liked
         again, one by one, oldest first; the songs already in order at the bottom stay where they are.
+        A receiving playlist gets the order the fade adds songs in (_order: by like date, oldest
+        first): a playlist only appends, so songs out of place are removed and added again at the end,
+        the ones already in order at the top stay.
 
         Never loses a song: it is liked again right after (with retries); if that fails the run stops
         and the next sync adds it again. Songs a service doesn't list right after are marked as on
@@ -841,10 +854,11 @@ class LineSync:
             return RunResult("error", str(e))
         self._check_stop()
         self._merge_across_services()
+        all_rows = [x.row for x in self.members]
         targets = [m for m in self.members
-                   if m.row["kind"] == LIKED and (member_ids is None or m.id in member_ids)]
-        moves = {m.id: self._moves(m) for m in targets}
-        rows = [{"member_id": m.id, "service": m.service, "name": m.row["collection_name"],
+                   if self.reorderable(m.row, all_rows) and (member_ids is None or m.id in member_ids)]
+        moves = {m.id: self._moves(m) if m.row["kind"] == LIKED else self._playlist_moves(m) for m in targets}
+        rows = [{"member_id": m.id, "service": m.service, "kind": m.row["kind"], "name": m.row["collection_name"],
                  "count": len(m.current), "moves": len(moves[m.id])} for m in targets]
         res = RunResult("preview", summary={"reorder": rows})
         if not apply:
@@ -899,12 +913,13 @@ class LineSync:
     _last_like = 0.0
 
     def _like_again(self, m: MemberState, entries: list[Track]) -> tuple[bool, str | None]:
-        """Like the entries again (a few tries). (ok, auth error message)."""
+        """Like (or add to the playlist) the entries again (a few tries). (ok, auth error message)."""
         for attempt in range(3):
-            wait = self.REORDER_GAP - (time.monotonic() - self._last_like)
-            if wait > 0:
-                time.sleep(wait)
-            self._last_like = time.monotonic()
+            if m.row["kind"] == LIKED:      # a playlist keeps the order songs were added in anyway
+                wait = self.REORDER_GAP - (time.monotonic() - self._last_like)
+                if wait > 0:
+                    time.sleep(wait)
+                self._last_like = time.monotonic()
             try:
                 if not m.provider.add(m.row["kind"], m.row["collection_id"], entries):
                     return True, None
@@ -931,6 +946,33 @@ class LineSync:
                 break
             keep, above = keep + 1, sid
         return list(reversed(target[:len(target) - keep]))
+
+    def _playlist_moves(self, m: MemberState) -> list[int]:
+        """The songs to add again at the end of playlist `m`, in order, so it reads like the fade
+        adds songs (_order). Songs no sender lists (put there by the person) keep their place after
+        the song above them; the songs that already stand in order at the top stay."""
+        listed = sorted(m.pos, key=m.pos.get)                 # as listed now: top first
+        ranked = sorted((sid for sid in listed if self._sent(sid)), key=self._order)
+        if not ranked:
+            return []
+        rank = {sid: k for k, sid in enumerate(ranked)}
+        key: dict[int, tuple[int, int, int]] = {}
+        anchor = -1
+        for sid in listed:
+            if sid in rank:
+                anchor = rank[sid]
+                key[sid] = (anchor, 0, m.pos[sid])
+            else:
+                key[sid] = (anchor, 1, m.pos[sid])
+        target = sorted(listed, key=key.get)
+        keep = 0                          # the longest start of target still standing in that order
+        for sid in listed:
+            if keep < len(target) and sid == target[keep]:
+                keep += 1
+        return target[keep:]
+
+    def _sent(self, sid: int) -> bool:
+        return any(x.sends and sid in x.pos for x in self.members)
 
     def _settle_moved(self, m: MemberState, moved: set[int], lost: list[int]) -> None:
         """After liking songs again: one the service doesn't list yet counts as on its way (not as

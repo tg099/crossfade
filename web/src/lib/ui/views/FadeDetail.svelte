@@ -199,7 +199,15 @@
 	}
 
 	// ---------------------------------------------------------------- likes in the order they were liked
-	const reorderable = $derived(!!fade && fade.members.length > 1 && fade.members.some((m) => m.mine && m.kind === 'liked'));
+	// your liked collections, and your playlists that only receive in a fade where likes send (also
+	// in a friend's fade: a friend's playlist is only ever put in order by the friend)
+	const likesSend = $derived(!!fade && fade.members.some((m) => m.kind === 'liked' && m.role !== 'receive'));
+	const reorderOwn = $derived(
+		!fade || fade.members.length < 2
+			? []
+			: fade.members.filter((m) => m.mine && (m.kind === 'liked' || (m.kind === 'playlist' && m.role === 'receive' && likesSend)))
+	);
+	const reorderable = $derived(reorderOwn.length > 0);
 	async function startReorder() {
 		ui.reorder = { line_id: id, rows: null };
 		ui.reorderOpen = true;
@@ -534,7 +542,7 @@
 						<ul class="group reorder">
 							<li>
 								<button class="cell" onclick={startReorder} disabled={!!fade.job || !!fault}>
-									<span class="grow tintc">{t('reorder.button')}</span>
+									<span class="grow tintc">{t(reorderOwn.every((m) => m.kind === 'liked') ? 'reorder.button' : reorderOwn.some((m) => m.kind === 'liked') ? 'reorder.buttonAll' : 'reorder.buttonPlaylist')}</span>
 									<Glyph name="updown" size={18} weight={2.4} />
 								</button>
 							</li>
