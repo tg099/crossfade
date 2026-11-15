@@ -505,6 +505,10 @@
 		padding: 0;
 		list-style: none;
 	}
+	/* cards side by side share one height, even when one title wraps */
+	.att li {
+		display: flex;
+	}
 	.att-card {
 		display: flex;
 		align-items: center;
@@ -676,6 +680,10 @@
 		.att,
 		.tpls {
 			grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+		}
+		/* a card on the next row keeps the same height as the ones above */
+		.att {
+			grid-auto-rows: 1fr;
 		}
 		.shelf {
 			margin: 0 -36px;
